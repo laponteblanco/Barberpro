@@ -1,0 +1,53 @@
+{
+  "estadisticas_hoy": {
+    "citas_totales": 24,
+    "completadas": 14,
+    "ingresos_dia": 485000,
+    "ingresos_mes": 12450000,
+    "total_clientes": 850,
+    "clientes_nuevos": 4,
+    "porcentaje_ocupacion": 92
+  },
+  "proximas_citas": [
+    {
+      "id": "APT-1025",
+      "hora": "11:00 AM",
+      "nombre_cliente": "Carlos Rodríguez",
+      "servicio": "Corte Moderno + Barba",
+      "precio": 45000,
+      "estado": "pendiente"
+    },
+    {
+      "id": "APT-1026",
+      "hora": "11:30 AM",
+      "nombre_cliente": "Andrés Felipe",
+      "servicio": "Corte Clásico",
+      "precio": 35000,
+      "estado": "confirmada"
+    },
+    {
+      "id": "APT-1027",
+      "hora": "12:15 PM",
+      "nombre_cliente": "Sebastián Gómez",
+      "servicio": "Corte de Cabello + Lavado",
+      "precio": 40000,
+      "estado": "confirmada"
+    },
+    {
+      "id": "APT-1028",
+      "hora": "01:00 PM",
+      "nombre_cliente": "Juan Manuel",
+      "servicio": "Perfilado de Barba",
+      "precio": 25000,
+      "estado": "pendiente"
+    },
+    {
+      "id": "APT-1029",
+      "hora": "01:45 PM",
+      "nombre_cliente": "Mateo Torres",
+      "servicio": "Corte + Diseño (Tribal)",
+      "precio": 55000,
+      "estado": "confirmada"
+    }
+  ]
+}

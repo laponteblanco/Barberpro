@@ -1,0 +1,232 @@
+@config "../../tailwind.config.ts";
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 6%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 6%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 38 95% 58%;       /* amber gold */
+    --primary-glow: 38 95% 58% / 0.4;
+    --primary-foreground: 0 0% 5%;
+    --secondary: 0 0% 10%;
+    --secondary-foreground: 0 0% 90%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 55%;
+    --accent: 38 95% 58%;
+    --accent-foreground: 0 0% 5%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14%;
+    --input: 0 0% 10%;
+    --ring: 38 95% 58%;
+    --radius: 0.75rem;
+    --sidebar-bg: 0 0% 5%;
+    --sidebar-border: 0 0% 10%;
+  }
+
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 6%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 6%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 38 95% 58%;
+    --primary-foreground: 0 0% 5%;
+    --secondary: 0 0% 10%;
+    --secondary-foreground: 0 0% 90%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 55%;
+    --accent: 38 95% 58%;
+    --accent-foreground: 0 0% 5%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14%;
+    --input: 0 0% 10%;
+    --ring: 38 95% 58%;
+  }
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--background));
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground));
+  }
+}
+
+@layer utilities {
+  /* Enhanced Glass Morphism */
+  .glass {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(12px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .glass-card {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(25px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 
+      0 8px 32px 0 rgba(0, 0, 0, 0.6),
+      0 0 40px -10px hsla(var(--primary-glow));
+  }
+
+  /* Antigravity Floating Background */
+  .antigravity-bg {
+    background: 
+      radial-gradient(circle at 50% -20%, hsla(var(--primary), 0.15), transparent 40%),
+      radial-gradient(circle at 0% 100%, hsla(var(--primary), 0.05), transparent 25%),
+      hsl(var(--background));
+    position: relative;
+    overflow: hidden;
+  }
+
+  .antigravity-bg::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    opacity: 0.03;
+    pointer-events: none;
+  }
+
+  /* Floating Animation */
+  @keyframes float {
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+    100% { transform: translateY(0px); }
+  }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  .animate-float-slow {
+    animation: float 8s ease-in-out infinite;
+  }
+
+  .animate-float-delayed {
+    animation: float 6s ease-in-out infinite 2s;
+  }
+
+  /* Pulsing Amber Glow */
+  @keyframes pulse-glow {
+    0% { box-shadow: 0 0 0 0 hsla(var(--primary), 0.4); }
+    70% { box-shadow: 0 0 0 15px hsla(var(--primary), 0); }
+    100% { box-shadow: 0 0 0 0 hsla(var(--primary), 0); }
+  }
+
+  .animate-pulse-glow {
+    animation: pulse-glow 2s infinite;
+  }
+
+  /* Gold gradient text */
+  .text-gradient {
+    background: linear-gradient(135deg, hsl(38 95% 68%), hsl(38 95% 45%));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Glow effects */
+  .glow-primary {
+    box-shadow: 0 0 20px hsl(38 95% 58% / 0.25);
+  }
+
+  .glow-sm {
+    box-shadow: 0 0 10px hsl(38 95% 58% / 0.15);
+  }
+
+  /* Stat card gradient */
+  .stat-gradient {
+    background: linear-gradient(
+      135deg,
+      rgba(255, 183, 77, 0.08) 0%,
+      rgba(255, 183, 77, 0.02) 100%
+    );
+  }
+
+  /* Animated pulse dot */
+  .pulse-dot {
+    position: relative;
+  }
+  .pulse-dot::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
+    background-color: hsl(var(--primary) / 0.4);
+  }
+
+  /* Sidebar item active */
+  .sidebar-active {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--primary) / 0.15),
+      transparent
+    );
+    border-right: 2px solid hsl(var(--primary));
+  }
+}
+
+/* Keyframe animations */
+@keyframes slide-in-from-right {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slide-in-from-top {
+  from { transform: translateY(-10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes fade-up {
+  from { transform: translateY(16px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes scale-in {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes loading-bar {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(0); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-slide-right { animation: slide-in-from-right 0.35s ease-out; }
+.animate-slide-top { animation: slide-in-from-top 0.25s ease-out; }
+.animate-fade-up { animation: fade-up 0.4s ease-out; }
+.animate-scale-in { animation: scale-in 0.2s ease-out; }
