@@ -48,7 +48,7 @@ export const getSession = cache(async () => {
   }
 
   // Fallback para administradores sin vínculo explícito en tenant_staff
-  const isAdmin = user.user_metadata?.role === "admin";
+  const isAdmin = user.user_metadata?.role === "admin" || user.user_metadata?.role === "superadmin";
   const tenantData = fallbackRes.data as any;
 
   if (isAdmin && tenantData) {

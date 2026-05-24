@@ -11,7 +11,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   
   // 1. Identificar rol
   const role = staff?.role ?? user.user_metadata?.role ?? "admin";
-  const isAdmin = role === "admin";
+  const isAdmin = role === "admin" || role === "superadmin";
   
   if (!staff && !isAdmin) {
     redirect("/");

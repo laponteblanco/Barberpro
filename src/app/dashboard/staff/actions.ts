@@ -8,7 +8,7 @@ export async function addStaffAction(formData: FormData) {
   const { tenantId, user: currentUser, staff } = await getSession();
 
   // SEGURIDAD: Solo admins o dueños pueden gestionar el staff
-  const isAuthorized = staff?.role === "admin" || staff?.role === "owner" || currentUser?.user_metadata?.role === "admin";
+  const isAuthorized = staff?.role === "admin" || staff?.role === "owner" || currentUser?.user_metadata?.role === "admin" || currentUser?.user_metadata?.role === "superadmin";
   if (!tenantId || !currentUser || !isAuthorized) {
     throw new Error("No autorizado para gestionar el personal.");
   }
@@ -145,7 +145,7 @@ export async function editStaffAction(formData: FormData) {
   const { tenantId, user: currentUser, staff } = await getSession();
 
   // SEGURIDAD: Solo admins o dueños pueden gestionar el staff
-  const isAuthorized = staff?.role === "admin" || staff?.role === "owner" || currentUser?.user_metadata?.role === "admin";
+  const isAuthorized = staff?.role === "admin" || staff?.role === "owner" || currentUser?.user_metadata?.role === "admin" || currentUser?.user_metadata?.role === "superadmin";
   if (!tenantId || !currentUser || !isAuthorized) {
     throw new Error("No autorizado para gestionar el personal.");
   }
@@ -249,7 +249,7 @@ export async function deleteStaffAction(staffId: string) {
   const { tenantId, user: currentUser, staff } = await getSession();
 
   // SEGURIDAD: Solo admins o dueños pueden gestionar el staff
-  const isAuthorized = staff?.role === "admin" || staff?.role === "owner" || currentUser?.user_metadata?.role === "admin";
+  const isAuthorized = staff?.role === "admin" || staff?.role === "owner" || currentUser?.user_metadata?.role === "admin" || currentUser?.user_metadata?.role === "superadmin";
   if (!tenantId || !currentUser || !isAuthorized) {
     throw new Error("No autorizado para eliminar personal.");
   }
