@@ -92,20 +92,33 @@ export default async function StaffPage() {
                     </div>
                   </td>
                   <td className="px-8 py-6">
-                    <div className="space-y-1">
-                      <p className="text-sm font-bold text-white">
-                        {member.compensation_type === 'rent' ? (
-                          `$${member.rent_amount || 0}`
-                        ) : member.compensation_type === 'both' ? (
-                          `${member.commission_rate || 0}% + $${member.rent_amount || 0}`
-                        ) : (
-                          `${member.commission_rate || 0}%`
-                        )}
-                      </p>
-                      <p className="text-[10px] text-zinc-500 font-medium uppercase tracking-widest">
-                        {member.compensation_type === 'rent' ? 'Alquiler Fijo' : member.compensation_type === 'both' ? 'Mixto' : 'Por Comisión'}
-                      </p>
-                    </div>
+                    {(() => {
+                      const hasCustomDaily = member.daily_commission_rates && 
+                        Object.values(member.daily_commission_rates).some(v => Number(v) !== Number(member.commission_rate || 0));
+                      
+                      return (
+                        <div className="space-y-1">
+                          <p className="text-sm font-bold text-white">
+                            {member.compensation_type === 'rent' ? (
+                              `$${member.rent_amount || 0}`
+                            ) : member.compensation_type === 'both' ? (
+                              `${member.commission_rate || 0}% ${hasCustomDaily ? "(Var.)" : ""} + $${member.rent_amount || 0}`
+                            ) : (
+                              `${member.commission_rate || 0}% ${hasCustomDaily ? "(Variable)" : ""}`
+                            )}
+                          </p>
+                          <p className="text-[10px] text-zinc-500 font-medium uppercase tracking-widest">
+                            {member.compensation_type === 'rent' ? (
+                              'Alquiler Fijo'
+                            ) : member.compensation_type === 'both' ? (
+                              `Mixto ${hasCustomDaily ? "• Días personalizados" : ""}`
+                            ) : (
+                              `Comisión ${hasCustomDaily ? "• Días personalizados" : "Fija"}`
+                            )}
+                          </p>
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="px-8 py-6 text-center">
                     {member.access_pin ? (

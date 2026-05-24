@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, X, User, Scissors, Percent, Shield, Loader2, Camera, CheckCircle2 } from "lucide-react";
+import { Plus, X, User, Scissors, Percent, Shield, Loader2, Camera, CheckCircle2, Calendar } from "lucide-react";
 import { addStaffAction } from "../../app/dashboard/staff/actions";
 
 export function AddStaffDialog() {
@@ -11,9 +11,21 @@ export function AddStaffDialog() {
   const [preview, setPreview] = useState<string | null>(null);
   const [createdPin, setCreatedPin] = useState<string | null>(null);
 
+  // Daily commission states
+  const [generalCommission, setGeneralCommission] = useState("0");
+  const [dailyCommissions, setDailyCommissions] = useState<Record<string, string>>({
+    "0": "0", "1": "0", "2": "0", "3": "0", "4": "0", "5": "0", "6": "0"
+  });
+  const [showDailySettings, setShowDailySettings] = useState(false);
+
   const handleClose = () => {
     setIsOpen(false);
     setCreatedPin(null);
+    setGeneralCommission("0");
+    setDailyCommissions({
+      "0": "0", "1": "0", "2": "0", "3": "0", "4": "0", "5": "0", "6": "0"
+    });
+    setShowDailySettings(false);
     if (createdPin) window.location.reload();
   };
 
@@ -28,11 +40,32 @@ export function AddStaffDialog() {
     }
   };
 
+  const handleGeneralCommissionChange = (val: string) => {
+    const clean = val.replace(/[^0-9]/g, "");
+    setGeneralCommission(clean);
+    setDailyCommissions({
+      "0": clean, "1": clean, "2": clean, "3": clean, "4": clean, "5": clean, "6": clean
+    });
+  };
+
+  const handleDailyCommissionChange = (day: string, val: string) => {
+    const clean = val.replace(/[^0-9]/g, "");
+    setDailyCommissions(prev => ({
+      ...prev,
+      [day]: clean
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     const formData = new FormData(e.currentTarget);
     
+    // Append the daily commission values to FormData
+    Object.entries(dailyCommissions).forEach(([day, value]) => {
+      formData.set(`daily_commission_${day}`, value || generalCommission || "0");
+    });
+
     try {
       const result = await addStaffAction(formData);
       
@@ -53,6 +86,16 @@ export function AddStaffDialog() {
     }
   };
 
+  const daysOfWeek = [
+    { id: "1", name: "Lunes" },
+    { id: "2", name: "Martes" },
+    { id: "3", name: "Miércoles" },
+    { id: "4", name: "Jueves" },
+    { id: "5", name: "Viernes" },
+    { id: "6", name: "Sábado" },
+    { id: "0", name: "Domingo" }
+  ];
+
   return (
     <>
       <button 
@@ -64,7 +107,7 @@ export function AddStaffDialog() {
 
       {isOpen && (
         <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 sm:items-center bg-black/60 backdrop-blur-md animate-in fade-in duration-300 overflow-y-auto pt-10 sm:pt-4">
-          <div className="w-full max-w-md bg-[#121214] border border-white/10 rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col my-auto">
+          <div className="w-full max-w-lg bg-[#121214] border border-white/10 rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col my-auto">
             
             {createdPin ? (
               <div className="p-10 text-center space-y-8 animate-in zoom-in duration-500">
@@ -102,7 +145,7 @@ export function AddStaffDialog() {
                 </div>
 
                 <div className="overflow-y-auto custom-scrollbar max-h-[70vh]">
-                  <form onSubmit={handleSubmit} className="p-8 space-y-7">
+                  <form onSubmit={handleSubmit} className="p-8 space-y-6">
                     {/* Avatar Upload */}
                     <div className="flex flex-col items-center gap-4">
                       <div className="relative group">
@@ -172,13 +215,14 @@ export function AddStaffDialog() {
                         {(compType === 'percentage' || compType === 'both') && (
                           <div className="space-y-2.5 animate-in slide-in-from-top-2 duration-300">
                             <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 flex items-center gap-2 ml-1">
-                              <Percent className="w-3 h-3 text-emerald-500/70" /> Comisión (%)
+                              <Percent className="w-3 h-3 text-emerald-500/70" /> Comisión General (%)
                             </label>
                             <input 
                               name="commission_rate" 
                               type="number" 
                               placeholder="Ej: 40" 
-                              defaultValue="0"
+                              value={generalCommission}
+                              onChange={(e) => handleGeneralCommissionChange(e.target.value)}
                               className="w-full h-12 px-5 bg-zinc-900/50 border border-emerald-500/10 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all text-white"
                             />
                           </div>
@@ -198,6 +242,43 @@ export function AddStaffDialog() {
                           </div>
                         )}
                       </div>
+
+                      {/* --- SECCION DE DIAS PARA COMISIONES --- */}
+                      {(compType === 'percentage' || compType === 'both') && (
+                        <div className="space-y-3 pt-2 border-t border-white/5 animate-in fade-in duration-300">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 flex items-center gap-2 ml-1">
+                              <Calendar className="w-3.5 h-3.5 text-primary" /> Comisiones por Día de la Semana
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => setShowDailySettings(!showDailySettings)}
+                              className="text-[9px] font-black uppercase tracking-wider text-primary hover:underline"
+                            >
+                              {showDailySettings ? "Ocultar detalles" : "Configurar días individuales"}
+                            </button>
+                          </div>
+
+                          {showDailySettings && (
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-black/30 p-4 rounded-2xl border border-white/5 animate-in zoom-in-95 duration-200">
+                              {daysOfWeek.map((day) => (
+                                <div key={day.id} className="space-y-1">
+                                  <label className="text-[9px] font-bold text-zinc-400 ml-1">{day.name}</label>
+                                  <div className="relative">
+                                    <input
+                                      type="number"
+                                      value={dailyCommissions[day.id] || "0"}
+                                      onChange={(e) => handleDailyCommissionChange(day.id, e.target.value)}
+                                      className="w-full h-10 px-3 bg-zinc-900/80 border border-white/5 rounded-xl text-xs outline-none text-white text-right pr-6 font-bold"
+                                    />
+                                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-zinc-500">%</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       <div className="space-y-2.5">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 flex items-center gap-2 ml-1">

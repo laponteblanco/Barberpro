@@ -100,11 +100,17 @@ export default function HomePage() {
     setLoading(true);
     setError(null);
 
-    const formData = new FormData(e.currentTarget);
-    const result = await loginAction(formData);
+    try {
+      const formData = new FormData(e.currentTarget);
+      const result = await loginAction(formData);
 
-    if (result?.error) {
-      setError(result.error);
+      if (result?.error) {
+        setError(result.error);
+        setLoading(false);
+      }
+    } catch (err: any) {
+      console.error("Client Error:", err);
+      setError("Error de conexión. Por favor, intenta nuevamente.");
       setLoading(false);
     }
   }

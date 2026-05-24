@@ -3,6 +3,22 @@
 import { X, Scissors, DollarSign, CheckCircle2, User, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+const getBogotaTime = (dateStr: string) => {
+  const d = new Date(dateStr);
+  const utc = d.getTime();
+  const bogotaDate = new Date(utc - (5 * 3600000));
+  return {
+    hour: bogotaDate.getUTCHours(),
+    min: bogotaDate.getUTCMinutes(),
+    yyyy: bogotaDate.getUTCFullYear(),
+    mm: String(bogotaDate.getUTCMonth() + 1).padStart(2, '0'),
+    dd: String(bogotaDate.getUTCDate()).padStart(2, '0'),
+    hhStr: String(bogotaDate.getUTCHours()).padStart(2, '0'),
+    minStr: String(bogotaDate.getUTCMinutes()).padStart(2, '0'),
+    dayIndex: bogotaDate.getUTCDay()
+  };
+};
+
 interface StaffSummaryDialogProps {
   barber: any;
   appointments: any[];
@@ -13,7 +29,14 @@ export function StaffSummaryDialog({ barber, appointments, onClose }: StaffSumma
   const completedAppts = appointments.filter(a => a.status === 'completed' || a.status === 'confirmed');
   
   const totalValue = completedAppts.reduce((acc, a) => acc + (a.service?.price || 0), 0);
-  const commissionValue = totalValue * (barber.commission_rate / 100);
+  
+  // Calculate exact commissions based on day of week for each appointment
+  const commissionValue = completedAppts.reduce((acc, appt) => {
+    const price = Number(appt.service?.price || 0);
+    const dayIndex = getBogotaTime(appt.start_time).dayIndex;
+    const rate = barber.daily_commission_rates?.[String(dayIndex)] ?? barber.commission_rate ?? 0;
+    return acc + (price * (rate / 100));
+  }, 0);
 
   const formatter = new Intl.NumberFormat('es-CO', {
     style: 'currency',
@@ -82,7 +105,15 @@ export function StaffSummaryDialog({ barber, appointments, onClose }: StaffSumma
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-black text-emerald-400">{formatter.format(appt.service?.price || 0)}</p>
-                    <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-tighter">Comisión: {formatter.format((appt.service?.price || 0) * (barber.commission_rate / 100))}</p>
+                    {(() => {
+                      const dayIndex = getBogotaTime(appt.start_time).dayIndex;
+                      const rate = barber.daily_commission_rates?.[String(dayIndex)] ?? barber.commission_rate ?? 0;
+                      return (
+                        <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-tighter">
+                          Comisión ({rate}%): {formatter.format((appt.service?.price || 0) * (rate / 100))}
+                        </p>
+                      );
+                    })()}
                   </div>
                 </div>
               ))
@@ -93,7 +124,7 @@ export function StaffSummaryDialog({ barber, appointments, onClose }: StaffSumma
         {/* Footer */}
         <div className="p-6 bg-zinc-900/50 border-t border-white/5 text-center shrink-0">
           <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-widest">
-            {completedAppts.length} servicios totales hoy · Comisión del {barber.commission_rate}% aplicada
+            {completedAppts.length} servicios totales hoy · Comisión específica por días aplicada
           </p>
         </div>
       </div>

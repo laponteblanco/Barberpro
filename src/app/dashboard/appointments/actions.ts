@@ -156,7 +156,7 @@ export async function updateAppointmentTimeAction(appointmentId: string, newStar
   return { success: true };
 }
 
-export async function updateAppointmentStatusAction(appointmentId: string, status: string) {
+export async function updateAppointmentStatusAction(appointmentId: string, status: string, paymentMethod?: string) {
   const { tenantId } = await getSession();
   if (!tenantId) throw new Error("No hay sesión activa");
 
@@ -187,9 +187,14 @@ export async function updateAppointmentStatusAction(appointmentId: string, statu
     console.log(`[DELETE] Rows affected: ${count}`);
     console.log(`[DELETE] Successfully deleted appointment ${appointmentId}`);
   } else {
+    const updates: any = { status };
+    if (paymentMethod) {
+      updates.payment_method = paymentMethod;
+    }
+
     const { error } = await (adminSupabase as any)
       .from("appointments")
-      .update({ status })
+      .update(updates)
       .eq("id", appointmentId)
       .eq("tenant_id", tenantId);
 

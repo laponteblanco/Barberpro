@@ -14,6 +14,7 @@ import {
   LogOut,
   ChevronRight,
   List,
+  Coins,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -23,6 +24,7 @@ const navItems = [
   { icon: Users, label: "Clientes", href: "/dashboard/clients" },
   { icon: Scissors, label: "Staff", href: "/dashboard/staff" },
   { icon: Package, label: "Inventario", href: "/dashboard/inventory" },
+  { icon: Coins, label: "Caja", href: "/dashboard/caja" },
   { icon: List, label: "Servicios", href: "/dashboard/services" },
   { icon: BarChart3, label: "Reportes", href: "/dashboard/reports" },
   { icon: MessageSquare, label: "WhatsApp", href: "/dashboard/whatsapp" },

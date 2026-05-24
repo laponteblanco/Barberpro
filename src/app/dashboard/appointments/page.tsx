@@ -59,7 +59,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
     adminSupabase.from("clients").select("id, full_name, id_number").eq("tenant_id", tenantId).order("full_name"),
     adminSupabase
       .from("tenant_staff")
-      .select("id, role, commission_rate, compensation_type, rent_amount, profiles(full_name, avatar_url)")
+      .select("id, role, commission_rate, daily_commission_rates, compensation_type, rent_amount, profiles(full_name, avatar_url)")
       .eq("tenant_id", tenantId)
       .eq("is_active", true)
       .match(isBarber ? { id: sessionStaff.id } : { role: "barber" }),
@@ -75,6 +75,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
     display_name: s.profiles?.full_name || "Sin nombre",
     avatar_url: s.profiles?.avatar_url,
     commission_rate: s.commission_rate || 0,
+    daily_commission_rates: s.daily_commission_rates || {},
     compensation_type: s.compensation_type,
     rent_amount: s.rent_amount || 0,
     role: s.role

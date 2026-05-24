@@ -91,9 +91,20 @@ export async function addStaffAction(formData: FormData) {
   }
 
   // 3. Link to tenant_staff with generated PIN
+  // 3. Link to tenant_staff with generated PIN and daily commissions
   const access_pin = Math.floor(100000 + Math.random() * 900000).toString();
 
-  const { error: staffError } = await (adminSupabase as any).from("tenant_staff").upsert({
+  const daily_commission_rates = {
+    "0": parseFloat(formData.get("daily_commission_0")?.toString() || formData.get("commission_rate")?.toString() || "0"),
+    "1": parseFloat(formData.get("daily_commission_1")?.toString() || formData.get("commission_rate")?.toString() || "0"),
+    "2": parseFloat(formData.get("daily_commission_2")?.toString() || formData.get("commission_rate")?.toString() || "0"),
+    "3": parseFloat(formData.get("daily_commission_3")?.toString() || formData.get("commission_rate")?.toString() || "0"),
+    "4": parseFloat(formData.get("daily_commission_4")?.toString() || formData.get("commission_rate")?.toString() || "0"),
+    "5": parseFloat(formData.get("daily_commission_5")?.toString() || formData.get("commission_rate")?.toString() || "0"),
+    "6": parseFloat(formData.get("daily_commission_6")?.toString() || formData.get("commission_rate")?.toString() || "0")
+  };
+
+  const staffData: any = {
     tenant_id: tenantId,
     user_id: authUserId,
     role,
@@ -101,8 +112,25 @@ export async function addStaffAction(formData: FormData) {
     commission_rate,
     rent_amount,
     access_pin,
-    is_active: true
-  }, { onConflict: 'tenant_id, user_id' });
+    is_active: true,
+    daily_commission_rates
+  };
+
+  let { error: staffError } = await (adminSupabase as any)
+    .from("tenant_staff")
+    .upsert(staffData, { onConflict: 'tenant_id, user_id' });
+
+  if (staffError) {
+    console.warn("Staff insert with daily_commission_rates failed, retrying without it:", staffError);
+    const fallbackData = { ...staffData };
+    delete fallbackData.daily_commission_rates;
+
+    const fallbackRes = await (adminSupabase as any)
+      .from("tenant_staff")
+      .upsert(fallbackData, { onConflict: 'tenant_id, user_id' });
+    
+    staffError = fallbackRes.error;
+  }
 
   if (staffError) {
     console.error("Staff Insert Error:", staffError);
@@ -168,14 +196,45 @@ export async function editStaffAction(formData: FormData) {
     return { error: `Error al actualizar perfil: ${profileError.message}` };
   }
 
-  // 2. Update tenant_staff
-  const { error: staffError } = await (adminSupabase as any).from("tenant_staff").update({
+  // 2. Update tenant_staff with daily commissions
+  const daily_commission_rates = {
+    "0": parseFloat(formData.get("daily_commission_0")?.toString() || formData.get("commission_rate")?.toString() || "0"),
+    "1": parseFloat(formData.get("daily_commission_1")?.toString() || formData.get("commission_rate")?.toString() || "0"),
+    "2": parseFloat(formData.get("daily_commission_2")?.toString() || formData.get("commission_rate")?.toString() || "0"),
+    "3": parseFloat(formData.get("daily_commission_3")?.toString() || formData.get("commission_rate")?.toString() || "0"),
+    "4": parseFloat(formData.get("daily_commission_4")?.toString() || formData.get("commission_rate")?.toString() || "0"),
+    "5": parseFloat(formData.get("daily_commission_5")?.toString() || formData.get("commission_rate")?.toString() || "0"),
+    "6": parseFloat(formData.get("daily_commission_6")?.toString() || formData.get("commission_rate")?.toString() || "0")
+  };
+
+  const updateData: any = {
     role,
     compensation_type,
     commission_rate,
     rent_amount,
-    is_active
-  }).eq("id", staff_id).eq("tenant_id", tenantId);
+    is_active,
+    daily_commission_rates
+  };
+
+  let { error: staffError } = await (adminSupabase as any)
+    .from("tenant_staff")
+    .update(updateData)
+    .eq("id", staff_id)
+    .eq("tenant_id", tenantId);
+
+  if (staffError) {
+    console.warn("Staff update with daily_commission_rates failed, retrying without it:", staffError);
+    const fallbackData = { ...updateData };
+    delete fallbackData.daily_commission_rates;
+
+    const fallbackRes = await (adminSupabase as any)
+      .from("tenant_staff")
+      .update(fallbackData)
+      .eq("id", staff_id)
+      .eq("tenant_id", tenantId);
+    
+    staffError = fallbackRes.error;
+  }
 
   if (staffError) {
     console.error("Staff Update Error:", staffError);

@@ -50,7 +50,8 @@ const getBogotaTime = (dateStr: string) => {
     mm: String(bogotaDate.getUTCMonth() + 1).padStart(2, '0'),
     dd: String(bogotaDate.getUTCDate()).padStart(2, '0'),
     hhStr: String(bogotaDate.getUTCHours()).padStart(2, '0'),
-    minStr: String(bogotaDate.getUTCMinutes()).padStart(2, '0')
+    minStr: String(bogotaDate.getUTCMinutes()).padStart(2, '0'),
+    dayIndex: bogotaDate.getUTCDay()
   };
 };
 
@@ -70,6 +71,8 @@ export function CalendarView({
   const [summaryBarber, setSummaryBarber] = useState<any | null>(null);
   const [currentTime, setCurrentTime] = useState(getBogotaNow());
   const [mounted, setMounted] = useState(false);
+  const [showPaymentSelector, setShowPaymentSelector] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState("cash");
 
   useEffect(() => {
     setMounted(true);
@@ -167,16 +170,38 @@ export function CalendarView({
       acc.total++;
       if (appt.status === 'completed' || appt.status === 'confirmed') {
         acc.completed++;
-        acc.earnings += (appt.service?.price || 0);
+        
+        const price = Number(appt.service?.price || 0);
+        const dayIndex = getBogotaTime(appt.start_time).dayIndex;
+        const commissionRate = Number(appt.staff?.daily_commission_rates?.[String(dayIndex)] ?? appt.staff?.commission_rate ?? 0);
+        const compensationType = appt.staff?.compensation_type || 'percentage';
+
+        if (viewMode === "days") {
+          // Vista del Barbero: Muestra su propia ganancia
+          if (compensationType === 'rent') {
+            acc.earnings += price;
+          } else {
+            acc.earnings += (price * (commissionRate / 100));
+          }
+        } else {
+          // Vista de Administrador/Barbería: Muestra la ganancia neta de la barbería
+          if (compensationType === 'rent') {
+            // El barbero con renta fija no genera comisión directa para el local en esta cita
+            acc.earnings += 0;
+          } else {
+            acc.earnings += (price * (1 - commissionRate / 100));
+          }
+        }
       }
       return acc;
     }, { total: 0, completed: 0, earnings: 0 });
   }, [appointments, selectedDate, viewMode]);
 
-  const updateStatus = async (id: string, status: string) => {
+  const updateStatus = async (id: string, status: string, paymentMethod?: string) => {
     try {
-      await updateAppointmentStatusAction(id, status);
+      await updateAppointmentStatusAction(id, status, paymentMethod);
       setSelectedAppt(null);
+      setShowPaymentSelector(false);
       window.location.reload();
     } catch (err: any) {
       alert(err.message || "Error");
@@ -188,6 +213,7 @@ export function CalendarView({
     try {
       await updateAppointmentStatusAction(id, "deleted");
       setSelectedAppt(null);
+      setShowPaymentSelector(false);
       window.location.reload();
     } catch (err: any) {
       alert(err.message || "Error");
@@ -238,7 +264,9 @@ export function CalendarView({
             <DollarSign className="w-4 h-4 text-yellow-500" />
           </div>
           <div>
-            <p className="text-[9px] font-black text-zinc-500 uppercase tracking-tighter">Ganancia {viewMode === "days" ? "Semana" : "Día"}</p>
+            <p className="text-[9px] font-black text-zinc-500 uppercase tracking-tighter">
+              {viewMode === "days" ? "Mi Comisión (Semana)" : "Ganancia Local (Día)"}
+            </p>
             <p className="text-sm font-black text-yellow-500">
               {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(globalStats.earnings)}
             </p>
@@ -275,7 +303,8 @@ export function CalendarView({
                 const earnings = completedAppts.reduce((acc, appt) => {
                   const price = appt.service?.price || 0;
                   const barber = staff.find(s => s.id === col.staffId);
-                  const rate = barber?.commission_rate || 0;
+                  const dayIndex = getBogotaTime(appt.start_time).dayIndex;
+                  const rate = barber?.daily_commission_rates?.[String(dayIndex)] ?? barber?.commission_rate ?? 0;
                   return acc + (price * (rate / 100));
                 }, 0);
 
@@ -298,9 +327,23 @@ export function CalendarView({
                       )}
                     </div>
                     <div className="flex flex-col items-start min-w-0 flex-1">
-                      <span className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-300 group-hover/h:text-white transition-colors truncate w-full text-left">
-                        {col.label}
-                      </span>
+                      {(() => {
+                        const barber = staff.find(s => s.id === col.staffId);
+                        const dayIndex = getBogotaTime(col.date + "T12:00:00").dayIndex;
+                        const rate = barber?.daily_commission_rates?.[String(dayIndex)] ?? barber?.commission_rate ?? 0;
+                        return (
+                          <div className="flex items-center gap-1.5 w-full">
+                            <span className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-300 group-hover/h:text-white transition-colors truncate flex-1 text-left">
+                              {col.label}
+                            </span>
+                            {col.type === 'staff' && barber?.compensation_type !== 'rent' && (
+                              <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[8px] font-black tracking-widest shrink-0 animate-in fade-in duration-300">
+                                {rate}%
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                       <div className="flex items-center justify-between w-full mt-1.5">
                         <div className="flex flex-col items-start">
                           <span className="text-[8px] font-black text-zinc-500 uppercase tracking-tighter">Citas</span>
@@ -415,25 +458,96 @@ export function CalendarView({
           <div className="w-full max-w-sm bg-[#121214] border border-white/10 rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 h-fit my-auto">
             <div className="flex items-center justify-between px-6 py-5 border-b border-white/5 bg-zinc-900/50">
               <h3 className="font-bold text-white tracking-tight">Detalles de la Cita</h3>
-              <button onClick={() => setSelectedAppt(null)} className="p-2 hover:bg-white/10 rounded-xl text-zinc-400">
+              <button 
+                onClick={() => {
+                  setSelectedAppt(null);
+                  setShowPaymentSelector(false);
+                  setPaymentMethod("cash");
+                }} 
+                className="p-2 hover:bg-white/10 rounded-xl text-zinc-400"
+              >
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
               </button>
             </div>
             <div className="p-6 space-y-6">
-              <div className="space-y-1">
-                <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black">Cliente</p>
-                <p className="font-bold text-lg">{selectedAppt.client?.full_name}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black">Horario</p>
-                <p className="font-medium text-sm">
-                  {new Date(selectedAppt.start_time).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
-                </p>
-              </div>
-              <div className="pt-2 grid gap-3">
-                <button onClick={() => updateStatus(selectedAppt.id, 'completed')} className="w-full py-3.5 rounded-2xl bg-emerald-500 text-white font-black uppercase tracking-widest text-xs">Completar</button>
-                <button onClick={() => handleDelete(selectedAppt.id)} className="w-full py-3.5 rounded-2xl bg-zinc-800 text-zinc-300 font-black uppercase tracking-widest text-xs">Eliminar</button>
-              </div>
+              {!showPaymentSelector ? (
+                <>
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black">Cliente</p>
+                    <p className="font-bold text-lg">{selectedAppt.client?.full_name}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black">Horario</p>
+                    <p className="font-medium text-sm">
+                      {new Date(selectedAppt.start_time).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                  </div>
+                  <div className="pt-2 grid gap-3">
+                    <button 
+                      onClick={() => setShowPaymentSelector(true)} 
+                      className="w-full py-3.5 rounded-2xl bg-emerald-500 text-white font-black uppercase tracking-widest text-xs hover:scale-[1.01] active:scale-[0.99] transition-transform"
+                    >
+                      Completar
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(selectedAppt.id)} 
+                      className="w-full py-3.5 rounded-2xl bg-zinc-800 text-zinc-300 font-black uppercase tracking-widest text-xs hover:scale-[1.01] active:scale-[0.99] transition-transform"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-3">
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black mb-1">Seleccionar Método de Pago</p>
+                    <div className="grid gap-2">
+                      {[
+                        { id: "cash", label: "💵 Efectivo" },
+                        { id: "card", label: "💳 Tarjeta / Llave" },
+                        { id: "nequi", label: "📱 Nequi" },
+                        { id: "daviplata", label: "📱 Daviplata" },
+                        { id: "transfer", label: "🔄 Transferencia" },
+                      ].map((method) => (
+                        <button
+                          key={method.id}
+                          type="button"
+                          onClick={() => setPaymentMethod(method.id)}
+                          className={cn(
+                            "w-full px-4 py-3 rounded-xl border text-left font-semibold text-sm transition-all flex items-center justify-between",
+                            paymentMethod === method.id
+                              ? "bg-primary/10 border-primary text-white"
+                              : "bg-black/20 border-white/5 text-zinc-400 hover:border-white/10 hover:text-white"
+                          )}
+                        >
+                          <span>{method.label}</span>
+                          {paymentMethod === method.id && (
+                            <div className="w-2.5 h-2.5 rounded-full bg-primary shadow-[0_0_8px_rgba(234,179,8,0.5)] animate-pulse" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="pt-2 grid gap-3">
+                    <button 
+                      onClick={() => updateStatus(selectedAppt.id, 'completed', paymentMethod)} 
+                      className="w-full py-3.5 rounded-2xl bg-emerald-500 text-white font-black uppercase tracking-widest text-xs hover:scale-[1.01] active:scale-[0.99] transition-transform"
+                    >
+                      Confirmar Cierre
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setShowPaymentSelector(false);
+                        setPaymentMethod("cash");
+                      }} 
+                      className="w-full py-3.5 rounded-2xl bg-zinc-800 text-zinc-300 font-black uppercase tracking-widest text-xs hover:scale-[1.01] active:scale-[0.99] transition-transform"
+                    >
+                      Atrás
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
