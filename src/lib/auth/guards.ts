@@ -108,3 +108,23 @@ export async function getTenant(tenantId: string) {
   if (error || !data) throw new NotFoundError("Local");
   return data;
 }
+
+export async function requireSuperAdmin(): Promise<{ userId: string }> {
+  const supabase = await createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) throw new UnauthorizedError();
+
+  const db = supabase as any;
+
+  const { data: profile } = await db
+    .from("profiles")
+    .select("is_superadmin")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.is_superadmin) {
+    throw new ForbiddenError("Acceso exclusivo para Super Administradores");
+  }
+
+  return { userId: user.id };
+}

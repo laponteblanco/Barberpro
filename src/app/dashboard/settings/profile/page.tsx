@@ -9,7 +9,7 @@ export default async function ProfileSettingsPage() {
   const { user, tenantId, supabase } = await getSession();
 
   if (!user || !tenantId) {
-    redirect("/auth/login");
+    redirect("/");
   }
 
   const adminSupabase = await createAdminClient();

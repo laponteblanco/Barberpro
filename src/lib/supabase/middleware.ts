@@ -38,7 +38,7 @@ export async function updateSession(request: NextRequest) {
     url.pathname.startsWith("/features");
 
   if (!user && !isAuthPage && !isPublicPage) {
-    url.pathname = "/auth/login";
+    url.pathname = "/";
     return NextResponse.redirect(url);
   }
 

@@ -247,6 +247,13 @@ export function CalendarView({
       </div>
 
       <div className="flex-1 overflow-auto custom-scrollbar relative">
+        {calendarColumns.length === 0 ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 bg-zinc-950/50">
+            <User className="w-16 h-16 text-zinc-800 mb-4" />
+            <h3 className="text-xl font-bold text-white mb-2">No hay barberos para mostrar</h3>
+            <p className="text-zinc-500 text-sm max-w-md">Ve a la sección de Personal (Staff) en Ajustes para registrar a tus barberos y comenzar a agendar citas.</p>
+          </div>
+        ) : (
         <div className="min-w-max flex flex-col min-h-full pb-20">
           
           <div className="flex sticky top-0 z-20 border-b border-white/10 bg-zinc-900/95 backdrop-blur-2xl shadow-xl">
@@ -343,7 +350,7 @@ export function CalendarView({
                       onClick={() => setNewApptData({ staff_id: col.staffId as string, date: col.date as string, time: `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}` })}
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={(e) => handleDrop(e, col.staffId as string, hour, min, col.date)}
-                      className={cn("h-8 border-b border-white/5 hover:bg-white/[0.05] transition-colors relative cursor-pointer", min === 0 ? "border-b-white/10" : "border-b-white/[0.02]")}
+                      className={cn("h-8 border-b border-white/5 hover:bg-primary/20 hover:z-10 transition-colors relative cursor-pointer", min === 0 ? "border-b-white/10" : "border-b-white/[0.02]")}
                     />
                   ))}
 
@@ -391,6 +398,7 @@ export function CalendarView({
             </div>
           </div>
         </div>
+        )}
       </div>
 
       {newApptData && (

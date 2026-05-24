@@ -7,10 +7,12 @@ import { generateShortCode } from "@/lib/utils";
 export async function signUpAction(data: any) {
   const supabase = await createClient();
   const adminSupabase = await createAdminClient();
-  const { cedula, name, phone, password, role = 'admin' } = data;
+  const { cedula, name, phone, password, role = 'admin', email, shopName } = data;
   
-  // 1. Crear el usuario en Auth
+  // 1. Crear el usuario en Auth (usamos el virtual para mantener login por cédula, pero podríamos usar el real si quisieras. Por ahora conservamos la cédula para el login)
   const virtualEmail = `${cedula}@barberos.app`;
+  let newUser: any = null;
+
   const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
     email: virtualEmail,
     password: password,
@@ -22,9 +24,33 @@ export async function signUpAction(data: any) {
     }
   });
 
-  if (authError) return { error: authError.message };
+  if (authError) {
+    if (authError.message.includes("already been registered") || authError.message.includes("already exists")) {
+      // El usuario ya existe en Auth (por un intento fallido anterior). Lo recuperamos.
+      const { data: existingUsers } = await adminSupabase.auth.admin.listUsers();
+      const existingUser = existingUsers?.users?.find(u => u.email === virtualEmail);
 
-  const newUser = authData.user;
+      if (!existingUser) {
+        return { error: "El usuario ya está registrado, pero no se pudo recuperar la información de sesión." };
+      }
+      
+      // Actualizamos la contraseña y metadata del usuario existente por si acaso
+      await adminSupabase.auth.admin.updateUserById(existingUser.id, {
+        password: password,
+        user_metadata: {
+          full_name: name,
+          id_number: cedula,
+          role: role
+        }
+      });
+      
+      newUser = existingUser;
+    } else {
+      return { error: authError.message };
+    }
+  } else {
+    newUser = authData.user;
+  }
 
   // 2. Crear Perfil y flujo específico por rol
   if (newUser) {
@@ -35,7 +61,8 @@ export async function signUpAction(data: any) {
         id: newUser.id,
         full_name: name,
         id_number: cedula,
-        phone: phone
+        phone: phone,
+        email: email
       } as any);
       
     if (profileError) return { error: profileError.message };
@@ -46,9 +73,10 @@ export async function signUpAction(data: any) {
       const { data: tenant, error: tenantError } = await adminSupabase
         .from('tenants')
         .insert({
-          name: `Barbería de ${name}`,
-          slug: name.toLowerCase().replace(/\s+/g, '-'),
-          short_code: generateShortCode(name),
+          name: shopName,
+          slug: shopName.toLowerCase().replace(/\s+/g, '-'),
+          short_code: generateShortCode(shopName),
+          email: email,
           is_active: true
         } as any)
         .select()

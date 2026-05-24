@@ -180,62 +180,95 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
                     <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 flex items-center gap-2">
                       <User className="w-3 h-3 text-primary/70" /> Cliente
                     </label>
+                    <button
+                      type="button"
+                      onClick={() => setIsNewClient(!isNewClient)}
+                      className="text-[10px] font-bold text-primary hover:underline uppercase tracking-widest"
+                    >
+                      {isNewClient ? "Buscar existente" : "+ Nuevo Cliente"}
+                    </button>
                   </div>
 
-                  <div className="space-y-3">
-                    <div className="relative">
-                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                  {isNewClient ? (
+                    <div className="space-y-3 bg-zinc-900/50 p-4 rounded-2xl border border-white/5">
                       <input 
-                        key="search-client-input"
-                        type="text"
-                        placeholder="Buscar por nombre o cédula..."
-                        value={(selectedClient ? selectedClient.full_name : clientSearch) || ""}
-                        onChange={(e) => {
-                          setClientSearch(e.target.value);
-                          setSelectedClient(null);
-                        }}
-                        className="w-full h-12 pl-11 pr-4 bg-zinc-900/50 border border-white/5 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all text-white"
+                        name="new_client_name" 
+                        placeholder="Nombre completo *" 
+                        required={isNewClient}
+                        className="w-full h-10 px-4 bg-zinc-950 border border-white/5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/50 text-white" 
                       />
-                      {selectedClient && (
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            setSelectedClient(null);
-                            setClientSearch("");
-                          }}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-lg text-zinc-500"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                      <input 
+                        name="new_client_cedula" 
+                        placeholder="Cédula / Documento *" 
+                        required={isNewClient}
+                        className="w-full h-10 px-4 bg-zinc-950 border border-white/5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/50 text-white" 
+                      />
+                      <input 
+                        name="new_client_phone" 
+                        placeholder="Teléfono" 
+                        className="w-full h-10 px-4 bg-zinc-950 border border-white/5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/50 text-white" 
+                      />
                     </div>
-                    
-                    {clientSearch && !selectedClient && (
-                      <div className="bg-zinc-900/80 border border-white/10 rounded-2xl overflow-hidden max-h-[180px] overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
-                        {filteredClients.length === 0 ? (
-                          <p className="p-4 text-xs text-zinc-500 text-center">No se encontraron resultados</p>
-                        ) : (
-                          filteredClients.map((c: any) => (
-                            <button
-                              key={c.id}
-                              type="button"
-                              onClick={() => {
-                                setSelectedClient(c);
-                                setClientSearch("");
-                              }}
-                              className="w-full p-4 flex items-center justify-between hover:bg-primary/10 transition-colors border-b border-white/5 last:border-0"
-                            >
-                              <div className="text-left">
-                                <p className="text-sm font-bold text-white">{c.full_name}</p>
-                                <p className="text-[10px] text-zinc-500 font-medium uppercase tracking-widest mt-0.5">{c.id_number || 'Sin cédula'}</p>
-                              </div>
-                              <CheckCircle2 className="w-4 h-4 text-primary opacity-0 group-hover:opacity-100" />
-                            </button>
-                          ))
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="relative">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                        <input 
+                          key="search-client-input"
+                          type="text"
+                          placeholder="Buscar por nombre o cédula..."
+                          required={!isNewClient && !selectedClient}
+                          value={(selectedClient ? selectedClient.full_name : clientSearch) || ""}
+                          onChange={(e) => {
+                            setClientSearch(e.target.value);
+                            setSelectedClient(null);
+                          }}
+                          className="w-full h-12 pl-11 pr-4 bg-zinc-900/50 border border-white/5 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all text-white"
+                        />
+                        {selectedClient && (
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              setSelectedClient(null);
+                              setClientSearch("");
+                            }}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-lg text-zinc-500"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
                         )}
                       </div>
-                    )}
-                  </div>
+                      
+                      {clientSearch && !selectedClient && (
+                        <div className="bg-zinc-900/80 border border-white/10 rounded-2xl overflow-hidden max-h-[180px] overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
+                          {filteredClients.length === 0 ? (
+                            <div className="p-4 text-center">
+                              <p className="text-xs text-zinc-500 mb-2">No se encontraron resultados</p>
+                              <button type="button" onClick={() => setIsNewClient(true)} className="text-[10px] text-primary hover:underline font-bold uppercase tracking-widest">Crear nuevo cliente</button>
+                            </div>
+                          ) : (
+                            filteredClients.map((c: any) => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedClient(c);
+                                  setClientSearch("");
+                                }}
+                                className="w-full p-4 flex items-center justify-between hover:bg-primary/10 transition-colors border-b border-white/5 last:border-0"
+                              >
+                                <div className="text-left">
+                                  <p className="text-sm font-bold text-white">{c.full_name}</p>
+                                  <p className="text-[10px] text-zinc-500 font-medium uppercase tracking-widest mt-0.5">{c.id_number || 'Sin cédula'}</p>
+                                </div>
+                                <CheckCircle2 className="w-4 h-4 text-primary opacity-0 group-hover:opacity-100" />
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Resource Selection */}

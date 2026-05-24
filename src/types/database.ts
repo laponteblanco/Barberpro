@@ -7,11 +7,13 @@ export type Json =
   | Json[];
 
 export type SubscriptionPlan = "basic" | "premium" | "pro";
-export type SubscriptionStatus = "active" | "trialing" | "past_due" | "canceled" | "paused";
+export type SubscriptionStatus = "active" | "trialing" | "past_due" | "canceled" | "suspended" | "paused";
 export type AppointmentStatus = "pending" | "confirmed" | "in_progress" | "completed" | "cancelled" | "no_show";
 export type StaffRole = "owner" | "admin" | "barber" | "receptionist";
 export type PaymentMethod = "cash" | "card" | "transfer" | "whatsapp_pay";
 export type PaymentStatus = "pending" | "paid" | "partial" | "refunded";
+export type NotificationChannel = "whatsapp" | "email" | "both";
+export type NotificationStatus = "pending" | "sent" | "failed" | "skipped";
 
 export interface Database {
   public: {
@@ -59,10 +61,21 @@ export interface Database {
           tenant_id: string;
           plan: SubscriptionPlan;
           status: SubscriptionStatus;
-          trial_ends_at: string | null;
           current_period_start: string;
           current_period_end: string;
+          trial_ends_at: string | null;
+          price_paid: number;
+          currency: string;
+          payment_method: string;
+          payment_reference: string | null;
           cancel_at_period_end: boolean;
+          suspended_at: string | null;
+          suspended_reason: string | null;
+          max_staff: number;
+          max_services: number;
+          has_whatsapp: boolean;
+          has_analytics: boolean;
+          has_inventory: boolean;
           metadata: Json;
           created_at: string;
           updated_at: string;
@@ -157,14 +170,11 @@ export interface Database {
           tenant_id: string;
           name: string;
           description: string | null;
-          sku: string | null;
-          price: number;
-          cost: number;
+          retail_price: number;
+          cost_price: number | null;
           stock: number;
-          min_stock: number;
-          category: string;
+          low_stock_threshold: number;
           is_active: boolean;
-          image_url: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -207,6 +217,86 @@ export interface Database {
         Insert: Omit<Database["public"]["Tables"]["whatsapp_messages"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["whatsapp_messages"]["Insert"]>;
       };
+      platform_revenue: {
+        Row: {
+          id: string;
+          subscription_id: string;
+          tenant_id: string;
+          amount: number;
+          currency: string;
+          payment_method: string;
+          payment_reference: string | null;
+          period_start: string;
+          period_end: string;
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["platform_revenue"]["Row"], "id" | "created_at">;
+        Update: Partial<Database["public"]["Tables"]["platform_revenue"]["Insert"]>;
+      };
+      superadmin_audit_log: {
+        Row: {
+          id: string;
+          admin_user_id: string;
+          action: string;
+          target_type: string;
+          target_id: string | null;
+          old_data: Json | null;
+          new_data: Json | null;
+          ip_address: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["superadmin_audit_log"]["Row"], "id" | "created_at">;
+        Update: never;
+      };
+      impersonation_sessions: {
+        Row: {
+          id: string;
+          admin_user_id: string;
+          target_role: string;
+          target_tenant_id: string | null;
+          target_user_id: string | null;
+          started_at: string;
+          ended_at: string | null;
+          is_active: boolean;
+        };
+        Insert: Omit<Database["public"]["Tables"]["impersonation_sessions"]["Row"], "id">;
+        Update: Partial<Database["public"]["Tables"]["impersonation_sessions"]["Insert"]>;
+      };
+      license_notifications: {
+        Row: {
+          id: string;
+          subscription_id: string;
+          tenant_id: string;
+          channel: NotificationChannel;
+          trigger_type: string;
+          scheduled_for: string;
+          sent_at: string | null;
+          status: NotificationStatus;
+          error_message: string | null;
+          recipient_phone: string | null;
+          recipient_email: string | null;
+          message_content: string | null;
+          wa_message_id: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["license_notifications"]["Row"], "id" | "created_at">;
+        Update: Partial<Database["public"]["Tables"]["license_notifications"]["Insert"]>;
+      };
+      product_sales: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          product_id: string;
+          quantity: number;
+          unit_price: number;
+          total_price: number;
+          sold_by: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["product_sales"]["Row"], "id" | "created_at">;
+        Update: Partial<Database["public"]["Tables"]["product_sales"]["Insert"]>;
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -225,3 +315,8 @@ export type Appointment = Database["public"]["Tables"]["appointments"]["Row"];
 export type Product = Database["public"]["Tables"]["products"]["Row"];
 export type AuditLog = Database["public"]["Tables"]["audit_logs"]["Row"];
 export type WhatsAppMessage = Database["public"]["Tables"]["whatsapp_messages"]["Row"];
+export type PlatformRevenue = Database["public"]["Tables"]["platform_revenue"]["Row"];
+export type SuperAdminAuditLog = Database["public"]["Tables"]["superadmin_audit_log"]["Row"];
+export type ImpersonationSession = Database["public"]["Tables"]["impersonation_sessions"]["Row"];
+export type LicenseNotification = Database["public"]["Tables"]["license_notifications"]["Row"];
+export type ProductSale = Database["public"]["Tables"]["product_sales"]["Row"];

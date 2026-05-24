@@ -26,6 +26,8 @@ export const getSession = cache(async () => {
       .select("*, tenant:tenants(id, name, slug, logo_url)" as any)
       .eq("user_id", user.id)
       .eq("is_active", true)
+      .order("created_at", { ascending: false })
+      .limit(1)
       .maybeSingle(),
     adminSupabase
       .from("tenants")

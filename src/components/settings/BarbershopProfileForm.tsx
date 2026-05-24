@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Camera, Loader2, Check, Globe, MapPin, Coins, Link as LinkIcon, Phone, Mail, Map, Clock, Copy, ExternalLink } from "lucide-react";
+import { Camera, Loader2, Check, Globe, MapPin, Coins, Link as LinkIcon, Phone, Mail, Map, Clock, Copy, ExternalLink, Share2, Download } from "lucide-react";
 import { updateTenantProfile, type ProfileFormData } from "@/app/dashboard/settings/actions";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -155,7 +155,7 @@ export function BarbershopProfileForm({ initialData }: Props) {
                <ExternalLink className="w-4 h-4" /> Link de Reservas para Clientes
             </h4>
             
-            <div className="space-y-3 relative z-10">
+            <div className="space-y-4 relative z-10">
               <div className="p-4 rounded-2xl bg-zinc-950 border border-primary/20 flex items-center justify-between gap-3 group/link hover:border-primary/40 transition-colors">
                  <p className="text-xs font-mono text-zinc-400 truncate">
                     <span className="text-zinc-600">
@@ -176,9 +176,91 @@ export function BarbershopProfileForm({ initialData }: Props) {
                     <Copy className="w-4 h-4" />
                  </button>
               </div>
+
+              {/* QR Code Section */}
+              <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-zinc-950 border border-white/5 space-y-3">
+                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Código QR del Portal</p>
+                <div className="w-40 h-40 p-2 bg-zinc-900 rounded-xl border border-white/5 flex items-center justify-center overflow-hidden relative group/qr">
+                  <img 
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(typeof window !== "undefined" ? `${window.location.origin}/${watch("slug") || initialData.slug}` : "http://localhost:3000")}&color=eab308&bgcolor=18181b`} 
+                    alt="Código QR de reservas"
+                    className="w-full h-full object-contain rounded-lg transition-transform duration-300 group-hover/qr:scale-105"
+                  />
+                </div>
+                
+                {/* Sharing and Action Buttons */}
+                <div className="grid grid-cols-3 gap-2 w-full pt-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const url = `${window.location.origin}/${watch("slug") || initialData.slug}`;
+                      if (navigator.share) {
+                        try {
+                          await navigator.share({
+                            title: 'Reserva tu cita',
+                            text: 'Agenda tu cita en nuestra barbería fácilmente en este enlace:',
+                            url: url,
+                          });
+                        } catch (err) {
+                          console.error("Share failed:", err);
+                        }
+                      } else {
+                        navigator.clipboard.writeText(url);
+                        alert("¡Enlace copiado al portapapeles para compartir!");
+                      }
+                    }}
+                    className="flex flex-col items-center justify-center py-2 px-1 rounded-xl bg-white/5 border border-white/5 hover:bg-primary/10 hover:border-primary/20 text-zinc-400 hover:text-primary transition-all active:scale-95 text-[10px] font-bold gap-1 cursor-pointer"
+                    title="Compartir enlace"
+                  >
+                    <Share2 className="w-4 h-4" />
+                    <span>Compartir</span>
+                  </button>
+
+                  <a
+                    href={`https://wa.me/?text=${encodeURIComponent(`¡Hola! Agenda tu cita en nuestra barbería fácilmente ingresando aquí: ${typeof window !== "undefined" ? `${window.location.origin}/${watch("slug") || initialData.slug}` : ""}`)}`}
+                    target="_blank"
+                    className="flex flex-col items-center justify-center py-2 px-1 rounded-xl bg-white/5 border border-white/5 hover:bg-emerald-500/10 hover:border-emerald-500/20 text-zinc-400 hover:text-emerald-500 transition-all active:scale-95 text-[10px] font-bold gap-1"
+                    title="Enviar por WhatsApp"
+                  >
+                    <Phone className="w-4 h-4" />
+                    <span>WhatsApp</span>
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const url = `${window.location.origin}/${watch("slug") || initialData.slug}`;
+                        // We use a clean high-res black-and-white QR code for printing
+                        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(url)}&color=000000&bgcolor=ffffff`;
+                        
+                        const res = await fetch(qrUrl);
+                        const blob = await res.blob();
+                        const blobUrl = URL.createObjectURL(blob);
+                        
+                        const a = document.createElement('a');
+                        a.href = blobUrl;
+                        a.download = `qr_reservas_${watch("slug") || initialData.slug}.png`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(blobUrl);
+                      } catch (err) {
+                        console.error("QR download failed:", err);
+                        alert("Error al descargar el código QR");
+                      }
+                    }}
+                    className="flex flex-col items-center justify-center py-2 px-1 rounded-xl bg-white/5 border border-white/5 hover:bg-amber-500/10 hover:border-amber-500/20 text-zinc-400 hover:text-amber-500 transition-all active:scale-95 text-[10px] font-bold gap-1 cursor-pointer"
+                    title="Descargar código QR para imprimir"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Descargar</span>
+                  </button>
+                </div>
+              </div>
               
               <p className="text-[10px] text-zinc-500 leading-relaxed px-1">
-                 Envía este link a tus clientes por WhatsApp o publícalo en tu Instagram para que agenden solos.
+                 Envía este link a tus clientes por WhatsApp, compártelo en tus redes sociales o descarga el código QR para imprimirlo y colocarlo en tu mostrador.
               </p>
 
               <a 

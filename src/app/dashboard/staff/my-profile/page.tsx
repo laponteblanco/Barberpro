@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 
 export default async function BarberProfilePage() {
   const { tenantId } = await getSession();
-  if (!tenantId) redirect("/auth/login");
+  if (!tenantId) redirect("/");
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">

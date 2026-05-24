@@ -14,6 +14,7 @@ create table public.tenants (
   id          uuid primary key default uuid_generate_v4(),
   name        text not null,
   slug        text not null unique,
+  short_code  text unique, -- short code for staff login
   logo_url    text,
   phone       text,
   email       text,
@@ -57,6 +58,12 @@ create table public.tenant_staff (
   tenant_id      uuid not null references public.tenants(id) on delete cascade,
   user_id        uuid not null references public.profiles(id) on delete cascade,
   role           staff_role not null default 'barber',
+  display_name   text,
+  avatar_url     text,
+  phone          text,
+  access_pin     text, -- access pin for barber login
+  specialties    text[] not null default '{}',
+  working_hours  jsonb not null default '{}',
   is_active      boolean not null default true,
   is_available   boolean not null default true,
   created_at     timestamptz not null default now(),

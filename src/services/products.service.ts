@@ -45,10 +45,10 @@ export async function getDailySales(date?: Date) {
     .order("created_at", { ascending: false });
 
   if (error) {
-    if (error.code === 'PGRST204' || error.code === '42P01') {
+    if (['PGRST204', '42P01', 'PGRST200', '42703'].includes(error.code)) {
        return [];
     }
-    console.error("Error fetching sales:", error);
+    console.error("Error fetching sales:", error.message, error.code, error.details);
     return [];
   }
   return data;

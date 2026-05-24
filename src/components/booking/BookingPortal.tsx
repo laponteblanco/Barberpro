@@ -14,10 +14,11 @@ import {
   ArrowLeft,
   CalendarDays,
   Phone,
-  UserPlus
+  UserPlus,
+  XCircle
 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
-import { publicCreateAppointmentAction } from "@/app/[slug]/actions";
+import { publicCreateAppointmentAction, publicCancelAppointmentAction } from "@/app/[slug]/actions";
 
 interface BookingPortalProps {
   tenant: any;
@@ -33,6 +34,7 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
   const [client, setClient] = useState<any>(null);
   const [clientHistory, setClientHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [activeHistoryTab, setActiveHistoryTab] = useState<"upcoming" | "completed">("upcoming");
 
   // New Client fields
   const [newName, setNewName] = useState("");
@@ -78,6 +80,22 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
       alert("Hubo un problema al identificarte. Por favor intenta de nuevo.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const refreshClientData = async () => {
+    if (!idNumber) return;
+    try {
+      const res = await fetch(`/api/tenants/${tenant.id}/clients/identify?id_number=${idNumber}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.client) {
+          setClient(data.client);
+          setClientHistory(data.history || []);
+        }
+      }
+    } catch (err) {
+      console.error("Refresh client data failed:", err);
     }
   };
 
@@ -127,9 +145,30 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
           time: selectedTime
         }
       );
+      
+      // Refresh the history so the newly scheduled appointment shows up immediately
+      await refreshClientData();
+      
       setStep("success");
     } catch (err: any) {
       alert(err.message || "Error al agendar");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelAppointment = async (apptId: string) => {
+    if (!client?.id) return;
+    const confirmCancel = confirm("¿Estás seguro de que deseas cancelar esta cita?");
+    if (!confirmCancel) return;
+
+    setLoading(true);
+    try {
+      await publicCancelAppointmentAction(tenant.id, apptId, client.id);
+      alert("Cita cancelada con éxito.");
+      await refreshClientData();
+    } catch (err: any) {
+      alert(err.message || "Error al cancelar la cita");
     } finally {
       setLoading(false);
     }
@@ -186,72 +225,184 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
     </div>
   );
 
-  const renderHistory = () => (
-    <div className="max-w-2xl mx-auto py-12 px-6 animate-in fade-in slide-in-from-bottom-8 duration-700 pb-20">
-      <div className="flex items-center gap-4 mb-10">
-        <div className="w-16 h-16 rounded-2xl bg-primary/20 flex items-center justify-center text-primary border border-primary/20 shadow-xl shadow-primary/10">
-           <User className="w-8 h-8" />
-        </div>
-        <div>
-          <h2 className="text-2xl font-black">¡Hola, {client?.full_name?.split(' ')[0]}!</h2>
-          <p className="text-zinc-500 text-sm font-medium uppercase tracking-widest">Es bueno verte de nuevo</p>
-        </div>
-      </div>
+  const renderHistory = () => {
+    const now = new Date();
+    
+    // Filter and categorize client history based on status to avoid timezone/clock drift mismatches
+    const upcomingAppointments = clientHistory.filter(appt => {
+      return appt.status === "pending" || appt.status === "confirmed";
+    });
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
-        <div className="glass-card p-6 rounded-[32px] border-white/5 bg-zinc-900/20">
-           <div className="flex items-center gap-3 mb-4">
-              <History className="w-5 h-5 text-zinc-500" />
-              <h3 className="text-xs font-black uppercase tracking-widest text-zinc-400">Visitas Previas</h3>
-           </div>
-           <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-black text-white">{clientHistory.length}</span>
-              <span className="text-xs font-bold text-zinc-500 uppercase tracking-tighter">Servicios realizados</span>
-           </div>
-        </div>
+    const completedAppointments = clientHistory.filter(appt => {
+      const isPast = new Date(appt.start_time) <= now;
+      return appt.status === "completed" || (isPast && appt.status !== "cancelled" && appt.status !== "deleted" && appt.status !== "pending" && appt.status !== "confirmed");
+    });
 
-        <div className="glass-card p-6 rounded-[32px] border-white/5 bg-emerald-500/5">
-           <div className="flex items-center gap-3 mb-4">
-              <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-              <h3 className="text-xs font-black uppercase tracking-widest text-zinc-400">Estatus</h3>
-           </div>
-           <div className="text-xs font-black text-emerald-500 uppercase tracking-widest leading-relaxed">
-              Cliente Fiel • {tenant.name}
-           </div>
-        </div>
-      </div>
-
-      <div className="space-y-4 mb-12">
-        <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Historial Reciente</h3>
-        {clientHistory.slice(0, 3).map((appt) => (
-          <div key={appt.id} className="glass-card p-5 rounded-2xl border-white/5 bg-white/[0.02] flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-zinc-800 flex items-center justify-center text-zinc-400">
-                <Scissors className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-sm font-black text-white">{appt.service?.name}</p>
-                <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-tighter mt-1">
-                  {new Date(appt.start_time).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} • {appt.staff?.profiles?.full_name}
-                </p>
-              </div>
-            </div>
-            <div className="text-right">
-              <span className="text-xs font-black text-white/30">{formatCurrency(appt.total_price)}</span>
-            </div>
+    return (
+      <div className="max-w-2xl mx-auto py-12 px-6 animate-in fade-in slide-in-from-bottom-8 duration-700 pb-20">
+        <div className="flex items-center gap-4 mb-10">
+          <div className="w-16 h-16 rounded-2xl bg-primary/20 flex items-center justify-center text-primary border border-primary/20 shadow-xl shadow-primary/10">
+             <User className="w-8 h-8" />
           </div>
-        ))}
-      </div>
+          <div>
+            <h2 className="text-2xl font-black">¡Hola, {client?.full_name?.split(' ')[0]}!</h2>
+            <p className="text-zinc-500 text-sm font-medium uppercase tracking-widest">Es bueno verte de nuevo</p>
+          </div>
+        </div>
 
-      <button 
-        onClick={() => setStep("select-service")}
-        className="w-full bg-primary hover:bg-primary/90 text-white font-black uppercase tracking-[0.2em] py-5 rounded-[32px] transition-all shadow-xl shadow-primary/20 active:scale-95 flex items-center justify-center gap-3 text-sm group"
-      >
-        Reservar Nueva Cita
-        <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-      </button>
-    </div>
-  );
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+          <div className="glass-card p-6 rounded-[32px] border-white/5 bg-zinc-900/20">
+             <div className="flex items-center gap-3 mb-4">
+                <History className="w-5 h-5 text-zinc-500" />
+                <h3 className="text-xs font-black uppercase tracking-widest text-zinc-400">Visitas Previas</h3>
+             </div>
+             <div className="flex items-baseline gap-2">
+                <span className="text-4xl font-black text-white">{completedAppointments.length}</span>
+                <span className="text-xs font-bold text-zinc-500 uppercase tracking-tighter">Servicios realizados</span>
+             </div>
+          </div>
+
+          <div className="glass-card p-6 rounded-[32px] border-white/5 bg-emerald-500/5">
+             <div className="flex items-center gap-3 mb-4">
+                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                <h3 className="text-xs font-black uppercase tracking-widest text-zinc-400">Estatus</h3>
+             </div>
+             <div className="text-xs font-black text-emerald-500 uppercase tracking-widest leading-relaxed">
+                Cliente Fiel • {tenant.name}
+             </div>
+          </div>
+        </div>
+
+        {/* Tab Selector */}
+        <div className="flex bg-zinc-950/40 p-1.5 rounded-2xl border border-white/5 mb-8 gap-1">
+          <button
+            onClick={() => setActiveHistoryTab("upcoming")}
+            className={cn(
+              "flex-1 py-3 px-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2",
+              activeHistoryTab === "upcoming"
+                ? "bg-primary text-white shadow-lg shadow-primary/10"
+                : "text-zinc-500 hover:text-zinc-300"
+            )}
+          >
+            <Calendar className="w-4 h-4" />
+            Citas Programadas ({upcomingAppointments.length})
+          </button>
+          <button
+            onClick={() => setActiveHistoryTab("completed")}
+            className={cn(
+              "flex-1 py-3 px-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2",
+              activeHistoryTab === "completed"
+                ? "bg-primary text-white shadow-lg shadow-primary/10"
+                : "text-zinc-500 hover:text-zinc-300"
+            )}
+          >
+            <History className="w-4 h-4" />
+            Visitas Realizadas ({completedAppointments.length})
+          </button>
+        </div>
+
+        {/* List of Appointments based on selected tab */}
+        <div className="space-y-4 mb-12">
+          {activeHistoryTab === "upcoming" ? (
+            upcomingAppointments.length > 0 ? (
+              upcomingAppointments.map((appt) => (
+                <div key={appt.id} className="glass-card p-5 rounded-2xl border border-white/5 bg-white/[0.02] flex items-center justify-between hover:border-primary/20 transition-all">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/15 flex items-center justify-center text-primary">
+                      <Calendar className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-black text-white">{appt.service?.name}</p>
+                        <span className={cn(
+                          "text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full",
+                          appt.status === "confirmed" ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/10" : "bg-amber-500/10 text-amber-500 border border-amber-500/10"
+                        )}>
+                          {appt.status === "confirmed" ? "Confirmada" : "Pendiente"}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-tighter mt-1">
+                        {new Date(appt.start_time).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })} a las {new Date(appt.start_time).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false })} • {appt.staff?.display_name || appt.staff?.profiles?.full_name || "Cualquier barbero"}
+                      </p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <button
+                          onClick={() => handleCancelAppointment(appt.id)}
+                          className="flex items-center gap-1.5 text-[10px] font-black text-red-500/80 hover:text-red-400 transition-colors uppercase tracking-widest"
+                        >
+                          <XCircle className="w-3.5 h-3.5" />
+                          Cancelar Cita
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-black text-primary">{formatCurrency(appt.total_price)}</span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-10 glass-card rounded-3xl border border-white/5 bg-zinc-900/10 p-6">
+                <Calendar className="w-8 h-8 mx-auto mb-3 text-zinc-600 animate-pulse" />
+                <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">No tienes citas programadas próximamente</p>
+              </div>
+            )
+          ) : (
+            completedAppointments.length > 0 ? (
+              completedAppointments.map((appt) => (
+                <div key={appt.id} className="glass-card p-5 rounded-2xl border border-white/5 bg-white/[0.02] flex items-center justify-between hover:border-emerald-500/20 transition-all">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-zinc-800 flex items-center justify-center text-zinc-400">
+                      <Scissors className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-white">{appt.service?.name}</p>
+                      <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-tighter mt-1">
+                        {new Date(appt.start_time).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })} • {appt.staff?.display_name || appt.staff?.profiles?.full_name || "Cualquier barbero"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-black text-zinc-400">{formatCurrency(appt.total_price)}</span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-10 glass-card rounded-3xl border border-white/5 bg-zinc-900/10 p-6">
+                <History className="w-8 h-8 mx-auto mb-3 text-zinc-600 animate-pulse" />
+                <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Aún no tienes visitas completadas</p>
+              </div>
+            )
+          )}
+        </div>
+
+        {upcomingAppointments.length > 0 && (
+          <div className="flex items-center justify-center gap-2 p-4 bg-amber-500/10 border border-amber-500/15 rounded-2xl mb-6 text-amber-500 text-xs font-bold uppercase tracking-wider text-center animate-pulse">
+            ⚠️ Debes completar o cancelar tu cita actual antes de poder agendar otra.
+          </div>
+        )}
+
+        <button 
+          onClick={() => {
+            if (upcomingAppointments.length > 0) {
+              alert("Ya tienes una cita activa programada. Debes completar o cancelar tu cita actual antes de reservar una nueva.");
+              return;
+            }
+            setStep("select-service");
+          }}
+          disabled={upcomingAppointments.length > 0}
+          className={cn(
+            "w-full font-black uppercase tracking-[0.2em] py-5 rounded-[32px] transition-all flex items-center justify-center gap-3 text-sm group active:scale-95 shadow-xl",
+            upcomingAppointments.length > 0
+              ? "bg-zinc-800 text-zinc-500 border border-zinc-700/50 cursor-not-allowed shadow-none"
+              : "bg-primary hover:bg-primary/90 text-white shadow-primary/20"
+          )}
+        >
+          {upcomingAppointments.length > 0 ? "Tienes una Cita Activa" : "Reservar Nueva Cita"}
+          {upcomingAppointments.length === 0 && <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />}
+        </button>
+      </div>
+    );
+  };
 
   const renderServiceSelection = () => (
     <div className="max-w-2xl mx-auto py-12 px-6 animate-in fade-in slide-in-from-bottom-8 duration-700 pb-20">
@@ -539,7 +690,16 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
       </div>
 
       <button 
-        onClick={() => window.location.reload()}
+        onClick={() => {
+          setSelectedService(null);
+          setSelectedStaff(null);
+          setSelectedTime("");
+          if (idNumber) {
+            setStep("history");
+          } else {
+            setStep("identify");
+          }
+        }}
         className="w-full py-5 rounded-[32px] border border-white/10 text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-white hover:bg-white/5 transition-all"
       >
         Volver al Inicio

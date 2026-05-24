@@ -12,6 +12,33 @@ export async function publicCreateAppointmentAction(
 
   let client_id = clientData.id;
 
+  // Verify that the client_id actually exists in the clients table for this tenant
+  if (client_id) {
+    const { data: exists } = await (adminSupabase as any)
+      .from("clients")
+      .select("id")
+      .eq("id", client_id)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+
+    if (!exists) {
+      // If it doesn't exist in clients, check if it is a profile ID that is linked to a client
+      const { data: linkedClient } = await (adminSupabase as any)
+        .from("clients")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("user_id", client_id)
+        .maybeSingle();
+
+      if (linkedClient) {
+        client_id = linkedClient.id;
+      } else {
+        // If not found, reset client_id to null so it will be searched or created by cedula below
+        client_id = null;
+      }
+    }
+  }
+
   // 1. If no client ID provided, find or create in the CLIENTS table
   //    (not profiles — public clients don't have auth accounts)
   if (!client_id) {
@@ -26,11 +53,19 @@ export async function publicCreateAppointmentAction(
     if (existing) {
       client_id = existing.id;
     } else {
+      // Check if there is an existing profile for this cedula to proactively link it
+      const { data: profile } = await (adminSupabase as any)
+        .from("profiles")
+        .select("id")
+        .eq("id_number", clientData.cedula)
+        .maybeSingle();
+
       // Create a new client record (auto-generated UUID, no auth dependency)
       const { data: newClient, error: clientError } = await (adminSupabase as any)
         .from("clients")
         .insert({
           tenant_id: tenantId,
+          user_id: profile?.id || null,
           full_name: clientData.name,
           phone: clientData.phone,
           id_number: clientData.cedula
@@ -46,6 +81,23 @@ export async function publicCreateAppointmentAction(
     }
   }
 
+  // 1.5. Validate that client doesn't already have an active appointment (pending or confirmed)
+  const { data: activeAppointment, error: activeError } = await (adminSupabase as any)
+    .from("appointments")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("client_id", client_id)
+    .in("status", ["pending", "confirmed"])
+    .maybeSingle();
+
+  if (activeError) {
+    console.error("Error checking active appointments:", activeError);
+  }
+
+  if (activeAppointment) {
+    throw new Error("Ya tienes una cita activa programada. Completa o cancela tu cita antes de agendar otra.");
+  }
+
   // 2. Get service details
   const { data: service } = await (adminSupabase as any)
     .from("services")
@@ -57,6 +109,25 @@ export async function publicCreateAppointmentAction(
 
   const start_time = new Date(`${appointmentData.date}T${appointmentData.time}:00-05:00`);
   const end_time = new Date(start_time.getTime() + (service.duration_minutes || 30) * 60000);
+
+  // 2.5. Validate that barber (staff_id) doesn't have overlapping appointments
+  const { data: overlappingAppointment, error: overlapError } = await (adminSupabase as any)
+    .from("appointments")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("staff_id", appointmentData.staffId)
+    .in("status", ["pending", "confirmed"])
+    .lt("start_time", end_time.toISOString())
+    .gt("end_time", start_time.toISOString())
+    .maybeSingle();
+
+  if (overlapError) {
+    console.error("Error checking overlapping appointments:", overlapError);
+  }
+
+  if (overlappingAppointment) {
+    throw new Error("El barbero ya tiene una cita programada en este horario. Por favor selecciona otro espacio.");
+  }
 
   // 3. Insert appointment
   const { error } = await (adminSupabase as any).from("appointments").insert({
@@ -75,5 +146,41 @@ export async function publicCreateAppointmentAction(
   revalidatePath("/dashboard/appointments");
   revalidatePath(`/${tenantId}`);
   
+  return { success: true };
+}
+
+export async function publicCancelAppointmentAction(
+  tenantId: string,
+  appointmentId: string,
+  clientId: string
+) {
+  const adminSupabase = await createAdminClient();
+
+  // Verify the appointment belongs to the tenant and the client
+  const { data: appointment, error: fetchError } = await (adminSupabase as any)
+    .from("appointments")
+    .select("id")
+    .eq("id", appointmentId)
+    .eq("tenant_id", tenantId)
+    .eq("client_id", clientId)
+    .maybeSingle();
+
+  if (fetchError || !appointment) {
+    throw new Error("Cita no encontrada o no tienes permiso para cancelarla.");
+  }
+
+  // Update status to 'cancelled'
+  const { error: updateError } = await (adminSupabase as any)
+    .from("appointments")
+    .update({ status: 'cancelled' })
+    .eq("id", appointmentId);
+
+  if (updateError) {
+    throw new Error("No pudimos cancelar tu cita: " + updateError.message);
+  }
+
+  revalidatePath("/dashboard/appointments");
+  revalidatePath(`/${tenantId}`);
+
   return { success: true };
 }

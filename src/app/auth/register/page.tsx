@@ -3,7 +3,7 @@
 import { useState, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { UserPlus, ShieldCheck, Phone, CreditCard, ArrowRight, Loader2, Lock, User } from "lucide-react";
+import { UserPlus, ShieldCheck, Phone, CreditCard, ArrowRight, Loader2, Lock, User, Eye, EyeOff } from "lucide-react";
 import { signUpAction } from "./actions";
 
 function RegisterContent() {
@@ -13,6 +13,7 @@ function RegisterContent() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -25,13 +26,18 @@ function RegisterContent() {
     const phone = formData.get("phone") as string;
     const password = formData.get("password") as string;
 
+    const email = formData.get("email") as string;
+    const shopName = formData.get("shopName") as string;
+
     try {
       const result = await signUpAction({
         cedula,
         name,
         phone,
         password,
-        role
+        role,
+        email,
+        shopName
       });
 
       if (result.error) {
@@ -94,11 +100,42 @@ function RegisterContent() {
                 </div>
               </div>
 
+              {!isClient && (
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Nombre de la Barbería</label>
+                  <div className="relative">
+                    <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                    <input name="shopName" type="text" placeholder="Ej: BarberShop VIP" required className="w-full h-12 pl-12 pr-4 bg-white/5 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-primary transition-all" />
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Correo Electrónico</label>
+                <div className="relative">
+                  <UserPlus className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                  <input name="email" type="email" placeholder="ejemplo@correo.com" required className="w-full h-12 pl-12 pr-4 bg-white/5 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-primary transition-all" />
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Contraseña</label>
-                <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                  <input name="password" type="password" placeholder="••••••••" required className="w-full h-12 pl-12 pr-4 bg-white/5 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-primary transition-all" />
+                <div className="relative group">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 group-focus-within:text-primary transition-colors" />
+                  <input 
+                    name="password" 
+                    type={showPassword ? "text" : "password"} 
+                    placeholder="••••••••" 
+                    required 
+                    className="w-full h-12 pl-12 pr-12 bg-white/5 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-primary transition-all" 
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-zinc-500 hover:text-white focus:text-primary transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
             </div>
@@ -119,7 +156,7 @@ function RegisterContent() {
 
           <div className="mt-8 pt-8 border-t border-white/5 text-center">
             <p className="text-zinc-500 text-xs">
-              ¿Ya tienes cuenta? <Link href="/auth/login" className="text-primary font-bold hover:underline">Inicia sesión aquí</Link>
+              ¿Ya tienes cuenta? <Link href="/" className="text-primary font-bold hover:underline">Inicia sesión aquí</Link>
             </p>
           </div>
         </div>
