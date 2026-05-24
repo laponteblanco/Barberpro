@@ -15,7 +15,11 @@ import {
   CalendarDays,
   Phone,
   UserPlus,
-  XCircle
+  XCircle,
+  Cake,
+  Mail,
+  FileText,
+  CreditCard
 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { publicCreateAppointmentAction, publicCancelAppointmentAction } from "@/app/[slug]/actions";
@@ -39,6 +43,9 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
   // New Client fields
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
+  const [newBirthDate, setNewBirthDate] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newNotes, setNewNotes] = useState("");
 
   // Selections
   const [selectedService, setSelectedService] = useState<any>(null);
@@ -136,7 +143,10 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
           id: client?.id || null,
           name: client?.full_name || newName,
           phone: client?.phone || newPhone,
-          cedula: idNumber
+          cedula: idNumber,
+          birthDate: newBirthDate,
+          email: newEmail,
+          notes: newNotes
         },
         {
           staffId: selectedStaff.id,
@@ -612,31 +622,40 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
           </div>
         </div>
 
-        {/* If New Client, show registration fields */}
+        {/* If New Client, show read-only registration details summary */}
         {!client && (
-          <div className="pt-6 border-t border-white/5 space-y-6 animate-in fade-in duration-500">
+          <div className="pt-6 border-t border-white/5 space-y-4 animate-in fade-in duration-500">
             <div className="flex items-center gap-2 mb-2">
                <UserPlus className="w-4 h-4 text-primary" />
-               <h4 className="text-[10px] font-black uppercase tracking-widest text-primary">Información de Contacto</h4>
+               <h4 className="text-[10px] font-black uppercase tracking-widest text-primary">Datos de Registro</h4>
             </div>
-            <div className="space-y-4">
-              <input 
-                type="text" 
-                placeholder="Tu Nombre Completo"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                className="w-full bg-black/40 border border-white/5 rounded-xl p-4 text-sm font-bold focus:border-primary/50 transition-all"
-              />
-              <div className="relative">
-                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
-                <input 
-                  type="tel" 
-                  placeholder="Tu WhatsApp"
-                  value={newPhone}
-                  onChange={(e) => setNewPhone(e.target.value)}
-                  className="w-full bg-black/40 border border-white/5 rounded-xl p-4 pl-12 text-sm font-bold focus:border-primary/50 transition-all"
-                />
+            <div className="grid grid-cols-2 gap-4 bg-zinc-950/40 p-5 rounded-2xl border border-white/5 text-left">
+              <div>
+                <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Nombre Completo</p>
+                <p className="text-xs font-bold text-white truncate">{newName}</p>
               </div>
+              <div>
+                <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Teléfono / WhatsApp</p>
+                <p className="text-xs font-bold text-white truncate">{newPhone}</p>
+              </div>
+              {newBirthDate && (
+                <div>
+                  <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Fecha de Nacimiento</p>
+                  <p className="text-xs font-bold text-white truncate">{newBirthDate}</p>
+                </div>
+              )}
+              {newEmail && (
+                <div className="col-span-2">
+                  <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Email</p>
+                  <p className="text-xs font-bold text-white truncate">{newEmail}</p>
+                </div>
+              )}
+              {newNotes && (
+                <div className="col-span-2">
+                  <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Notas</p>
+                  <p className="text-xs font-bold text-white line-clamp-2">{newNotes}</p>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -709,90 +728,119 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
 
   const renderRegister = () => (
     <div className="max-w-md mx-auto pt-20 px-6 animate-in fade-in slide-in-from-bottom-8 duration-700 pb-20">
-      <div className="text-center mb-10">
-        <div className="w-24 h-24 mx-auto mb-6 rounded-[32px] overflow-hidden border-2 border-primary/20 p-1 shadow-2xl shadow-primary/10">
-           {tenant.logo_url ? (
-             <img src={tenant.logo_url} alt={tenant.name} className="w-full h-full object-cover rounded-[28px]" />
-           ) : (
-             <div className="w-full h-full bg-primary/10 flex items-center justify-center">
-                <Scissors className="w-10 h-10 text-primary" />
-             </div>
-           )}
+      <div className="glass-card rounded-[32px] border border-white/10 shadow-2xl overflow-hidden flex flex-col bg-[#121214]">
+        {/* Header */}
+        <div className="px-8 py-6 border-b border-white/5 flex items-center justify-between shrink-0 bg-zinc-900/50">
+          <div>
+            <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-3">
+              <UserPlus className="text-primary w-5 h-5" /> Registrar Cliente
+            </h2>
+            <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-1 font-medium">Añadir al directorio de la barbería</p>
+          </div>
         </div>
-        <h1 className="text-3xl font-black tracking-tight mb-2">Crear Cuenta</h1>
-        <p className="text-zinc-500 text-xs font-black uppercase tracking-widest">Completa tus datos como cliente</p>
-      </div>
 
-      <div className="glass-card p-8 rounded-[40px] border-white/5 bg-zinc-900/20 backdrop-blur-3xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-6 opacity-5">
-          <UserPlus className="w-32 h-32" />
-        </div>
-        
-        <div className="space-y-6 relative z-10">
-          <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Identificación (Cédula)</label>
+        {/* Form Body */}
+        <div className="p-8 space-y-7">
+          <div className="space-y-2.5">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 flex items-center gap-2 ml-1">
+              Nombre Completo
+            </label>
             <input 
-              type="text" 
-              value={idNumber}
-              disabled
-              className="w-full bg-black/20 border border-white/5 rounded-2xl py-4 px-4 text-lg font-bold text-zinc-400 focus:outline-none"
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              required
+              placeholder="Ej: Juan Pérez" 
+              className="w-full h-12 px-5 bg-zinc-900/50 border border-white/5 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all text-white" 
             />
           </div>
 
-          <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Nombre Completo</label>
-            <div className="relative group">
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-primary transition-colors">
-                <User className="w-5 h-5" />
-              </div>
-              <input 
-                type="text" 
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="Ej: Juan Pérez"
-                required
-                className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-lg font-bold focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all text-white"
-              />
-            </div>
+          <div className="space-y-2.5">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 flex items-center gap-2 ml-1">
+              <CreditCard className="w-3 h-3 text-primary/70" /> Cédula / ID
+            </label>
+            <input 
+              type="text"
+              value={idNumber}
+              disabled
+              placeholder="Ej: 12345678" 
+              className="w-full h-12 px-5 bg-zinc-900/30 border border-white/5 rounded-2xl text-sm outline-none text-zinc-400 cursor-not-allowed" 
+            />
           </div>
 
-          <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Número de WhatsApp</label>
-            <div className="relative group">
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-primary transition-colors">
-                <Phone className="w-5 h-5" />
-              </div>
-              <input 
-                type="tel" 
-                value={newPhone}
-                onChange={(e) => setNewPhone(e.target.value)}
-                placeholder="Ej: 3123456789"
-                required
-                className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-lg font-bold focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all text-white"
-              />
-            </div>
+          <div className="space-y-2.5">
+            <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-2 ml-1">
+              <Phone className="w-3 h-3 text-primary/70" /> Teléfono / WhatsApp
+            </label>
+            <input 
+              type="tel"
+              value={newPhone}
+              onChange={(e) => setNewPhone(e.target.value)}
+              required
+              placeholder="+57 300 000 0000" 
+              className="w-full h-12 px-5 bg-zinc-900/50 border border-white/5 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all text-white" 
+            />
           </div>
 
-          <div className="flex gap-4 pt-2">
+          <div className="space-y-2.5">
+            <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-2 ml-1">
+              <Cake className="w-3 h-3 text-primary/70" /> Fecha de Nacimiento
+            </label>
+            <input 
+              type="date"
+              value={newBirthDate}
+              onChange={(e) => setNewBirthDate(e.target.value)}
+              max={new Date(new Date().getTime() - (5 * 3600000)).toISOString().split('T')[0]}
+              className="w-full h-12 px-5 bg-zinc-900/50 border border-white/5 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all text-white [color-scheme:dark]" 
+            />
+          </div>
+
+          <div className="space-y-2.5">
+            <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-2 ml-1">
+              <Mail className="w-3 h-3 text-primary/70" /> Email (Opcional)
+            </label>
+            <input 
+              type="email"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              placeholder="cliente@correo.com" 
+              className="w-full h-12 px-5 bg-zinc-900/50 border border-white/5 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all text-white" 
+            />
+          </div>
+
+          <div className="space-y-2.5">
+            <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-2 ml-1">
+              <FileText className="w-3 h-3 text-primary/70" /> Notas (Opcional)
+            </label>
+            <textarea 
+              value={newNotes}
+              onChange={(e) => setNewNotes(e.target.value)}
+              placeholder="Preferencias de corte, alergias, etc..." 
+              className="w-full min-h-[100px] px-5 py-4 bg-zinc-900/50 border border-white/5 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all text-white resize-none" 
+            />
+          </div>
+
+          <div className="flex gap-4 pt-4 shrink-0">
             <button 
+              type="button"
               onClick={() => setStep("identify")}
-              className="px-6 py-4 rounded-2xl border border-white/5 hover:bg-white/5 text-zinc-400 font-bold transition-all"
+              className="h-14 px-6 rounded-2xl border border-white/5 hover:bg-white/5 text-zinc-400 font-bold transition-all text-xs uppercase tracking-widest"
             >
               Atrás
             </button>
             <button 
+              type="button"
               onClick={() => {
                 if (!newName || !newPhone) {
-                  alert("Por favor completa todos los campos obligatorios");
+                  alert("Por favor completa los campos obligatorios (*)");
                   return;
                 }
                 setStep("select-service");
               }}
               disabled={!newName || !newPhone}
-              className="flex-1 bg-primary hover:bg-primary/90 text-white font-black uppercase tracking-[0.2em] py-4 rounded-2xl transition-all shadow-xl shadow-primary/20 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+              className="flex-1 h-14 bg-gradient-to-r from-amber-500 to-amber-600 text-black font-black uppercase tracking-widest text-xs rounded-2xl flex items-center justify-center gap-2 hover:brightness-110 transition-all shadow-xl shadow-amber-500/20 active:scale-[0.98] disabled:opacity-50"
             >
-              Continuar
-              <ChevronRight className="w-5 h-5" />
+              Guardar Cliente
             </button>
           </div>
         </div>

@@ -5,7 +5,15 @@ import { revalidatePath } from "next/cache";
 
 export async function publicCreateAppointmentAction(
   tenantId: string,
-  clientData: { id: string | null; name: string; phone: string; cedula: string },
+  clientData: { 
+    id: string | null; 
+    name: string; 
+    phone: string; 
+    cedula: string; 
+    birthDate?: string; 
+    email?: string; 
+    notes?: string;
+  },
   appointmentData: { staffId: string; serviceId: string; date: string; time: string }
 ) {
   const adminSupabase = await createAdminClient();
@@ -68,7 +76,10 @@ export async function publicCreateAppointmentAction(
           user_id: profile?.id || null,
           full_name: clientData.name,
           phone: clientData.phone,
-          id_number: clientData.cedula
+          id_number: clientData.cedula,
+          birth_date: clientData.birthDate || null,
+          email: clientData.email || null,
+          notes: clientData.notes || null
         })
         .select("id")
         .single();
