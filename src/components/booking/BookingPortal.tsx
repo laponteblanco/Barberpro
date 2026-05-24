@@ -26,7 +26,7 @@ interface BookingPortalProps {
   services: any[];
 }
 
-type Step = "identify" | "history" | "select-service" | "select-staff" | "select-time" | "confirm" | "success";
+type Step = "identify" | "register" | "history" | "select-service" | "select-staff" | "select-time" | "confirm" | "success";
 
 export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
   const [step, setStep] = useState<Step>("identify");
@@ -73,7 +73,7 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
         setClientHistory(data.history || []);
         setStep("history");
       } else {
-        setStep("select-service");
+        setStep("register");
       }
     } catch (err: any) {
       console.error("Identification failed:", err);
@@ -707,9 +707,103 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
     </div>
   );
 
+  const renderRegister = () => (
+    <div className="max-w-md mx-auto pt-20 px-6 animate-in fade-in slide-in-from-bottom-8 duration-700 pb-20">
+      <div className="text-center mb-10">
+        <div className="w-24 h-24 mx-auto mb-6 rounded-[32px] overflow-hidden border-2 border-primary/20 p-1 shadow-2xl shadow-primary/10">
+           {tenant.logo_url ? (
+             <img src={tenant.logo_url} alt={tenant.name} className="w-full h-full object-cover rounded-[28px]" />
+           ) : (
+             <div className="w-full h-full bg-primary/10 flex items-center justify-center">
+                <Scissors className="w-10 h-10 text-primary" />
+             </div>
+           )}
+        </div>
+        <h1 className="text-3xl font-black tracking-tight mb-2">Crear Cuenta</h1>
+        <p className="text-zinc-500 text-xs font-black uppercase tracking-widest">Completa tus datos como cliente</p>
+      </div>
+
+      <div className="glass-card p-8 rounded-[40px] border-white/5 bg-zinc-900/20 backdrop-blur-3xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-6 opacity-5">
+          <UserPlus className="w-32 h-32" />
+        </div>
+        
+        <div className="space-y-6 relative z-10">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Identificación (Cédula)</label>
+            <input 
+              type="text" 
+              value={idNumber}
+              disabled
+              className="w-full bg-black/20 border border-white/5 rounded-2xl py-4 px-4 text-lg font-bold text-zinc-400 focus:outline-none"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Nombre Completo</label>
+            <div className="relative group">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-primary transition-colors">
+                <User className="w-5 h-5" />
+              </div>
+              <input 
+                type="text" 
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="Ej: Juan Pérez"
+                required
+                className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-lg font-bold focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all text-white"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Número de WhatsApp</label>
+            <div className="relative group">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-primary transition-colors">
+                <Phone className="w-5 h-5" />
+              </div>
+              <input 
+                type="tel" 
+                value={newPhone}
+                onChange={(e) => setNewPhone(e.target.value)}
+                placeholder="Ej: 3123456789"
+                required
+                className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-lg font-bold focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all text-white"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-4 pt-2">
+            <button 
+              onClick={() => setStep("identify")}
+              className="px-6 py-4 rounded-2xl border border-white/5 hover:bg-white/5 text-zinc-400 font-bold transition-all"
+            >
+              Atrás
+            </button>
+            <button 
+              onClick={() => {
+                if (!newName || !newPhone) {
+                  alert("Por favor completa todos los campos obligatorios");
+                  return;
+                }
+                setStep("select-service");
+              }}
+              disabled={!newName || !newPhone}
+              className="flex-1 bg-primary hover:bg-primary/90 text-white font-black uppercase tracking-[0.2em] py-4 rounded-2xl transition-all shadow-xl shadow-primary/20 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              Continuar
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="relative z-10 pb-20">
       {step === "identify" && renderIdentify()}
+      {step === "register" && renderRegister()}
       {step === "history" && renderHistory()}
       {step === "select-service" && renderServiceSelection()}
       {step === "select-staff" && renderStaffSelection()}
