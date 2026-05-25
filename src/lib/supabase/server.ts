@@ -4,12 +4,19 @@ import "server-only";
 import { cookies } from "next/headers";
 import type { Database } from "@/types/database";
 
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.warn('⚠️ Variables de Supabase no detectadas en el servidor de Netlify.');
+}
+
 export async function createClient() {
   const cookieStore = await cookies();
 
   return createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl || 'https://tufallback.supabase.co',
+    supabaseAnonKey || 'tufallback-anon-key',
     {
       cookies: {
         getAll() {
@@ -32,8 +39,8 @@ export async function createClient() {
 /** Admin client that bypasses RLS — use ONLY in trusted server contexts */
 export async function createAdminClient() {
   return createSupabaseClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    supabaseUrl || 'https://tufallback.supabase.co',
+    process.env.SUPABASE_SERVICE_ROLE_KEY || 'tufallback-service-key',
     {
       auth: {
         autoRefreshToken: false,
