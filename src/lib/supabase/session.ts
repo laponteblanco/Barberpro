@@ -47,17 +47,68 @@ export const getSession = cache(async () => {
     };
   }
 
-  // Fallback para administradores sin vínculo explícito en tenant_staff
+  // Fallback auto-reparador para administradores sin vínculo explícito en tenant_staff
   const isAdmin = user.user_metadata?.role === "admin" || user.user_metadata?.role === "superadmin";
-  const tenantData = fallbackRes.data as any;
 
-  if (isAdmin && tenantData) {
-    return {
-      user,
-      staff: { tenant: tenantData, role: 'admin' } as any,
-      tenantId: tenantData.id,
-      supabase,
-    };
+  if (isAdmin) {
+    let targetTenant = fallbackRes.data as any;
+
+    // Si no existe ninguna barbería en la base de datos, creamos una por defecto
+    if (!targetTenant) {
+      try {
+        const { generateShortCode } = await import("@/lib/utils");
+        const { data: newTenant } = await adminSupabase
+          .from("tenants")
+          .insert({
+            name: "Mi Barbería Principal",
+            slug: `shop-${user.id.slice(0, 5)}`,
+            short_code: generateShortCode("SHOP"),
+            is_active: true
+          } as any)
+          .select()
+          .single();
+        
+        targetTenant = newTenant;
+      } catch (e) {
+        console.error("Error al auto-crear tenant:", e);
+      }
+    }
+
+    if (targetTenant) {
+      try {
+        // Vinculamos permanentemente al administrador en tenant_staff
+        const { data: newStaff } = await adminSupabase
+          .from("tenant_staff")
+          .insert({
+            tenant_id: targetTenant.id,
+            user_id: user.id,
+            display_name: user.user_metadata?.full_name || "Administrador",
+            role: 'admin',
+            is_active: true
+          } as any)
+          .select("*, tenant:tenants(id, name, slug, logo_url)")
+          .single();
+
+        if (newStaff) {
+          return {
+            user,
+            staff: newStaff as any,
+            tenantId: targetTenant.id,
+            supabase,
+          };
+        }
+      } catch (e) {
+        console.error("Error al auto-crear tenant_staff:", e);
+      }
+
+      // Fallback básico si la inserción fallara
+      return {
+        user,
+        staff: { tenant: targetTenant, role: 'admin' } as any,
+        tenantId: targetTenant.id,
+        supabase,
+      };
+    }
   }
 
   return {
