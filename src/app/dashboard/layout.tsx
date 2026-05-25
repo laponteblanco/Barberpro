@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { getSession } from "@/lib/supabase/session";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
