@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
-import { Sidebar } from "@/components/layout/Sidebar";
+import { DashboardContainer } from "@/components/layout/DashboardContainer";
 import { getSession } from "@/lib/supabase/session";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
@@ -36,14 +36,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <ErrorBoundary>
-      <div className="flex min-h-screen bg-background">
-        <Sidebar tenantName={tenantName} tenantLogoUrl={tenantLogoUrl} role={role} />
-        <main className="flex-1 flex flex-col min-h-screen overflow-auto">
-          <div className="flex-1 p-6 lg:p-8 animate-fade-up">
-            {children}
-          </div>
-        </main>
-      </div>
+      <DashboardContainer tenantName={tenantName} tenantLogoUrl={tenantLogoUrl} role={role}>
+        {children}
+      </DashboardContainer>
     </ErrorBoundary>
   );
 }
