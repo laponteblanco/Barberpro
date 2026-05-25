@@ -73,7 +73,7 @@ export function Sidebar({
       {/* Mobile Backdrop Overlay */}
       <div 
         className={cn(
-          "fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-300 md:hidden",
+          "fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] transition-opacity duration-300 md:hidden",
           isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         )}
         onClick={onClose}
@@ -82,14 +82,14 @@ export function Sidebar({
       {/* Sidebar Container */}
       <aside 
         className={cn(
-          "flex flex-col w-64 h-full md:min-h-screen border-r border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-bg))] z-50 transition-transform duration-300 ease-in-out md:translate-x-0 pt-safe pb-safe",
+          "flex flex-col w-64 h-full md:min-h-screen border-r border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-bg))] z-[100] transition-transform duration-300 ease-in-out md:translate-x-0 pt-safe pb-safe",
           "fixed md:relative top-0 bottom-0 left-0",
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         {/* Navigation Progress Bar */}
         {isNavigating && (
-          <div className="absolute top-0 left-0 right-0 h-0.5 bg-primary overflow-hidden z-50">
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-primary overflow-hidden z-[110]">
             <div className="w-full h-full bg-white/20 animate-[loading-bar_1.5s_infinite_linear]" />
           </div>
         )}
