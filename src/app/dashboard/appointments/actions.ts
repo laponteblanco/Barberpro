@@ -25,8 +25,11 @@ export async function createAppointmentAction(formData: FormData) {
     const name = formData.get("new_client_name")?.toString();
     const phone = formData.get("new_client_phone")?.toString();
     const cedula = formData.get("new_client_cedula")?.toString();
+    const birth_date = formData.get("new_client_birth_date")?.toString() || null;
+    const email = formData.get("new_client_email")?.toString() || null;
+    const notes = formData.get("new_client_notes")?.toString() || null;
 
-    if (!name || !cedula) throw new Error("Nombre y Cédula son obligatorios para nuevos clientes");
+    if (!name || !cedula || !phone) throw new Error("Nombre, Teléfono y Cédula son obligatorios para nuevos clientes");
 
     // Create or check profile
     const { data: profile, error: profileError } = await (adminSupabase as any)
@@ -48,7 +51,10 @@ export async function createAppointmentAction(formData: FormData) {
       tenant_id: tenantId,
       full_name: name,
       phone,
-      id_number: cedula
+      id_number: cedula,
+      birth_date,
+      email,
+      notes
     }, { onConflict: 'id' });
   }
 

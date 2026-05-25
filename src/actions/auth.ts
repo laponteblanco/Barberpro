@@ -3,89 +3,38 @@
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
-export async function loginAction(formData: FormData) {
-  let redirectTo = "";
+export async function getBarberCredentialsAction(shopCode: string, pin: string) {
   try {
-    const supabase = await createClient();
-    
-    const role = formData.get("role")?.toString() || "admin";
+    const adminSupabase = await createAdminClient();
 
-    // --- LOGIN PARA BARBEROS (VÍA PIN) ---
-    if (role === "barber") {
-      const adminSupabase = await createAdminClient();
-      const shopCode = formData.get("shop_code")?.toString()?.trim()?.toUpperCase();
-      const pin = formData.get("pin")?.toString()?.trim();
+    // 1. Buscar el tenant por el código corto
+    const { data: tenant, error: tenantError } = await adminSupabase
+      .from("tenants")
+      .select("id")
+      .eq("short_code", shopCode)
+      .single();
 
-      if (!shopCode || !pin) {
-        return { error: "Por favor, ingresa el código de la barbería y tu PIN." };
-      }
+    if (tenantError || !tenant) return { error: "Código de barbería no válido." };
 
-      // 1. Buscar el tenant por el código corto
-      const { data: tenant, error: tenantError } = await adminSupabase
-        .from("tenants")
-        .select("id")
-        .eq("short_code", shopCode)
-        .single();
+    // 2. Buscar al staff por PIN dentro de ese tenant
+    const { data: staff, error: staffError } = await adminSupabase
+      .from("tenant_staff")
+      .select("*, profile:profiles(id_number)")
+      .eq("tenant_id", (tenant as any).id)
+      .eq("access_pin", pin)
+      .eq("is_active", true)
+      .maybeSingle();
 
-      if (tenantError || !tenant) return { error: "Código de barbería no válido." };
+    if (staffError || !staff) return { error: "PIN o Código de Barbería incorrecto." };
 
-      // 2. Buscar al staff por PIN dentro de ese tenant
-      const { data: staff, error: staffError } = await adminSupabase
-        .from("tenant_staff")
-        .select("*, profile:profiles(id_number)")
-        .eq("tenant_id", (tenant as any).id)
-        .eq("access_pin", pin)
-        .eq("is_active", true)
-        .maybeSingle();
+    const cedula = (staff as any).profile?.id_number;
+    if (!cedula) return { error: "No se pudo identificar el usuario." };
 
-      if (staffError || !staff) return { error: "PIN o Código de Barbería incorrecto." };
-
-      const cedula = (staff as any).profile?.id_number;
-      if (!cedula) return { error: "No se pudo identificar el usuario." };
-
-      // 3. Login oficial vía Supabase (Email Virtual + Cédula como password)
-      const virtualEmail = `${cedula}@barberos.app`;
-      const { error } = await supabase.auth.signInWithPassword({
-        email: virtualEmail,
-        password: cedula,
-      });
-
-      if (error) return { error: "Error de acceso: PIN incorrecto." };
-
-      redirectTo = "/dashboard/appointments";
-    } 
-    
-    // --- LOGIN PARA ADMINISTRADORES (VÍA CÉDULA + PASSWORD) ---
-    else {
-      const cedula = formData.get("cedula")?.toString();
-      const password = formData.get("password")?.toString();
-
-      if (!cedula || !password) {
-        return { error: "Por favor, ingresa tu cédula y contraseña." };
-      }
-
-      const virtualEmail = `${cedula}@barberos.app`;
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: virtualEmail,
-        password: password,
-      });
-
-      if (error) return { error: "Cédula o contraseña incorrectas." };
-
-      if (data.user?.user_metadata?.require_password_change) {
-        redirectTo = "/auth/reset-password";
-      } else {
-        redirectTo = "/dashboard/appointments";
-      }
-    }
+    const virtualEmail = `${cedula}@barberos.app`;
+    return { email: virtualEmail, password: cedula };
   } catch (error: any) {
-    console.error("Login Error:", error);
-    return { error: error?.message || "Error interno del servidor. Revisa las variables de entorno." };
-  }
-
-  // Redirect MUST be outside of the try-catch block
-  if (redirectTo) {
-    redirect(redirectTo);
+    console.error("Barber Login Error:", error);
+    return { error: "Error interno del servidor." };
   }
 }
 

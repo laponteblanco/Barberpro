@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { 
   Scissors, 
@@ -22,7 +23,7 @@ import {
   X,
   ArrowRight
 } from "lucide-react";
-import { loginAction } from "@/actions/auth";
+import { getBarberCredentialsAction } from "@/actions/auth";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 
@@ -35,6 +36,7 @@ export default function HomePage() {
   
   // Modal State
   const [activeModal, setActiveModal] = useState<UserRole | null>(null);
+  const router = useRouter();
   const [cedula, setCedula] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -99,14 +101,60 @@ export default function HomePage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-
+    
     try {
       const formData = new FormData(e.currentTarget);
-      const result = await loginAction(formData);
+      const role = formData.get("role")?.toString() || "admin";
+      
+      const supabase = createClient();
+      let loginEmail = "";
+      let loginPassword = "";
 
-      if (result?.error) {
-        setError(result.error);
+      if (role === "barber") {
+        const shopCode = formData.get("shop_code")?.toString()?.trim()?.toUpperCase();
+        const pin = formData.get("pin")?.toString()?.trim();
+        
+        if (!shopCode || !pin) {
+          setError("Por favor, ingresa el código de la barbería y tu PIN.");
+          setLoading(false);
+          return;
+        }
+
+        const result = await getBarberCredentialsAction(shopCode, pin);
+        if (result.error || !result.email || !result.password) {
+          setError(result.error || "Error al verificar el PIN.");
+          setLoading(false);
+          return;
+        }
+        loginEmail = result.email;
+        loginPassword = result.password;
+      } else {
+        const cedula = formData.get("cedula")?.toString();
+        const pass = formData.get("password")?.toString();
+        if (!cedula || !pass) {
+          setError("Por favor, ingresa tu cédula y contraseña.");
+          setLoading(false);
+          return;
+        }
+        loginEmail = `${cedula}@barberos.app`;
+        loginPassword = pass;
+      }
+
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email: loginEmail,
+        password: loginPassword,
+      });
+
+      if (signInError) {
+        setError(role === "barber" ? "Error de acceso: PIN incorrecto." : "Cédula o contraseña incorrectas.");
         setLoading(false);
+        return;
+      }
+
+      if (role !== "barber" && data.user?.user_metadata?.require_password_change) {
+        window.location.href = '/auth/reset-password';
+      } else {
+        window.location.href = '/dashboard/appointments';
       }
     } catch (err: any) {
       console.error("Client Error:", err);

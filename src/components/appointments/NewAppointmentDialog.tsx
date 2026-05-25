@@ -205,8 +205,26 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
                       />
                       <input 
                         name="new_client_phone" 
-                        placeholder="Teléfono" 
+                        placeholder="Teléfono / WhatsApp *" 
+                        required={isNewClient}
                         className="w-full h-10 px-4 bg-zinc-950 border border-white/5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/50 text-white" 
+                      />
+                      <input 
+                        name="new_client_birth_date" 
+                        type="date"
+                        max={new Date(new Date().getTime() - (5 * 3600000)).toISOString().split('T')[0]}
+                        className="w-full h-10 px-4 bg-zinc-950 border border-white/5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/50 text-white [color-scheme:dark]" 
+                      />
+                      <input 
+                        name="new_client_email" 
+                        type="email"
+                        placeholder="Email (Opcional)" 
+                        className="w-full h-10 px-4 bg-zinc-950 border border-white/5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/50 text-white" 
+                      />
+                      <textarea 
+                        name="new_client_notes" 
+                        placeholder="Notas (Opcional)" 
+                        className="w-full min-h-[60px] px-4 py-2 bg-zinc-950 border border-white/5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/50 text-white resize-none" 
                       />
                     </div>
                   ) : (

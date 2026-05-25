@@ -16,7 +16,8 @@ export default async function ReportsPage({
   const { range = "month", date } = await searchParams;
   const { staff } = await getSession();
   
-  const staffId = staff?.role === "barber" ? staff.id : undefined;
+  const role = staff?.role || "admin";
+  const staffId = role === "barber" ? staff.id : undefined;
   const data = await getBIAnalytics(range, date, staffId);
 
   if (!data) return <div>No se pudieron cargar los datos</div>;
@@ -30,7 +31,7 @@ export default async function ReportsPage({
           {/* Resumen Ejecutivo */}
           <section>
             <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 mb-6 ml-1">Resumen Ejecutivo</h2>
-            <KPISection data={data.kpis} />
+            <KPISection data={data.kpis} role={role} />
           </section>
 
           {/* Análisis de Personal */}
@@ -47,10 +48,12 @@ export default async function ReportsPage({
           </div>
 
           {/* Operaciones e Inventario */}
-          <section>
-            <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 mb-6 ml-1">Operaciones e Inventario</h2>
-            <InventoryOperations heatmap={data.heatmap} topProducts={data.topProducts} />
-          </section>
+          {role !== "barber" && (
+            <section>
+              <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 mb-6 ml-1">Operaciones e Inventario</h2>
+              <InventoryOperations heatmap={data.heatmap} topProducts={data.topProducts} />
+            </section>
+          )}
         </div>
       </Suspense>
     </div>

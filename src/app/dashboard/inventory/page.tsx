@@ -1,4 +1,6 @@
 import { Package, ShoppingBag, TrendingUp, DollarSign } from "lucide-react";
+import { redirect } from "next/navigation";
+import { getSession } from "@/lib/supabase/session";
 import { AddProductDialog } from "./AddProductDialog";
 import { EditProductDialog } from "./EditProductDialog";
 import { SellProductDialog } from "./SellProductDialog";
@@ -7,6 +9,11 @@ import { SalesHistoryCard } from "./SalesHistoryCard";
 import { getProducts, getDailySales } from "@/services/products.service";
 
 export default async function InventoryPage() {
+  const { user, staff } = await getSession();
+  const role = staff?.role ?? user?.user_metadata?.role ?? "admin";
+  if (role === "barber") {
+    redirect("/dashboard/appointments");
+  }
   const [products, dailySales] = await Promise.all([
     getProducts(),
     getDailySales()
