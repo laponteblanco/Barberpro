@@ -81,7 +81,7 @@ export function BarbershopProfileForm({ initialData }: Props) {
       setValue("logo_url", publicUrl);
     } catch (error: any) {
       console.error("Upload error:", error);
-      alert("Error al subir la imagen");
+      alert(`Error al subir la imagen: ${error?.message || 'Revisa la consola'}. \n\nPosible causa: El bucket 'logos' no existe en Supabase o faltan permisos RLS.`);
     } finally {
       setIsUploading(false);
     }
