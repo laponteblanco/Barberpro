@@ -20,9 +20,7 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
 
   // Compiler optimizations
-  compiler: {
-    removeConsole: process.env.NODE_ENV === "production",
-  },
+  compiler: {},
 
   // Redirect legacy paths
   async redirects() {
