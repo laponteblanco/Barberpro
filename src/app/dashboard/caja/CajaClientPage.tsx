@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { formatCurrency, formatDate, formatTime } from "@/lib/utils";
 import { openCashAction, closeCashAction } from "./actions";
+import { useRouter } from "next/navigation";
 
 interface CajaClientPageProps {
   activeSession: any;
@@ -31,6 +32,7 @@ interface CajaClientPageProps {
 }
 
 export function CajaClientPage({ activeSession, history }: CajaClientPageProps) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -40,6 +42,7 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
   // Forms states
   const [openingBalance, setOpeningBalance] = useState("");
   const [actualBalance, setActualBalance] = useState("");
+  const [showHistory, setShowHistory] = useState(false);
 
   // Barbers deliveries states
   const [barberDeliveries, setBarberDeliveries] = useState<Record<string, {
@@ -50,11 +53,11 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
   // History row expansion state
   const [expandedSessions, setExpandedSessions] = useState<Record<string, boolean>>({});
 
-  const showNotification = (message: string, type: "success" | "error" | "info" = "success") => {
+  const showNotification = (message: string, type: "success" | "error" | "info" = "info") => {
     setNotification({ message, type });
     setTimeout(() => {
       setNotification(null);
-    }, 4500);
+    }, 5000);
   };
 
   const handleOpenCaja = async (e: React.FormEvent) => {
@@ -74,7 +77,7 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
       } else {
         setOpeningBalance("");
         showNotification("Caja abierta con éxito", "success");
-        window.location.reload();
+        router.refresh();
       }
     } catch (err: any) {
       setError(err.message || "Error al abrir la caja");
@@ -128,7 +131,7 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
         setActualBalance("");
         setBarberDeliveries({});
         showNotification("Caja cerrada con éxito y arqueo registrado", "success");
-        window.location.reload();
+        router.refresh();
       }
     } catch (err: any) {
       setError(err.message || "Error al cerrar la caja");

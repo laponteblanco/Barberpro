@@ -6,8 +6,10 @@ import { Plus, X, Calendar as CalendarIcon, Clock, User, Scissors, Loader2, User
 import { createAppointmentAction, updateAppointmentDetailsAction } from "../../app/dashboard/appointments/actions";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 export function NewAppointmentDialog({ clients, staff, services, appointments, externalOpen, onCloseExternal, defaultValues, triggerButton, editApptId, startHour = 7, endHour = 22 }: any) {
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -150,7 +152,7 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
         await createAppointmentAction(fd);
       }
       setIsOpen(false);
-      window.location.reload();
+      router.refresh();
     } catch (err: any) {
       alert(err.message || (editApptId ? "Error al actualizar la cita" : "Error al crear la cita"));
     } finally {

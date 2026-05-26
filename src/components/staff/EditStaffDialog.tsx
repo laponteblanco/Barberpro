@@ -4,8 +4,10 @@ import { useState } from "react";
 import { X, User, Percent, Shield, Loader2, Edit3, Camera, Calendar, Clock, ToggleLeft, ToggleRight } from "lucide-react";
 import { editStaffAction } from "@/app/dashboard/staff/actions";
 import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 export function EditStaffDialog({ member }: { member: any }) {
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [compType, setCompType] = useState(member.compensation_type || "percentage");
@@ -103,7 +105,7 @@ export function EditStaffDialog({ member }: { member: any }) {
         return;
       }
       setIsOpen(false);
-      window.location.reload();
+      router.refresh();
     } catch (err) {
       alert("Error inesperado al editar miembro");
     } finally {

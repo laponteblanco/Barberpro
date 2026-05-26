@@ -6,6 +6,7 @@ import { updateAppointmentTimeAction, updateAppointmentStatusAction, deleteAgend
 import { User, Clock, LayoutList, CheckCircle2, DollarSign, Calendar, Ban, Trash2, Scissors, X } from "lucide-react";
 import { NewAppointmentDialog } from "./NewAppointmentDialog";
 import { StaffSummaryDialog } from "./StaffSummaryDialog";
+import { useRouter } from "next/navigation";
 
 interface CalendarViewProps {
   appointments: any[];
@@ -67,6 +68,7 @@ export function CalendarView({
   selectedDate,
   viewMode = "staff"
 }: CalendarViewProps) {
+  const router = useRouter();
   const [movingId, setMovingId] = useState<string | null>(null);
   const [newApptData, setNewApptData] = useState<{ staff_id: string, date: string, time: string } | null>(null);
   const [selectedAppt, setSelectedAppt] = useState<any | null>(null);
@@ -85,10 +87,23 @@ export function CalendarView({
   const [showPaymentSelector, setShowPaymentSelector] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("cash");
 
+  const [isMobile, setIsMobile] = useState(false);
+  const [activeMobileBarber, setActiveMobileBarber] = useState<string>("all");
+
   useEffect(() => {
     setMounted(true);
     const timer = setInterval(() => setCurrentTime(getBogotaNow()), 60000);
-    return () => clearInterval(timer);
+    
+    // Check mobile screen
+    const media = window.matchMedia("(max-width: 767px)");
+    setIsMobile(media.matches);
+    const listener = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    media.addEventListener("change", listener);
+    
+    return () => {
+      clearInterval(timer);
+      media.removeEventListener("change", listener);
+    };
   }, []);
 
   const { effectiveStartHour, effectiveEndHour } = useMemo(() => {
@@ -101,7 +116,6 @@ export function CalendarView({
         if (bogota.hour < s) s = bogota.hour;
         if (bogota.hour >= e) e = bogota.hour + 1;
       } else if (viewMode === "days") {
-         // In days mode we look at all appointments in the 7-day range
          if (bogota.hour < s) s = bogota.hour;
          if (bogota.hour >= e) e = bogota.hour + 1;
       }
@@ -151,15 +165,17 @@ export function CalendarView({
       const cols = [];
       const baseDate = new Date(selectedDate + "T12:00:00");
       for (let i = 0; i < 7; i++) {
-        const d = new Date(baseDate);
-        d.setDate(baseDate.getDate() + i);
-        const dStr = d.toISOString().split('T')[0];
+        const d = new Date(baseDate.getTime() + i * 24 * 3600000);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        const dateStr = `${yyyy}-${mm}-${dd}`;
         cols.push({
-          id: dStr,
-          label: d.toLocaleDateString("es-ES", { weekday: 'short', day: 'numeric', month: 'short' }),
-          avatar: null,
+          id: dateStr,
+          label: d.toLocaleDateString("es-ES", { weekday: "short", day: "numeric" }),
+          avatar: undefined,
           staffId: staff[0]?.id,
-          date: dStr,
+          date: dateStr,
           type: 'day' as const
         });
       }
@@ -168,52 +184,45 @@ export function CalendarView({
   }, [viewMode, staff, selectedDate]);
 
   const globalStats = useMemo(() => {
-    const relevantAppts = appointments.filter(a => {
-      const bogota = getBogotaTime(a.start_time);
+    return appointments.reduce((acc, appt) => {
+      const bogota = getBogotaTime(appt.start_time);
       const dateStr = `${bogota.yyyy}-${bogota.mm}-${bogota.dd}`;
-      if (viewMode === "staff") {
-        return dateStr === selectedDate;
-      }
-      return true;
-    });
+      
+      const isMatch = viewMode === "staff" 
+        ? dateStr === selectedDate
+        : appointments.some(a => {
+            const b = getBogotaTime(appt.start_time);
+            const aStr = `${b.yyyy}-${b.mm}-${b.dd}`;
+            return calendarColumns.some(c => c.date === aStr);
+          });
 
-    return relevantAppts.reduce((acc, appt) => {
-      acc.total++;
-      if (appt.status === 'completed' || appt.status === 'confirmed') {
-        acc.completed++;
-        
-        const price = Number(appt.service?.price || 0);
-        const dayIndex = getBogotaTime(appt.start_time).dayIndex;
-        const commissionRate = Number(appt.staff?.daily_commission_rates?.[String(dayIndex)] ?? appt.staff?.commission_rate ?? 0);
-        const compensationType = appt.staff?.compensation_type || 'percentage';
-
-        if (viewMode === "days") {
-          // Vista del Barbero: Muestra su propia ganancia
-          if (compensationType === 'rent') {
-            acc.earnings += price;
-          } else {
-            acc.earnings += (price * (commissionRate / 100));
-          }
-        } else {
-          // Vista de Administrador/Barbería: Muestra la ganancia neta de la barbería
-          if (compensationType === 'rent') {
-            // El barbero con renta fija no genera comisión directa para el local en esta cita
+      if (isMatch) {
+        acc.total++;
+        if (appt.status === 'completed' || appt.status === 'confirmed') {
+          acc.completed++;
+          const price = appt.service?.price || 0;
+          const barber = staff.find(s => s.id === appt.staff_id);
+          const rate = barber?.daily_commission_rates?.[String(bogota.dayIndex)] ?? barber?.commission_rate ?? 0;
+          
+          if (viewMode === "days") {
+            acc.earnings += (price * (rate / 100));
+          } else if (barber?.compensation_type === 'rent') {
             acc.earnings += 0;
           } else {
-            acc.earnings += (price * (1 - commissionRate / 100));
+            acc.earnings += (price * (1 - rate / 100));
           }
         }
       }
       return acc;
     }, { total: 0, completed: 0, earnings: 0 });
-  }, [appointments, selectedDate, viewMode]);
+  }, [appointments, selectedDate, viewMode, calendarColumns, staff]);
 
   const updateStatus = async (id: string, status: string, paymentMethod?: string) => {
     try {
       await updateAppointmentStatusAction(id, status, paymentMethod);
       setSelectedAppt(null);
       setShowPaymentSelector(false);
-      window.location.reload();
+      router.refresh();
     } catch (err: any) {
       alert(err.message || "Error");
     }
@@ -225,7 +234,7 @@ export function CalendarView({
       await updateAppointmentStatusAction(id, "deleted");
       setSelectedAppt(null);
       setShowPaymentSelector(false);
-      window.location.reload();
+      router.refresh();
     } catch (err: any) {
       alert(err.message || "Error");
     }
@@ -240,7 +249,7 @@ export function CalendarView({
     const newStart = new Date(Date.UTC(y, m - 1, d, hour + 5, min, 0));
     try {
       await updateAppointmentTimeAction(id, newStart.toISOString());
-      window.location.reload();
+      router.refresh();
     } catch (err: any) {
       alert(err.message || "Error");
     }
@@ -254,7 +263,7 @@ export function CalendarView({
       setShowBlockDialog(false);
       setBlockData(null);
       setBlockReason("");
-      window.location.reload();
+      router.refresh();
     } catch (err: any) {
       alert(err.message || "Error");
     }
@@ -265,45 +274,78 @@ export function CalendarView({
     try {
       await deleteAgendaBlockAction(id);
       setSelectedBlock(null);
-      window.location.reload();
+      router.refresh();
     } catch (err: any) {
       alert(err.message || "Error");
     }
   };
 
+  const mobileFilteredAppointments = useMemo(() => {
+    let filtered = appointments.filter(a => {
+      const bogota = getBogotaTime(a.start_time);
+      return `${bogota.yyyy}-${bogota.mm}-${bogota.dd}` === selectedDate;
+    });
+    if (activeMobileBarber !== "all") {
+      filtered = filtered.filter(a => a.staff_id === activeMobileBarber);
+    }
+    return filtered.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+  }, [appointments, selectedDate, activeMobileBarber]);
+
+  const mobileFilteredBlocks = useMemo(() => {
+    let filtered = agendaBlocks.filter(b => {
+      const bogota = getBogotaTime(b.start_time);
+      return `${bogota.yyyy}-${bogota.mm}-${bogota.dd}` === selectedDate;
+    });
+    if (activeMobileBarber !== "all") {
+      filtered = filtered.filter(b => b.staff_id === activeMobileBarber);
+    }
+    return filtered;
+  }, [agendaBlocks, selectedDate, activeMobileBarber]);
+
+  const mobileTimelineItems = useMemo(() => {
+    const items: any[] = [];
+    mobileFilteredAppointments.forEach(appt => {
+      items.push({ type: 'appointment', time: new Date(appt.start_time).getTime(), data: appt });
+    });
+    mobileFilteredBlocks.forEach(block => {
+      items.push({ type: 'block', time: new Date(block.start_time).getTime(), data: block });
+    });
+    return items.sort((a, b) => a.time - b.time);
+  }, [mobileFilteredAppointments, mobileFilteredBlocks]);
+
   return (
-    <div className="glass-card rounded-[40px] overflow-hidden border border-white/10 bg-zinc-900/10 flex flex-col h-[calc(100vh-180px)] relative shadow-[0_0_100px_-20px_rgba(0,0,0,0.8)] backdrop-blur-3xl animate-in fade-in zoom-in-95 duration-700">
+    <div className="glass-card rounded-[30px] md:rounded-[40px] overflow-hidden border border-white/10 bg-zinc-950/95 flex flex-col h-[calc(100vh-120px)] md:h-[calc(100vh-180px)] relative shadow-[0_0_100px_-20px_rgba(0,0,0,0.8)] md:backdrop-blur-3xl animate-in fade-in zoom-in-95 duration-700">
       
-      <div className="px-6 py-4 bg-zinc-900/40 border-b border-white/5 flex flex-wrap items-center gap-4 relative z-40">
-        <div className="flex-1 min-w-[140px] glass-card bg-zinc-950/40 border-white/5 p-3 rounded-2xl flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
-            <LayoutList className="w-4 h-4 text-indigo-400" />
+      <div className="px-4 py-3 md:px-6 md:py-4 bg-zinc-900/40 border-b border-white/5 flex flex-wrap items-center gap-3 md:gap-4 relative z-40">
+        <div className="flex-1 min-w-[120px] md:min-w-[140px] glass-card bg-zinc-950/40 border-white/5 p-2 md:p-3 rounded-2xl flex items-center gap-2 md:gap-3">
+          <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
+            <LayoutList className="w-3.5 h-3.5 md:w-4 md:h-4 text-indigo-400" />
           </div>
           <div>
-            <p className="text-[9px] font-black text-zinc-500 uppercase tracking-tighter">Citas {viewMode === "days" ? "Semana" : "Día"}</p>
-            <p className="text-sm font-black text-white">{globalStats.total}</p>
+            <p className="text-[8px] md:text-[9px] font-black text-zinc-500 uppercase tracking-tighter">Citas {viewMode === "days" ? "Semana" : "Día"}</p>
+            <p className="text-xs md:text-sm font-black text-white">{globalStats.total}</p>
           </div>
         </div>
 
-        <div className="flex-1 min-w-[140px] glass-card bg-zinc-950/40 border-white/5 p-3 rounded-2xl flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+        <div className="flex-1 min-w-[120px] md:min-w-[140px] glass-card bg-zinc-950/40 border-white/5 p-2 md:p-3 rounded-2xl flex items-center gap-2 md:gap-3">
+          <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
+            <CheckCircle2 className="w-3.5 h-3.5 md:w-4 md:h-4 text-emerald-400" />
           </div>
           <div>
-            <p className="text-[9px] font-black text-zinc-500 uppercase tracking-tighter">Cumplidas</p>
-            <p className="text-sm font-black text-emerald-400">{globalStats.completed}</p>
+            <p className="text-[8px] md:text-[9px] font-black text-zinc-500 uppercase tracking-tighter">Cumplidas</p>
+            <p className="text-xs md:text-sm font-black text-emerald-400">{globalStats.completed}</p>
           </div>
         </div>
 
-        <div className="flex-1 min-w-[140px] glass-card bg-zinc-950/40 border-white/5 p-3 rounded-2xl flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-yellow-500/10 flex items-center justify-center border border-yellow-500/20">
-            <DollarSign className="w-4 h-4 text-yellow-500" />
+        <div className="flex-1 min-w-[120px] md:min-w-[140px] glass-card bg-zinc-950/40 border-white/5 p-2 md:p-3 rounded-2xl flex items-center gap-2 md:gap-3">
+          <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-yellow-500/10 flex items-center justify-center border border-yellow-500/20">
+            <DollarSign className="w-3.5 h-3.5 md:w-4 md:h-4 text-yellow-500" />
           </div>
           <div>
-            <p className="text-[9px] font-black text-zinc-500 uppercase tracking-tighter">
+            <p className="text-[8px] md:text-[9px] font-black text-zinc-500 uppercase tracking-tighter">
               {viewMode === "days" ? "Mi Comisión (Semana)" : "Ganancia Local (Día)"}
             </p>
-            <p className="text-sm font-black text-yellow-500">
+            <p className="text-xs md:text-sm font-black text-yellow-500">
               {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(globalStats.earnings)}
             </p>
           </div>
@@ -317,148 +359,299 @@ export function CalendarView({
             <h3 className="text-xl font-bold text-white mb-2">No hay barberos para mostrar</h3>
             <p className="text-zinc-500 text-sm max-w-md">Ve a la sección de Personal (Staff) en Ajustes para registrar a tus barberos y comenzar a agendar citas.</p>
           </div>
-        ) : (
-        <div className="min-w-max flex flex-col min-h-full pb-20">
-          
-          <div className="flex sticky top-0 z-20 border-b border-white/10 bg-zinc-900/95 backdrop-blur-2xl shadow-xl">
-            <div className="w-24 border-r border-white/10 flex items-center justify-center p-4 sticky left-0 bg-zinc-900/95 backdrop-blur-2xl z-30">
-              <div className="w-10 h-10 rounded-2xl bg-primary/20 flex items-center justify-center shadow-lg shadow-primary/10">
-                <Clock className="w-5 h-5 text-primary" />
-              </div>
-            </div>
-            <div className="flex">
-              {calendarColumns.map((col) => {
-                const colAppointments = appointments.filter(a => {
-                  if (a.staff_id !== col.staffId) return false;
+        ) : isMobile ? (
+          <div className="flex flex-col h-full bg-zinc-950/20">
+            {/* Active Barber Selector */}
+            <div className="flex gap-2 overflow-x-auto px-4 py-3 bg-zinc-900/40 border-b border-white/5 no-scrollbar">
+              <button
+                onClick={() => setActiveMobileBarber("all")}
+                className={cn(
+                  "px-4 py-2 rounded-full text-xs font-black uppercase tracking-wider shrink-0 transition-all border",
+                  activeMobileBarber === "all"
+                    ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-400"
+                    : "bg-zinc-900 border-white/5 text-zinc-400"
+                )}
+              >
+                Todos ({appointments.filter(a => {
                   const bogota = getBogotaTime(a.start_time);
-                  return `${bogota.yyyy}-${bogota.mm}-${bogota.dd}` === col.date;
-                });
-                const total = colAppointments.length;
-                const completedAppts = colAppointments.filter(a => a.status === 'completed' || a.status === 'confirmed');
-                
-                const earnings = completedAppts.reduce((acc, appt) => {
-                  const price = appt.service?.price || 0;
-                  const barber = staff.find(s => s.id === col.staffId);
-                  const dayIndex = getBogotaTime(appt.start_time).dayIndex;
-                  const rate = barber?.daily_commission_rates?.[String(dayIndex)] ?? barber?.commission_rate ?? 0;
-                  return acc + (price * (rate / 100));
-                }, 0);
-
+                  return `${bogota.yyyy}-${bogota.mm}-${bogota.dd}` === selectedDate;
+                }).length})
+              </button>
+              {staff.map(s => {
+                const count = appointments.filter(a => {
+                  if (a.staff_id !== s.id) return false;
+                  const bogota = getBogotaTime(a.start_time);
+                  return `${bogota.yyyy}-${bogota.mm}-${bogota.dd}` === selectedDate;
+                }).length;
                 return (
-                  <div key={col.id} className="w-[260px] p-5 border-r border-white/10 text-center flex items-center gap-4 group/h">
-                    <div 
-                      onClick={() => col.type === 'staff' && setSummaryBarber(staff.find(s => s.id === col.staffId))}
-                      className={cn(
-                        "w-14 h-14 rounded-2xl bg-gradient-to-br from-zinc-800 to-zinc-900 border border-white/10 flex items-center justify-center shadow-2xl transition-all relative overflow-hidden shrink-0",
-                        col.type === 'staff' && "group-hover/h:border-primary/50 cursor-pointer active:scale-95"
-                      )}
-                    >
-                      <div className="absolute inset-0 bg-primary/5 group-hover/h:bg-primary/10 transition-colors" />
-                      {col.avatar ? (
-                        <img src={col.avatar} alt={col.label} className="w-full h-full object-cover absolute inset-0 z-10" />
-                      ) : col.type === 'day' ? (
-                        <Calendar className="w-7 h-7 text-primary/40" />
-                      ) : (
-                        <User className="w-7 h-7 text-zinc-500" />
-                      )}
-                    </div>
-                    <div className="flex flex-col items-start min-w-0 flex-1">
-                      {(() => {
-                        const barber = staff.find(s => s.id === col.staffId);
-                        const dayIndex = getBogotaTime(col.date + "T12:00:00").dayIndex;
-                        const rate = barber?.daily_commission_rates?.[String(dayIndex)] ?? barber?.commission_rate ?? 0;
-                        return (
-                          <div className="flex items-center gap-1.5 w-full">
-                            <span className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-300 group-hover/h:text-white transition-colors truncate flex-1 text-left">
-                              {col.label}
-                            </span>
-                            {col.type === 'staff' && barber?.compensation_type !== 'rent' && (
-                              <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[8px] font-black tracking-widest shrink-0 animate-in fade-in duration-300">
-                                {rate}%
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })()}
-                      <div className="flex items-center justify-between w-full mt-1.5">
-                        <div className="flex flex-col items-start">
-                          <span className="text-[8px] font-black text-zinc-500 uppercase tracking-tighter">Citas</span>
-                          <span className="text-[11px] font-black text-white">{total}</span>
-                        </div>
-                        <div className="flex flex-col items-end">
-                          <span className="text-[8px] font-black text-primary/60 uppercase tracking-tighter">Ganancia</span>
-                          <span className="text-[11px] font-black text-primary">
-                            {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(earnings)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <button
+                    key={s.id}
+                    onClick={() => setActiveMobileBarber(s.id)}
+                    className={cn(
+                      "px-4 py-2 rounded-full text-xs font-black uppercase tracking-wider shrink-0 transition-all border flex items-center gap-2",
+                      activeMobileBarber === s.id
+                        ? "bg-primary/10 border-primary/30 text-primary"
+                        : "bg-zinc-900 border-white/5 text-zinc-400"
+                    )}
+                  >
+                    {s.avatar_url && <img src={s.avatar_url} className="w-4 h-4 rounded-full object-cover" />}
+                    <span>{s.display_name}</span>
+                    <span className="bg-white/10 px-1.5 py-0.5 rounded-full text-[9px]">{count}</span>
+                  </button>
                 );
               })}
             </div>
-          </div>
 
-          <div className="flex flex-1 relative">
-            <div className="w-24 bg-zinc-900/95 backdrop-blur-2xl border-r border-white/10 sticky left-0 z-10 shadow-2xl">
-              {slots.map(({ hour, min }) => (
-                <div key={`${hour}:${min}`} className={cn("h-8 border-b border-white/5 flex flex-col items-center justify-center transition-all", min === 0 ? "bg-white/[0.03] border-b-white/10" : "opacity-30")}>
-                  {min === 0 ? (
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-[13px] font-black text-white tracking-tighter">{hour > 12 ? hour - 12 : hour}</span>
-                      <span className="text-[8px] font-black opacity-50 uppercase tracking-widest">{hour >= 12 ? "PM" : "AM"}</span>
-                    </div>
-                  ) : <span className="text-[9px] font-bold text-zinc-500">:{min}</span>}
+            {/* List of Timeline Items */}
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 pb-24">
+              {mobileTimelineItems.length === 0 ? (
+                <div className="flex flex-col items-center justify-center text-center p-8 bg-zinc-900/10 rounded-3xl border border-white/5 py-16">
+                  <Calendar className="w-12 h-12 text-zinc-700 mb-3" />
+                  <h4 className="text-base font-bold text-white mb-1">Sin agenda para hoy</h4>
+                  <p className="text-zinc-500 text-xs max-w-xs">No hay citas ni bloqueos programados para esta fecha.</p>
+                  <button
+                    onClick={() => setNewApptData({ staff_id: activeMobileBarber !== 'all' ? activeMobileBarber : (staff[0]?.id || ''), date: selectedDate || '', time: '09:00' })}
+                    className="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors"
+                  >
+                    Crear Cita
+                  </button>
                 </div>
-              ))}
+              ) : (
+                mobileTimelineItems.map((item) => {
+                  if (item.type === 'appointment') {
+                    const appt = item.data;
+                    const bogotaStart = getBogotaTime(appt.start_time);
+                    const barber = staff.find(s => s.id === appt.staff_id);
+                    return (
+                      <div
+                        key={appt.id}
+                        onClick={() => setSelectedAppt(appt)}
+                        className={cn(
+                          "glass-card p-4 rounded-2xl border bg-zinc-900/60 transition-all active:scale-[0.98] cursor-pointer flex flex-col gap-3",
+                          appt.status === 'completed' ? "border-emerald-500/20 bg-emerald-500/[0.02]" : "border-white/5"
+                        )}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-black text-white bg-white/5 px-2 py-1 rounded-lg">
+                              {`${bogotaStart.hhStr}:${bogotaStart.minStr}`}
+                            </span>
+                            <span className="text-[10px] text-zinc-400">
+                              {barber?.display_name || "Barbero"}
+                            </span>
+                          </div>
+                          <span className={cn(
+                            "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest",
+                            appt.status === 'completed' && "bg-emerald-500/10 text-emerald-400 border border-emerald-500/25",
+                            appt.status === 'pending' && "bg-amber-500/10 text-amber-400 border border-amber-500/25",
+                            appt.status === 'confirmed' && "bg-indigo-500/10 text-indigo-400 border border-indigo-500/25",
+                            appt.status === 'cancelled' && "bg-red-500/10 text-red-400 border border-red-500/25",
+                            appt.status === 'noshow' && "bg-zinc-800 text-zinc-400"
+                          )}>
+                            {appt.status}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between min-w-0">
+                          <div>
+                            <h4 className="text-sm font-bold text-white truncate">{appt.client?.full_name || "Cliente"}</h4>
+                            <p className="text-xs text-zinc-400 truncate">{appt.service?.name || "Servicio"}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-black text-indigo-400">
+                              {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(appt.service?.price || 0)}
+                            </p>
+                            <p className="text-[10px] text-zinc-500">
+                              {appt.service?.duration || 30} min
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  } else {
+                    const block = item.data;
+                    const bogotaStart = getBogotaTime(block.start_time);
+                    const bogotaEnd = getBogotaTime(block.end_time);
+                    const barber = staff.find(s => s.id === block.staff_id);
+                    return (
+                      <div
+                        key={block.id}
+                        onClick={() => setSelectedBlock(block)}
+                        className="p-4 rounded-2xl border border-red-500/20 bg-red-500/[0.02] flex items-center justify-between gap-4 cursor-pointer active:scale-[0.98] transition-all"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+                            <Ban className="w-5 h-5 text-red-400" />
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="text-sm font-bold text-red-400 truncate">{block.reason || "Bloqueo"}</h4>
+                            <p className="text-xs text-zinc-500 truncate">
+                              {barber?.display_name || "Barbero"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="text-xs font-black text-zinc-300">
+                            {`${bogotaStart.hhStr}:${bogotaStart.minStr} - ${bogotaEnd.hhStr}:${bogotaEnd.minStr}`}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }
+                })
+              )}
             </div>
 
-            <div className="flex relative">
-              {currentTimeTop !== null && (
-                <div className="absolute left-0 right-0 z-30 flex items-center pointer-events-none transition-all duration-1000" style={{ top: `${currentTimeTop}px` }}>
-                  <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)] -ml-1" />
-                  <div className="flex-1 h-[2px] bg-gradient-to-r from-red-500 via-red-500/50 to-transparent" />
+            {/* Floating Action Button (FAB) */}
+            <button
+              onClick={() => setNewApptData({ staff_id: activeMobileBarber !== 'all' ? activeMobileBarber : (staff[0]?.id || ''), date: selectedDate || '', time: '09:00' })}
+              className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white shadow-2xl flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+            >
+              <Scissors className="w-6 h-6" />
+            </button>
+          </div>
+        ) : (
+          <div className="min-w-max flex flex-col min-h-full pb-20">
+            
+            <div className="flex sticky top-0 z-20 border-b border-white/10 bg-zinc-900/95 shadow-xl">
+              <div className="w-24 border-r border-white/10 flex items-center justify-center p-4 sticky left-0 bg-zinc-900/95 z-30">
+                <div className="w-10 h-10 rounded-2xl bg-primary/20 flex items-center justify-center shadow-lg shadow-primary/10">
+                  <Clock className="w-5 h-5 text-primary" />
                 </div>
-              )}
+              </div>
+              <div className="flex">
+                {calendarColumns.map((col) => {
+                  const colAppointments = appointments.filter(a => {
+                    if (a.staff_id !== col.staffId) return false;
+                    const bogota = getBogotaTime(a.start_time);
+                    return `${bogota.yyyy}-${bogota.mm}-${bogota.dd}` === col.date;
+                  });
+                  const total = colAppointments.length;
+                  const completedAppts = colAppointments.filter(a => a.status === 'completed' || a.status === 'confirmed');
+                  
+                  const earnings = completedAppts.reduce((acc, appt) => {
+                    const price = appt.service?.price || 0;
+                    const barber = staff.find(s => s.id === col.staffId);
+                    const dayIndex = getBogotaTime(appt.start_time).dayIndex;
+                    const rate = barber?.daily_commission_rates?.[String(dayIndex)] ?? barber?.commission_rate ?? 0;
+                    return acc + (price * (rate / 100));
+                  }, 0);
 
-              {calendarColumns.map((col) => (
-                <div key={col.id} className="w-[260px] relative border-r border-white/10 group/col">
-                  {slots.map(({ hour, min }) => (
-                    <div 
-                      key={`${hour}:${min}`}
-                      onClick={(e) => {
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        setSlotMenu({ 
-                          x: rect.left + rect.width / 2, 
-                          y: rect.top + rect.height / 2, 
-                          staffId: col.staffId as string, 
-                          date: col.date as string, 
-                          time: `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}` 
-                        });
-                      }}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={(e) => handleDrop(e, col.staffId as string, hour, min, col.date)}
-                      className={cn("h-8 border-b border-white/5 hover:bg-primary/20 hover:z-10 transition-colors relative cursor-pointer", min === 0 ? "border-b-white/10" : "border-b-white/[0.02]")}
-                    />
-                  ))}
+                  return (
+                    <div key={col.id} className="w-[260px] p-5 border-r border-white/10 text-center flex items-center gap-4 group/h">
+                      <div 
+                        onClick={() => col.type === 'staff' && setSummaryBarber(staff.find(s => s.id === col.staffId))}
+                        className={cn(
+                          "w-14 h-14 rounded-2xl bg-gradient-to-br from-zinc-800 to-zinc-900 border border-white/10 flex items-center justify-center shadow-2xl transition-all relative overflow-hidden shrink-0",
+                          col.type === 'staff' && "group-hover/h:border-primary/50 cursor-pointer active:scale-95"
+                        )}
+                      >
+                        <div className="absolute inset-0 bg-primary/5 group-hover/h:bg-primary/10 transition-colors" />
+                        {col.avatar ? (
+                          <img src={col.avatar} alt={col.label} className="w-full h-full object-cover absolute inset-0 z-10" />
+                        ) : col.type === 'day' ? (
+                          <Calendar className="w-7 h-7 text-primary/40" />
+                        ) : (
+                          <User className="w-7 h-7 text-zinc-500" />
+                        )}
+                      </div>
+                      <div className="flex flex-col items-start min-w-0 flex-1">
+                        {(() => {
+                          const barber = staff.find(s => s.id === col.staffId);
+                          const dayIndex = getBogotaTime(col.date + "T12:00:00").dayIndex;
+                          const rate = barber?.daily_commission_rates?.[String(dayIndex)] ?? barber?.commission_rate ?? 0;
+                          return (
+                            <div className="flex items-center gap-1.5 w-full">
+                              <span className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-300 group-hover/h:text-white transition-colors truncate flex-1 text-left">
+                                {col.label}
+                              </span>
+                              {col.type === 'staff' && barber?.compensation_type !== 'rent' && (
+                                <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[8px] font-black tracking-widest shrink-0 animate-in fade-in duration-300">
+                                  {rate}%
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
+                        <div className="flex items-center justify-between w-full mt-1.5">
+                          <div className="flex flex-col items-start">
+                            <span className="text-[8px] font-black text-zinc-500 uppercase tracking-tighter">Citas</span>
+                            <span className="text-[11px] font-black text-white">{total}</span>
+                          </div>
+                          <div className="flex flex-col items-end">
+                            <span className="text-[8px] font-black text-primary/60 uppercase tracking-tighter">Ganancia</span>
+                            <span className="text-[11px] font-black text-primary">
+                              {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(earnings)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
 
-                  {appointments
-                    .filter((appt) => {
-                      if (appt.staff_id !== col.staffId) return false;
-                      const bogota = getBogotaTime(appt.start_time);
-                      return `${bogota.yyyy}-${bogota.mm}-${bogota.dd}` === col.date;
-                    })
-                    .map((appt) => {
-                      const bogota = getBogotaTime(appt.start_time);
-                      const hour = bogota.hour;
-                      const min = bogota.min;
-                      if (hour < effectiveStartHour || hour >= effectiveEndHour) return null;
-                      const top = ((hour - effectiveStartHour) * 60 + min) / 15 * 32;
-                      const duration = appt.service?.duration_minutes || 30;
-                      const height = (duration / 15) * 32 - 2;
-                      const isCompleted = appt.status === 'completed' || appt.status === 'confirmed';
+            <div className="flex flex-1 relative">
+              <div className="w-24 bg-zinc-900/95 border-r border-white/10 sticky left-0 z-10 shadow-2xl">
+                {slots.map(({ hour, min }) => (
+                  <div key={`${hour}:${min}`} className={cn("h-8 border-b border-white/5 flex flex-col items-center justify-center transition-all", min === 0 ? "bg-white/[0.03] border-b-white/10" : "opacity-30")}>
+                    {min === 0 ? (
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-[13px] font-black text-white tracking-tighter">{hour > 12 ? hour - 12 : hour}</span>
+                        <span className="text-[8px] font-black opacity-50 uppercase tracking-widest">{hour >= 12 ? "PM" : "AM"}</span>
+                      </div>
+                    ) : <span className="text-[9px] font-bold text-zinc-500">:{min}</span>}
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex relative">
+                {currentTimeTop !== null && (
+                  <div className="absolute left-0 right-0 z-30 flex items-center pointer-events-none transition-all duration-1000" style={{ top: `${currentTimeTop}px` }}>
+                    <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)] -ml-1" />
+                    <div className="flex-1 h-[2px] bg-gradient-to-r from-red-500 via-red-500/50 to-transparent" />
+                  </div>
+                )}
+
+                {calendarColumns.map((col) => (
+                  <div key={col.id} className="w-[260px] relative border-r border-white/10 group/col">
+                    {slots.map(({ hour, min }) => (
+                      <div 
+                        key={`${hour}:${min}`}
+                        onClick={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setSlotMenu({ 
+                            x: rect.left + rect.width / 2, 
+                            y: rect.top + rect.height / 2, 
+                            staffId: col.staffId as string, 
+                            date: col.date as string, 
+                            time: `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}` 
+                          });
+                        }}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => handleDrop(e, col.staffId as string, hour, min, col.date)}
+                        className={cn("h-8 border-b border-white/5 hover:bg-primary/20 hover:z-10 transition-colors relative cursor-pointer", min === 0 ? "border-b-white/10" : "border-b-white/[0.02]")}
+                      />
+                    ))}
+
+                    {appointments
+                      .filter((appt) => {
+                        if (appt.staff_id !== col.staffId) return false;
+                        const bogota = getBogotaTime(appt.start_time);
+                        return `${bogota.yyyy}-${bogota.mm}-${bogota.dd}` === col.date;
+                      })
+                      .map((appt) => {
+                        const bogota = getBogotaTime(appt.start_time);
+                        const hour = bogota.hour;
+                        const min = bogota.min;
+                        if (hour < effectiveStartHour || hour >= effectiveEndHour) return null;
+                        
+                        const top = ((hour - effectiveStartHour) * 60 + min) / 15 * 32;
+                        const duration = appt.service?.duration_minutes || 30;
+                        const height = (duration / 15) * 32 - 2;
+                        const isCompleted = appt.status === 'completed' || appt.status === 'confirmed';
                       
-                      return (
+                        return (
                         <div 
                           key={appt.id}
                           onClick={() => setSelectedAppt(appt)}

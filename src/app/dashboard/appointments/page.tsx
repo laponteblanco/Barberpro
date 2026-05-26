@@ -132,15 +132,17 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   });
 
   return (
-    <div className="antigravity-bg -m-8 p-8 h-[calc(100vh-64px)] overflow-hidden space-y-12 pb-12 flex flex-col">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 relative z-50">
-        <div className="animate-float">
-          <h1 className="text-4xl font-black tracking-tight text-white capitalize">
-            {isBarber ? "Mi Agenda" : (selectedDate === bogotaToday ? "Hoy" : "Agenda")}
-          </h1>
-          <p className="text-zinc-500 text-sm font-medium uppercase tracking-widest mt-1">
-            {isBarber ? `Semana del ${displayDate}` : displayDate}
-          </p>
+    <div className="antigravity-bg -m-4 p-4 md:-m-8 md:p-8 h-[calc(100vh-64px)] overflow-hidden space-y-4 md:space-y-12 pb-4 md:pb-12 flex flex-col">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 md:gap-8 relative z-50">
+        <div className="animate-float flex items-center justify-between lg:block">
+          <div>
+            <h1 className="text-2xl md:text-4xl font-black tracking-tight text-white capitalize">
+              {isBarber ? "Mi Agenda" : (selectedDate === bogotaToday ? "Hoy" : "Agenda")}
+            </h1>
+            <p className="text-zinc-500 text-[10px] md:text-sm font-medium uppercase tracking-widest mt-0.5">
+              {isBarber ? `Semana del ${displayDate}` : displayDate}
+            </p>
+          </div>
         </div>
 
         <div className="lg:absolute lg:left-1/2 lg:-translate-x-1/2 animate-float-slow flex items-center gap-2">
@@ -180,7 +182,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
         </div>
       </div>
 
-      <div className="animate-float-slow">
+      <div className="animate-float-slow flex-1 min-h-0">
         <CalendarView 
           appointments={appointments} 
           agendaBlocks={agendaBlocks}

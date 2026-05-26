@@ -8,6 +8,7 @@ import Loading from "../loading";
 import { getBIAnalytics } from "@/services/analytics.service";
 import { getSession } from "@/lib/supabase/session";
 
+
 export default async function ReportsPage({ 
   searchParams 
 }: { 

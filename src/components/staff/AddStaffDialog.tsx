@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { Plus, X, User, Scissors, Percent, Shield, Loader2, Camera, CheckCircle2, Calendar } from "lucide-react";
 import { addStaffAction } from "../../app/dashboard/staff/actions";
+import { useRouter } from "next/navigation";
 
 export function AddStaffDialog() {
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [compType, setCompType] = useState("percentage");
@@ -26,7 +28,7 @@ export function AddStaffDialog() {
       "0": "0", "1": "0", "2": "0", "3": "0", "4": "0", "5": "0", "6": "0"
     });
     setShowDailySettings(false);
-    if (createdPin) window.location.reload();
+    if (createdPin) router.refresh();
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
