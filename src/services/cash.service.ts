@@ -103,12 +103,38 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
 
   const salesTotal = sales?.reduce((sum: number, sale: any) => sum + Number(sale.total_price || 0), 0) || 0;
 
+  // 2.5 Calculate ledger cash movements (advances and payments) since opened_at
+  const { data: ledgerMoves } = await (adminSupabase as any)
+    .from("staff_ledger")
+    .select("type, amount")
+    .eq("tenant_id", tenantId)
+    .in("type", ["advance", "payment"])
+    .gte("created_at", session.opened_at);
+
+  let ledgerAdvances = 0;
+  let ledgerPayments = 0;
+
+  ledgerMoves?.forEach((move: any) => {
+    const amt = Number(move.amount || 0);
+    if (move.type === "advance") {
+      ledgerAdvances += amt;
+    } else if (move.type === "payment") {
+      ledgerPayments += amt;
+    }
+  });
+
   const openingBalance = Number(session.opening_balance || 0);
-  const expectedCash = openingBalance + appointmentsCashTotal + salesTotal;
+  const expectedCash = openingBalance + appointmentsCashTotal + salesTotal - ledgerAdvances + ledgerPayments;
   const expectedDigital = appointmentsDigitalTotal;
   const expectedBalance = expectedCash + expectedDigital;
 
   // 3. Build the barbers cash and digital breakdown
+  const { data: sessionLedger } = await (adminSupabase as any)
+    .from("staff_ledger")
+    .select("staff_id, type, amount")
+    .eq("tenant_id", tenantId)
+    .gte("created_at", session.opened_at);
+
   const breakdownMap = new Map<string, { 
     id: string; 
     name: string; 
@@ -116,6 +142,10 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
     total_cash: number;
     appointments_digital_count: number;
     total_digital: number;
+    total_advances: number;
+    total_payments: number;
+    total_consignments: number;
+    net_expected_cash: number;
   }>();
 
   staffMembers.forEach((s: any) => {
@@ -125,8 +155,42 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
       appointments_count: 0,
       total_cash: 0,
       appointments_digital_count: 0,
-      total_digital: 0
+      total_digital: 0,
+      total_advances: 0,
+      total_payments: 0,
+      total_consignments: 0,
+      net_expected_cash: 0
     });
+  });
+
+  // Populate ledger data into breakdown map
+  sessionLedger?.forEach((item: any) => {
+    const staffId = item.staff_id;
+    const amt = Number(item.amount || 0);
+
+    if (!breakdownMap.has(staffId)) {
+      breakdownMap.set(staffId, {
+        id: staffId,
+        name: "Staff Inactivo",
+        appointments_count: 0,
+        total_cash: 0,
+        appointments_digital_count: 0,
+        total_digital: 0,
+        total_advances: 0,
+        total_payments: 0,
+        total_consignments: 0,
+        net_expected_cash: 0
+      });
+    }
+
+    const b = breakdownMap.get(staffId)!;
+    if (item.type === "advance") {
+      b.total_advances += amt;
+    } else if (item.type === "payment") {
+      b.total_payments += amt;
+    } else if (item.type === "consignment") {
+      b.total_consignments += amt;
+    }
   });
 
   appointments.forEach((app: any) => {
@@ -141,7 +205,11 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
         appointments_count: 0,
         total_cash: 0,
         appointments_digital_count: 0,
-        total_digital: 0
+        total_digital: 0,
+        total_advances: 0,
+        total_payments: 0,
+        total_consignments: 0,
+        net_expected_cash: 0
       });
     }
 
@@ -155,7 +223,12 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
     }
   });
 
-  const barbersBreakdown = Array.from(breakdownMap.values()).sort((a, b) => b.total_cash - a.total_cash);
+  // Compute final net_expected_cash for each staff member
+  breakdownMap.forEach((b) => {
+    b.net_expected_cash = b.total_cash - b.total_advances + b.total_payments;
+  });
+
+  const barbersBreakdown = Array.from(breakdownMap.values()).sort((a, b) => b.net_expected_cash - a.net_expected_cash);
 
   return {
     id: session.id,

@@ -14,6 +14,8 @@ import {
   CheckCircle2, 
   Info,
   ArrowUpRight,
+  ArrowDownLeft,
+  ShoppingBag,
   ClipboardList,
   ChevronDown,
   ChevronUp,
@@ -100,7 +102,7 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
       const compiledBarbersBreakdown = (activeSession.barbers_breakdown || []).map((b: any) => {
         const delivery = barberDeliveries[b.id];
         const actualNum = delivery ? Number(delivery.actual.replace(/[^0-9]/g, "")) : 0;
-        const expectedNum = b.total_cash;
+        const expectedNum = b.net_expected_cash ?? b.total_cash;
         const discrepancy = actualNum - expectedNum;
         
         return {
@@ -110,7 +112,12 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
           expected_cash: expectedNum,
           actual_cash: actualNum,
           discrepancy: discrepancy,
-          is_verified: delivery?.isConfirmed || false
+          is_verified: delivery?.isConfirmed || false,
+          total_advances: b.total_advances || 0,
+          total_payments: b.total_payments || 0,
+          total_consignments: b.total_consignments || 0,
+          total_cash: b.total_cash || 0,
+          total_digital: b.total_digital || 0
         };
       });
 
@@ -350,7 +357,7 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
               {(activeSession.barbers_breakdown || []).map((barber: any) => {
                 const delivery = barberDeliveries[barber.id] || { actual: "", isConfirmed: false };
                 const actualNum = Number(delivery.actual.replace(/[^0-9]/g, ""));
-                const expectedNum = barber.total_cash;
+                const expectedNum = barber.net_expected_cash ?? barber.total_cash;
                 const barberDiscrepancy = actualNum - expectedNum;
                 const hasValue = delivery.actual !== "";
 
@@ -392,19 +399,43 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
                       <div className="space-y-1.5 border-b border-white/5 pb-3">
                         <div className="flex justify-between items-center text-xs">
                           <span className="font-semibold text-zinc-500 flex items-center gap-1.5">
-                            <Coins className="w-3.5 h-3.5 text-emerald-400" /> Efectivo Recaudado:
+                            <Coins className="w-3.5 h-3.5 text-emerald-400" /> Efectivo de Citas:
                           </span>
-                          <span className="font-bold text-white">{formatCurrency(expectedNum)}</span>
+                          <span className="font-bold text-white">{formatCurrency(barber.total_cash)}</span>
                         </div>
-                        <div className="flex justify-between items-center text-xs">
+                        {barber.total_advances > 0 && (
+                          <div className="flex justify-between items-center text-xs text-red-400 animate-in fade-in duration-200">
+                            <span className="font-semibold flex items-center gap-1.5">
+                              <ArrowUpRight className="w-3.5 h-3.5" /> Vales de Caja Hoy:
+                            </span>
+                            <span className="font-bold">-{formatCurrency(barber.total_advances)}</span>
+                          </div>
+                        )}
+                        {barber.total_payments > 0 && (
+                          <div className="flex justify-between items-center text-xs text-emerald-400 animate-in fade-in duration-200">
+                            <span className="font-semibold flex items-center gap-1.5">
+                              <ArrowDownLeft className="w-3.5 h-3.5" /> Abonos / Pagos Hoy:
+                            </span>
+                            <span className="font-bold">+{formatCurrency(barber.total_payments)}</span>
+                          </div>
+                        )}
+                        {barber.total_consignments > 0 && (
+                          <div className="flex justify-between items-center text-xs text-amber-500/80 animate-in fade-in duration-200">
+                            <span className="font-semibold flex items-center gap-1.5">
+                              <ShoppingBag className="w-3.5 h-3.5" /> Fiados / Consignación Hoy:
+                            </span>
+                            <span className="font-bold">{formatCurrency(barber.total_consignments)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center text-xs border-t border-white/5 pt-2 mt-1">
                           <span className="font-semibold text-zinc-500 flex items-center gap-1.5">
                             <Smartphone className="w-3.5 h-3.5 text-cyan-400" /> Digital Recaudado:
                           </span>
                           <span className="font-bold text-white">{formatCurrency(barber.total_digital || 0)}</span>
                         </div>
                         <div className="flex justify-between items-center text-xs border-t border-white/5 pt-2 mt-1">
-                          <span className="font-bold text-zinc-400">Total Recaudado:</span>
-                          <span className="font-black text-primary">{formatCurrency(expectedNum + (barber.total_digital || 0))}</span>
+                          <span className="font-bold text-zinc-300">Efectivo Neto Esperado:</span>
+                          <span className="font-black text-primary">{formatCurrency(expectedNum)}</span>
                         </div>
                       </div>
 
@@ -640,7 +671,7 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
           <Calendar className="w-5.5 h-5.5 text-primary animate-pulse" /> Historial de Cierres de Caja
         </h3>
 
-        <div className="bg-[#121214] border border-white/5 rounded-[32px] overflow-hidden shadow-2xl">
+        <div className="bg-zinc-950 border border-white/5 rounded-[32px] overflow-hidden shadow-2xl">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -745,6 +776,24 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
                                             <span className="text-zinc-500">Efec. Esperado:</span>
                                             <span className="font-bold text-zinc-300">{formatCurrency(expectedC)}</span>
                                           </div>
+                                          {b.total_advances > 0 && (
+                                            <div className="flex justify-between text-red-400 font-medium">
+                                              <span>Vales de Caja Hoy:</span>
+                                              <span>-{formatCurrency(b.total_advances)}</span>
+                                            </div>
+                                          )}
+                                          {b.total_payments > 0 && (
+                                            <div className="flex justify-between text-emerald-400 font-medium">
+                                              <span>Abonos / Pagos Hoy:</span>
+                                              <span>+{formatCurrency(b.total_payments)}</span>
+                                            </div>
+                                          )}
+                                          {b.total_consignments > 0 && (
+                                            <div className="flex justify-between text-amber-500/80 font-medium">
+                                              <span>Fiados / Consignación Hoy:</span>
+                                              <span>{formatCurrency(b.total_consignments)}</span>
+                                            </div>
+                                          )}
                                           <div className="flex justify-between">
                                             <span className="text-zinc-500">Efec. Entregado:</span>
                                             <span className="font-black text-white">{formatCurrency(actualC)}</span>

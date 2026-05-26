@@ -47,10 +47,6 @@ export function AuthModals() {
       const formData = new FormData(e.currentTarget);
       const role = formData.get("role")?.toString() || "admin";
       
-      const supabase = createClient();
-      let loginEmail = "";
-      let loginPassword = "";
-
       if (role === "barber") {
         const shopCode = formData.get("shop_code")?.toString()?.trim()?.toUpperCase();
         const pin = formData.get("pin")?.toString()?.trim();
@@ -61,38 +57,49 @@ export function AuthModals() {
           return;
         }
 
-        const result = await getBarberCredentialsAction(shopCode, pin);
-        if (result.error || !result.email || !result.password) {
+        const origin = window.location.origin;
+        const result = await getBarberCredentialsAction(shopCode, pin, origin);
+        if (result.error || !result.actionLink) {
           setError(result.error || "Error al verificar el PIN.");
           setLoading(false);
           return;
         }
-        loginEmail = result.email;
-        loginPassword = result.password;
-      } else {
-        const cedulaForm = formData.get("cedula")?.toString();
-        const pass = formData.get("password")?.toString();
-        if (!cedulaForm || !pass) {
-          setError("Por favor, ingresa tu cédula y contraseña.");
-          setLoading(false);
-          return;
-        }
-        loginEmail = `${cedulaForm}@barberos.app`;
-        loginPassword = pass;
+        
+        // Guardar el rol activo en cookies antes de redirigir como Barbero
+        document.cookie = "active_role=barber; path=/; max-age=31536000; SameSite=Lax; Secure";
+
+        // Redirigir directamente al enlace único de Supabase
+        window.location.href = result.actionLink;
+        return;
       }
 
+      // Acceso tradicional para Administrador / Dueño
+      const cedulaForm = formData.get("cedula")?.toString();
+      const pass = formData.get("password")?.toString();
+      if (!cedulaForm || !pass) {
+        setError("Por favor, ingresa tu cédula y contraseña.");
+        setLoading(false);
+        return;
+      }
+      
+      const loginEmail = `${cedulaForm}@barberos.app`;
+      const supabase = createClient();
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email: loginEmail,
-        password: loginPassword,
+        password: pass,
       });
 
       if (signInError) {
-        setError(role === "barber" ? "Error de acceso: PIN incorrecto." : "Cédula o contraseña incorrectas.");
+        setError("Cédula o contraseña incorrectas.");
         setLoading(false);
         return;
       }
 
-      if (role !== "barber" && data.user?.user_metadata?.require_password_change) {
+      // Guardar el rol activo de forma explícita en cookies como Administrador
+      const activeRole = data.user?.user_metadata?.role || "admin";
+      document.cookie = `active_role=${activeRole}; path=/; max-age=31536000; SameSite=Lax; Secure`;
+
+      if (data.user?.user_metadata?.require_password_change) {
         window.location.href = '/auth/reset-password';
       } else {
         window.location.href = '/dashboard/appointments';
@@ -108,7 +115,7 @@ export function AuthModals() {
     <>
       {activeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-[#121214] border border-white/10 w-full max-w-md rounded-[32px] p-8 shadow-2xl relative animate-in zoom-in-95 duration-200">
+          <div className="bg-zinc-950 border border-white/10 w-full max-w-md rounded-[32px] p-8 shadow-2xl relative animate-in zoom-in-95 duration-200">
             <button 
               onClick={() => setActiveModal(null)}
               className="absolute top-6 right-6 text-zinc-500 hover:text-white transition-colors"

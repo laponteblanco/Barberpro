@@ -52,7 +52,7 @@ export function KPISection({ data, role }: { data: any; role?: string }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
       {filteredKpis.map((kpi) => (
-        <div key={kpi.title} className="bg-[#121214] border border-white/5 rounded-[32px] p-7 shadow-xl hover:border-white/10 transition-all group relative overflow-hidden">
+        <div key={kpi.title} className="bg-zinc-950 border border-white/5 rounded-[32px] p-7 shadow-xl hover:border-white/10 transition-all group relative overflow-hidden">
           <div className="flex items-start justify-between mb-4">
             <div className={`w-12 h-12 rounded-2xl bg-${kpi.color}-500/10 flex items-center justify-center border border-${kpi.color}-500/20`}>
               <kpi.icon className={`w-6 h-6 text-${kpi.color}-500`} />

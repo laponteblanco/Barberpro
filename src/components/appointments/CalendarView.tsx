@@ -2,13 +2,14 @@
 
 import { useMemo, useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { updateAppointmentTimeAction, updateAppointmentStatusAction } from "@/app/dashboard/appointments/actions";
-import { User, Clock, LayoutList, CheckCircle2, DollarSign, Calendar } from "lucide-react";
+import { updateAppointmentTimeAction, updateAppointmentStatusAction, deleteAgendaBlockAction, createAgendaBlockAction } from "@/app/dashboard/appointments/actions";
+import { User, Clock, LayoutList, CheckCircle2, DollarSign, Calendar, Ban, Trash2, Scissors, X } from "lucide-react";
 import { NewAppointmentDialog } from "./NewAppointmentDialog";
 import { StaffSummaryDialog } from "./StaffSummaryDialog";
 
 interface CalendarViewProps {
   appointments: any[];
+  agendaBlocks?: any[];
   staff: any[];
   clients: any[];
   services: any[];
@@ -57,6 +58,7 @@ const getBogotaTime = (dateStr: string) => {
 
 export function CalendarView({ 
   appointments, 
+  agendaBlocks = [],
   staff, 
   clients, 
   services, 
@@ -68,6 +70,15 @@ export function CalendarView({
   const [movingId, setMovingId] = useState<string | null>(null);
   const [newApptData, setNewApptData] = useState<{ staff_id: string, date: string, time: string } | null>(null);
   const [selectedAppt, setSelectedAppt] = useState<any | null>(null);
+  
+  // States for block menu and actions
+  const [slotMenu, setSlotMenu] = useState<{ x: number, y: number, staffId: string, date: string, time: string } | null>(null);
+  const [showBlockDialog, setShowBlockDialog] = useState(false);
+  const [blockDuration, setBlockDuration] = useState("60");
+  const [blockReason, setBlockReason] = useState("");
+  const [blockData, setBlockData] = useState<{ staffId: string, date: string, time: string } | null>(null);
+  const [selectedBlock, setSelectedBlock] = useState<any | null>(null);
+
   const [summaryBarber, setSummaryBarber] = useState<any | null>(null);
   const [currentTime, setCurrentTime] = useState(getBogotaNow());
   const [mounted, setMounted] = useState(false);
@@ -235,6 +246,31 @@ export function CalendarView({
     }
   };
 
+  const handleCreateBlock = async () => {
+    if (!blockData) return;
+    try {
+      const startTimeStr = `${blockData.date}T${blockData.time}:00-05:00`;
+      await createAgendaBlockAction(blockData.staffId, startTimeStr, parseInt(blockDuration), blockReason || "Bloqueo");
+      setShowBlockDialog(false);
+      setBlockData(null);
+      setBlockReason("");
+      window.location.reload();
+    } catch (err: any) {
+      alert(err.message || "Error");
+    }
+  };
+
+  const handleDeleteBlock = async (id: string) => {
+    if (!confirm("¿Desbloquear este horario?")) return;
+    try {
+      await deleteAgendaBlockAction(id);
+      setSelectedBlock(null);
+      window.location.reload();
+    } catch (err: any) {
+      alert(err.message || "Error");
+    }
+  };
+
   return (
     <div className="glass-card rounded-[40px] overflow-hidden border border-white/10 bg-zinc-900/10 flex flex-col h-[calc(100vh-180px)] relative shadow-[0_0_100px_-20px_rgba(0,0,0,0.8)] backdrop-blur-3xl animate-in fade-in zoom-in-95 duration-700">
       
@@ -390,7 +426,16 @@ export function CalendarView({
                   {slots.map(({ hour, min }) => (
                     <div 
                       key={`${hour}:${min}`}
-                      onClick={() => setNewApptData({ staff_id: col.staffId as string, date: col.date as string, time: `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}` })}
+                      onClick={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        setSlotMenu({ 
+                          x: rect.left + rect.width / 2, 
+                          y: rect.top + rect.height / 2, 
+                          staffId: col.staffId as string, 
+                          date: col.date as string, 
+                          time: `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}` 
+                        });
+                      }}
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={(e) => handleDrop(e, col.staffId as string, hour, min, col.date)}
                       className={cn("h-8 border-b border-white/5 hover:bg-primary/20 hover:z-10 transition-colors relative cursor-pointer", min === 0 ? "border-b-white/10" : "border-b-white/[0.02]")}
@@ -436,6 +481,49 @@ export function CalendarView({
                         </div>
                       );
                     })}
+
+                  {/* Render Agenda Blocks */}
+                  {agendaBlocks
+                    .filter((block) => {
+                      if (block.staff_id !== col.staffId) return false;
+                      const bogota = getBogotaTime(block.start_time);
+                      return `${bogota.yyyy}-${bogota.mm}-${bogota.dd}` === col.date;
+                    })
+                    .map((block) => {
+                      const bogotaStart = getBogotaTime(block.start_time);
+                      const bogotaEnd = getBogotaTime(block.end_time);
+                      
+                      const hour = bogotaStart.hour;
+                      const min = bogotaStart.min;
+                      if (hour < effectiveStartHour || hour >= effectiveEndHour) return null;
+                      
+                      const startTotalMin = bogotaStart.hour * 60 + bogotaStart.min;
+                      const endTotalMin = bogotaEnd.hour * 60 + bogotaEnd.min;
+                      const durationMins = endTotalMin - startTotalMin;
+                      
+                      const top = ((hour - effectiveStartHour) * 60 + min) / 15 * 32;
+                      const height = (durationMins / 15) * 32 - 2;
+                      
+                      return (
+                        <div 
+                          key={block.id}
+                          onClick={() => setSelectedBlock(block)}
+                          style={{ top: `${top}px`, height: `${height}px` }}
+                          className="absolute inset-x-2 z-[1] rounded-xl p-2.5 border shadow-2xl transition-all cursor-pointer group/block overflow-hidden animate-in zoom-in-95 duration-300 bg-zinc-800/80 border-zinc-700/50 backdrop-blur-sm text-zinc-400 hover:bg-red-900/40 hover:border-red-500/30 hover:text-red-400"
+                        >
+                          <div className="absolute inset-0 opacity-10 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSIvPjwvc3ZnPg==')] pointer-events-none" />
+                          <div className="flex flex-col h-full relative z-10">
+                            <div className="flex items-center justify-between gap-1 mb-1">
+                              <span className="text-[10px] font-black uppercase tracking-widest truncate">{block.reason || "Bloqueado"}</span>
+                            </div>
+                            <div className="mt-auto flex items-center gap-1.5">
+                              <Ban className="w-2.5 h-2.5 opacity-40" />
+                              <span className="text-[8px] font-bold opacity-60">{`${bogotaStart.hhStr}:${bogotaStart.minStr} - ${bogotaEnd.hhStr}:${bogotaEnd.minStr}`}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                 </div>
               ))}
             </div>
@@ -455,7 +543,7 @@ export function CalendarView({
 
       {selectedAppt && (
         <div className="fixed inset-0 z-[100] flex justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto">
-          <div className="w-full max-w-sm bg-[#121214] border border-white/10 rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 h-fit my-auto">
+          <div className="w-full max-w-sm bg-zinc-950 border border-white/10 rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 h-fit my-auto">
             <div className="flex items-center justify-between px-6 py-5 border-b border-white/5 bg-zinc-900/50">
               <h3 className="font-bold text-white tracking-tight">Detalles de la Cita</h3>
               <button 
@@ -558,6 +646,133 @@ export function CalendarView({
           appointments={appointments.filter(a => a.staff_id === summaryBarber.id)} 
           onClose={() => setSummaryBarber(null)} 
         />
+      )}
+
+      {/* Slot Menu */}
+      {slotMenu && (
+        <>
+          <div className="fixed inset-0 z-[110]" onClick={() => setSlotMenu(null)} />
+          <div 
+            className="fixed z-[120] bg-zinc-900 border border-white/10 shadow-2xl rounded-xl p-2 w-48 animate-in zoom-in-95 duration-200"
+            style={{ top: slotMenu.y - 10, left: slotMenu.x + 10 }}
+          >
+            <div className="px-2 py-1.5 mb-1 border-b border-white/5">
+              <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">{slotMenu.time}</span>
+            </div>
+            <button
+              onClick={() => {
+                setNewApptData({ staff_id: slotMenu.staffId, date: slotMenu.date, time: slotMenu.time });
+                setSlotMenu(null);
+              }}
+              className="w-full flex items-center gap-2 px-2 py-2 hover:bg-white/5 rounded-lg text-sm text-white transition-colors text-left"
+            >
+              <Scissors className="w-4 h-4 text-primary" />
+              <span>Agendar Cita</span>
+            </button>
+            <button
+              onClick={() => {
+                setBlockData({ staffId: slotMenu.staffId, date: slotMenu.date, time: slotMenu.time });
+                setShowBlockDialog(true);
+                setSlotMenu(null);
+              }}
+              className="w-full flex items-center gap-2 px-2 py-2 hover:bg-red-500/10 rounded-lg text-sm text-zinc-300 hover:text-red-400 transition-colors text-left"
+            >
+              <Ban className="w-4 h-4" />
+              <span>Bloquear Horario</span>
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Block Creation Dialog */}
+      {showBlockDialog && blockData && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-sm bg-zinc-950 border border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-5 border-b border-white/5 flex items-center justify-between">
+              <h3 className="font-black text-white uppercase tracking-widest text-sm flex items-center gap-2">
+                <Ban className="w-4 h-4 text-red-500" />
+                Bloquear Horario
+              </h3>
+              <button onClick={() => setShowBlockDialog(false)} className="text-zinc-500 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Duración</label>
+                <select 
+                  value={blockDuration}
+                  onChange={e => setBlockDuration(e.target.value)}
+                  className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-red-500/50"
+                >
+                  <option value="15">15 Minutos</option>
+                  <option value="30">30 Minutos</option>
+                  <option value="45">45 Minutos</option>
+                  <option value="60">1 Hora</option>
+                  <option value="90">1.5 Horas</option>
+                  <option value="120">2 Horas</option>
+                  <option value="240">4 Horas</option>
+                  <option value="480">Día Completo (8H)</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Motivo (Opcional)</label>
+                <input 
+                  type="text" 
+                  placeholder="Ej: Almuerzo, Permiso..."
+                  value={blockReason}
+                  onChange={e => setBlockReason(e.target.value)}
+                  className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-red-500/50"
+                />
+              </div>
+              <button 
+                onClick={handleCreateBlock}
+                className="w-full py-3.5 rounded-xl bg-red-600 text-white font-black uppercase tracking-widest text-xs hover:bg-red-500 transition-colors mt-2"
+              >
+                Confirmar Bloqueo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Selected Block Details Dialog */}
+      {selectedBlock && (
+        <div className="fixed inset-0 z-[130] flex justify-center items-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-sm bg-zinc-950 border border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-white/5">
+              <h3 className="font-bold text-white tracking-tight flex items-center gap-2">
+                <Ban className="w-4 h-4 text-red-500" />
+                Horario Bloqueado
+              </h3>
+              <button onClick={() => setSelectedBlock(null)} className="p-2 hover:bg-white/10 rounded-xl text-zinc-400">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-6">
+              <div className="space-y-1">
+                <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black">Motivo</p>
+                <p className="font-bold text-lg text-white">{selectedBlock.reason || "Bloqueo manual"}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black">Horario</p>
+                <p className="font-medium text-sm text-zinc-300">
+                  {new Date(selectedBlock.start_time).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })} - 
+                  {new Date(selectedBlock.end_time).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
+                </p>
+              </div>
+              <div className="pt-2">
+                <button 
+                  onClick={() => handleDeleteBlock(selectedBlock.id)} 
+                  className="w-full flex justify-center items-center gap-2 py-3.5 rounded-xl border border-red-500/30 text-red-400 hover:bg-red-500/10 font-black uppercase tracking-widest text-xs transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Desbloquear
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

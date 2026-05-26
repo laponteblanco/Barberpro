@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { X, User, Percent, Shield, Loader2, Edit3, Camera, Calendar } from "lucide-react";
+import { X, User, Percent, Shield, Loader2, Edit3, Camera, Calendar, Clock, ToggleLeft, ToggleRight } from "lucide-react";
 import { editStaffAction } from "@/app/dashboard/staff/actions";
+import { cn } from "@/lib/utils";
 
 export function EditStaffDialog({ member }: { member: any }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -37,6 +38,32 @@ export function EditStaffDialog({ member }: { member: any }) {
   });
   const [showDailySettings, setShowDailySettings] = useState(false);
 
+  // Working hours per day state (0=Sun … 6=Sat)
+  const defaultWorkingHours = [
+    { open: true, start: 8, end: 20 }, // dom
+    { open: true, start: 8, end: 20 }, // lun
+    { open: true, start: 8, end: 20 }, // mar
+    { open: true, start: 8, end: 20 }, // mié
+    { open: true, start: 8, end: 20 }, // jue
+    { open: true, start: 8, end: 20 }, // vie
+    { open: true, start: 8, end: 20 }, // sáb
+  ];
+  const [workingHours, setWorkingHours] = useState<Array<{open: boolean; start: number; end: number}>>(
+    () => {
+      const saved = member.working_hours;
+      return (saved && Array.isArray(saved) && saved.length === 7) ? saved : defaultWorkingHours;
+    }
+  );
+  const [showWorkingHours, setShowWorkingHours] = useState(false);
+
+  const updateWorkingDay = (idx: number, field: "open" | "start" | "end", value: boolean | number) => {
+    setWorkingHours(prev => {
+      const copy = prev.map(d => ({ ...d }));
+      (copy[idx] as any)[field] = value;
+      return copy;
+    });
+  };
+
   const handleGeneralCommissionChange = (val: string) => {
     const clean = val.replace(/[^0-9]/g, "");
     setGeneralCommission(clean);
@@ -65,6 +92,9 @@ export function EditStaffDialog({ member }: { member: any }) {
     Object.entries(dailyCommissions).forEach(([day, value]) => {
       formData.set(`daily_commission_${day}`, value || generalCommission || "0");
     });
+
+    // Append working hours as JSON
+    formData.set("working_hours", JSON.stringify(workingHours));
     
     try {
       const result = await editStaffAction(formData);
@@ -103,7 +133,7 @@ export function EditStaffDialog({ member }: { member: any }) {
 
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:items-center bg-black/60 backdrop-blur-md animate-in fade-in duration-300 overflow-y-auto pt-10 sm:pt-4">
-          <div className="w-full max-w-lg bg-[#121214] border border-white/10 rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col my-auto">
+          <div className="w-full max-w-lg bg-zinc-950 border border-white/10 rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col my-auto">
             <div className="px-8 py-6 border-b border-white/5 flex items-center justify-between shrink-0 bg-zinc-900/50">
               <div>
                 <h2 className="text-xl font-bold text-white tracking-tight">Editar Personal</h2>
@@ -267,6 +297,83 @@ export function EditStaffDialog({ member }: { member: any }) {
                   </div>
                 )}
                 
+                {/* --- SECCION HORARIO LABORAL DEL BARBERO --- */}
+                <div className="space-y-3 pt-2 border-t border-white/5 animate-in fade-in duration-300">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 flex items-center gap-2 ml-1">
+                      <Clock className="w-3.5 h-3.5 text-primary" /> Horario Laboral del Barbero
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowWorkingHours(!showWorkingHours)}
+                      className="text-[9px] font-black uppercase tracking-wider text-primary hover:underline"
+                    >
+                      {showWorkingHours ? "Ocultar" : "Configurar horario"}
+                    </button>
+                  </div>
+
+                  {showWorkingHours && (
+                    <div className="space-y-2 bg-black/30 p-4 rounded-2xl border border-white/5 animate-in zoom-in-95 duration-200">
+                      <p className="text-[10px] text-zinc-500 mb-3">Solo el administrador puede editar estos horarios.</p>
+                      {(["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"] as const).map((dayName, idx) => {
+                        const day = workingHours[idx];
+                        return (
+                          <div
+                            key={idx}
+                            className={cn(
+                              "flex flex-wrap items-center gap-2 p-2 rounded-xl border transition-all",
+                              day.open ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950 border-zinc-800 opacity-60"
+                            )}
+                          >
+                            <div className="flex items-center gap-1.5 w-24 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => updateWorkingDay(idx, "open", !day.open)}
+                                className={cn("transition-colors", day.open ? "text-primary" : "text-zinc-600")}
+                              >
+                                {day.open ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                              </button>
+                              <span className={cn("text-[10px] font-bold", day.open ? "text-white" : "text-zinc-500")}>
+                                {dayName.substring(0, 3)}
+                              </span>
+                            </div>
+                            {day.open ? (
+                              <>
+                                <div className="flex items-center gap-1 flex-1 min-w-0">
+                                  <span className="text-[9px] text-zinc-500 shrink-0">De</span>
+                                  <select
+                                    value={day.start}
+                                    onChange={e => updateWorkingDay(idx, "start", Number(e.target.value))}
+                                    className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1 text-[10px] outline-none"
+                                  >
+                                    {Array.from({length: 24}).map((_,h) => (
+                                      <option key={h} value={h}>{h}:00</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div className="flex items-center gap-1 flex-1 min-w-0">
+                                  <span className="text-[9px] text-zinc-500 shrink-0">A</span>
+                                  <select
+                                    value={day.end}
+                                    onChange={e => updateWorkingDay(idx, "end", Number(e.target.value))}
+                                    className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1 text-[10px] outline-none"
+                                  >
+                                    {Array.from({length: 24}).map((_,h) => (
+                                      <option key={h} value={h}>{h}:00</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </>
+                            ) : (
+                              <span className="text-[9px] text-zinc-600 italic">Libre este día</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
                 <div className="space-y-2.5">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 flex items-center gap-2 ml-1">
                     <Shield className="w-3 h-3 text-primary/70" /> Estado Operativo

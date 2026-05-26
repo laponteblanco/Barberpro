@@ -12,7 +12,7 @@ const formatter = new Intl.NumberFormat('es-CO', {
 
 export function StaffPerformance({ data: staffData }: { data: any[] }) {
   return (
-    <div className="bg-[#121214] border border-white/5 rounded-[32px] p-8 shadow-2xl space-y-8">
+    <div className="bg-zinc-950 border border-white/5 rounded-[32px] p-8 shadow-2xl space-y-8">
       {/* Ranking Chart */}
       <div className="space-y-6">
         <div className="flex items-center justify-between">

@@ -5,6 +5,12 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+const dayHoursSchema = z.object({
+  open: z.boolean().default(true),
+  start: z.number().min(0).max(23).default(8),
+  end: z.number().min(0).max(23).default(20),
+});
+
 const profileSchema = z.object({
   name: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
   slug: z.string(),
@@ -18,6 +24,7 @@ const profileSchema = z.object({
   address: z.string().optional().nullable(),
   business_start: z.number().min(0).max(23).default(8),
   business_end: z.number().min(0).max(23).default(20),
+  business_hours_by_day: z.array(dayHoursSchema).length(7).optional(),
 });
 
 export type ProfileFormData = z.infer<typeof profileSchema>;
@@ -50,7 +57,10 @@ export async function updateTenantProfile(data: ProfileFormData) {
     business_hours: {
       start: validated.data.business_start,
       end: validated.data.business_end
-    }
+    },
+    ...(validated.data.business_hours_by_day && {
+      business_hours_by_day: validated.data.business_hours_by_day
+    })
   };
 
   const { error } = await (adminSupabase as any)

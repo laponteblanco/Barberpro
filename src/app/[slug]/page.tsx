@@ -47,7 +47,7 @@ export default async function PublicBookingPage({
   const activeServices = (tenant.services ?? []).filter((s: any) => s.is_active);
 
   return (
-    <main className="min-h-screen bg-[#050505] text-white selection:bg-primary/30">
+    <main className="min-h-screen bg-zinc-950 text-white selection:bg-primary/30">
       {/* Background Decor */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px] animate-pulse" />

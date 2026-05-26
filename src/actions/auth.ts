@@ -3,7 +3,7 @@
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
-export async function getBarberCredentialsAction(shopCode: string, pin: string) {
+export async function getBarberCredentialsAction(shopCode: string, pin: string, origin: string) {
   try {
     const adminSupabase = await createAdminClient();
 
@@ -31,7 +31,22 @@ export async function getBarberCredentialsAction(shopCode: string, pin: string) 
     if (!cedula) return { error: "No se pudo identificar el usuario." };
 
     const virtualEmail = `${cedula}@barberos.app`;
-    return { email: virtualEmail, password: cedula };
+
+    // 3. Generar enlace de inicio de sesión único (Magic Link)
+    const { data: linkData, error: linkError } = await adminSupabase.auth.admin.generateLink({
+      type: 'magiclink',
+      email: virtualEmail,
+      options: {
+        redirectTo: `${origin}/dashboard/appointments`
+      }
+    });
+
+    if (linkError || !linkData?.properties?.action_link) {
+      console.error("Link Generation Error:", linkError);
+      return { error: "Error al generar el acceso seguro." };
+    }
+
+    return { actionLink: linkData.properties.action_link };
   } catch (error: any) {
     console.error("Barber Login Error:", error);
     return { error: "Error interno del servidor." };

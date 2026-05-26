@@ -107,7 +107,7 @@ export function AddStaffDialog() {
 
       {isOpen && (
         <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 sm:items-center bg-black/60 backdrop-blur-md animate-in fade-in duration-300 overflow-y-auto pt-10 sm:pt-4">
-          <div className="w-full max-w-lg bg-[#121214] border border-white/10 rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col my-auto">
+          <div className="w-full max-w-lg bg-zinc-950 border border-white/10 rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col my-auto">
             
             {createdPin ? (
               <div className="p-10 text-center space-y-8 animate-in zoom-in duration-500">

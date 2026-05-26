@@ -16,7 +16,7 @@ export default async function ServicesPage() {
         <AddServiceDialog />
       </div>
 
-      <div className="bg-[#121214] border border-white/5 rounded-[32px] overflow-hidden shadow-2xl min-h-[400px]">
+      <div className="bg-zinc-950 border border-white/5 rounded-[32px] overflow-hidden shadow-2xl min-h-[400px]">
         <div className="p-6 border-b border-white/5 bg-zinc-900/30 flex justify-between items-center">
           <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
             Total Servicios Activos: <span className="text-indigo-500 ml-1">{services.filter((s: any) => s.is_active).length}</span>

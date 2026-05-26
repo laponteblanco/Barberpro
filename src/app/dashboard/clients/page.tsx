@@ -17,7 +17,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
         <AddClientDialog />
       </div>
 
-      <div className="bg-[#121214] border border-white/5 rounded-[32px] overflow-hidden shadow-2xl min-h-[400px]">
+      <div className="bg-zinc-950 border border-white/5 rounded-[32px] overflow-hidden shadow-2xl min-h-[400px]">
         <div className="p-6 border-b border-white/5 bg-zinc-900/30 flex flex-col sm:flex-row gap-4 justify-between items-center">
           <form className="relative max-w-md w-full">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />

@@ -16,6 +16,9 @@ import {
   List,
   Coins,
   X,
+  Lock,
+  ShieldCheck,
+  UserRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -32,16 +35,21 @@ const navItems = [
   { icon: Settings, label: "Ajustes", href: "/dashboard/settings" },
 ];
 
+// Módulos que un barbero puede acceder
+const BARBER_ALLOWED = ["Citas", "Reportes"];
+
 export function Sidebar({ 
   tenantName, 
   tenantLogoUrl,
   role = "admin",
+  userName,
   isOpen = false,
   onClose,
 }: { 
   tenantName: string, 
   tenantLogoUrl?: string | null,
   role?: string,
+  userName?: string,
   isOpen?: boolean,
   onClose?: () => void
 }) {
@@ -49,13 +57,21 @@ export function Sidebar({
   const router = useRouter();
   const supabase = createClient();
   const [isNavigating, setIsNavigating] = useState<string | null>(null);
+  const [lockedTooltip, setLockedTooltip] = useState<string | null>(null);
 
-  const filteredNavItems = navItems.filter(item => {
-    if (role === "barber") {
-      return ["Citas", "Reportes"].includes(item.label);
-    }
-    return true;
-  });
+  const isAdmin = role === "admin" || role === "superadmin";
+  const isBarber = role === "barber";
+
+  // Para barberos: mostrar TODOS los módulos, pero marcar los bloqueados
+  const itemsWithAccess = navItems.map(item => ({
+    ...item,
+    locked: isBarber && !BARBER_ALLOWED.includes(item.label),
+  }));
+
+  // Initials for avatar
+  const initials = userName
+    ? userName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2)
+    : (isAdmin ? "AD" : "BR");
 
   // Clear navigation state and close mobile sidebar when pathname changes
   useEffect(() => {
@@ -63,7 +79,17 @@ export function Sidebar({
     onClose?.();
   }, [pathname]);
 
+  // Close tooltip on outside click
+  useEffect(() => {
+    if (!lockedTooltip) return;
+    const handler = () => setLockedTooltip(null);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [lockedTooltip]);
+
   const handleLogout = async () => {
+    // Limpiar la cookie del rol activo al cerrar sesión
+    document.cookie = "active_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax; Secure";
     await supabase.auth.signOut();
     router.push("/");
   };
@@ -125,14 +151,86 @@ export function Sidebar({
           )}
         </div>
 
+        {/* User Info & Role Badge */}
+        <div className="px-4 py-3 border-b border-[hsl(var(--sidebar-border))]">
+          <div className="flex items-center gap-3">
+            {/* Avatar */}
+            <div className={cn(
+              "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-bold border",
+              isAdmin
+                ? "bg-amber-500/15 border-amber-500/30 text-amber-400"
+                : "bg-blue-500/15 border-blue-500/30 text-blue-400"
+            )}>
+              {initials}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-foreground truncate leading-tight">
+                {userName || (isAdmin ? "Administrador" : "Barbero")}
+              </p>
+              {/* Role Badge */}
+              <div className="mt-0.5">
+                {isAdmin ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-full px-2 py-0.5">
+                    <ShieldCheck className="w-2.5 h-2.5" />
+                    {role === "superadmin" ? "Super Admin" : "Administrador"}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-blue-400 bg-blue-500/10 border border-blue-500/20 rounded-full px-2 py-0.5">
+                    <UserRound className="w-2.5 h-2.5" />
+                    Barbero
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+          {isBarber && (
+            <p className="mt-2 text-[10px] text-zinc-500 leading-relaxed">
+              Acceso a módulos habilitados por el admin.
+            </p>
+          )}
+        </div>
+
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-          {filteredNavItems.map((item) => {
+          {isBarber && (
+            <p className="px-3 mb-2 text-[10px] font-semibold text-zinc-600 uppercase tracking-[0.15em]">
+              Mis módulos
+            </p>
+          )}
+          {itemsWithAccess.map((item) => {
             const active =
               item.href === "/dashboard"
                 ? pathname === "/dashboard"
                 : pathname.startsWith(item.href);
             const isCurrentLoading = isNavigating === item.href;
+
+            // Módulo bloqueado para barbero
+            if (item.locked) {
+              return (
+                <div
+                  key={item.href}
+                  className="relative"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLockedTooltip(lockedTooltip === item.href ? null : item.href);
+                  }}
+                >
+                  <div
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-not-allowed select-none opacity-35"
+                  >
+                    <item.icon className="w-4.5 h-4.5 flex-shrink-0 text-zinc-500" />
+                    <span className="flex-1 text-zinc-500">{item.label}</span>
+                    <Lock className="w-3 h-3 text-zinc-600" />
+                  </div>
+                  {/* Locked tooltip */}
+                  {lockedTooltip === item.href && (
+                    <div className="absolute left-0 right-0 z-50 mx-2 -bottom-9 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-[11px] text-zinc-300 shadow-xl animate-fade-up">
+                      Solo administradores tienen acceso.
+                    </div>
+                  )}
+                </div>
+              );
+            }
 
             return (
               <Link

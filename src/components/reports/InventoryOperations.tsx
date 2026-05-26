@@ -14,7 +14,7 @@ export function InventoryOperations({ heatmap: heatmapData, topProducts }: { hea
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       {/* Top Products */}
-      <div className="bg-[#121214] border border-white/5 rounded-[32px] p-8 shadow-2xl">
+      <div className="bg-zinc-950 border border-white/5 rounded-[32px] p-8 shadow-2xl">
         <div className="flex items-center gap-3 mb-8">
           <ShoppingBag className="w-5 h-5 text-emerald-500" />
           <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Productos Más Vendidos</h4>
@@ -47,7 +47,7 @@ export function InventoryOperations({ heatmap: heatmapData, topProducts }: { hea
       </div>
 
       {/* Heatmap Ocupación */}
-      <div className="bg-[#121214] border border-white/5 rounded-[32px] p-8 shadow-2xl">
+      <div className="bg-zinc-950 border border-white/5 rounded-[32px] p-8 shadow-2xl">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
             <Flame className="w-5 h-5 text-red-500" />

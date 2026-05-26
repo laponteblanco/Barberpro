@@ -160,7 +160,7 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
 
   const modalContent = isModalOpen ? (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="w-[92vw] max-w-[500px] bg-[#121214] border border-white/10 rounded-[32px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className="w-[92vw] max-w-[500px] bg-zinc-950 border border-white/10 rounded-[32px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-200">
             {/* Header */}
             <div className="flex items-center justify-between px-8 py-6 border-b border-white/5 bg-zinc-900/50 shrink-0">
               <div>
@@ -304,7 +304,7 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
                     >
                       <option value="">Seleccionar...</option>
                       {staff.map((s: any) => (
-                        <option key={s.id} value={s.id} className="bg-[#121214]">{s.display_name}</option>
+                        <option key={s.id} value={s.id} className="bg-zinc-950">{s.display_name}</option>
                       ))}
                     </select>
                   </div>
@@ -322,7 +322,7 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
                     >
                       <option value="">Seleccionar...</option>
                       {services.map((s: any) => (
-                        <option key={s.id} value={s.id} className="bg-[#121214]">{s.name} (${s.price})</option>
+                        <option key={s.id} value={s.id} className="bg-zinc-950">{s.name} (${s.price})</option>
                       ))}
                     </select>
                   </div>
@@ -356,7 +356,7 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
                     >
                       <option value="">Seleccionar hora...</option>
                       {availableSlots.map((timeStr: string) => (
-                        <option key={timeStr} value={timeStr} className="bg-[#121214]">
+                        <option key={timeStr} value={timeStr} className="bg-zinc-950">
                           {timeStr}
                         </option>
                       ))}

@@ -33,7 +33,7 @@ export default async function HomePage() {
   const initialTenants = tenants || [];
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-white selection:bg-primary/30 font-sans">
+    <div className="min-h-screen bg-zinc-950 text-white selection:bg-primary/30 font-sans">
       {/* Dynamic Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute top-[-20%] left-[-10%] w-[50vw] h-[50vw] bg-primary/10 blur-[150px] rounded-full mix-blend-screen opacity-50" />

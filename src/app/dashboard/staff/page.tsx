@@ -46,7 +46,7 @@ export default async function StaffPage() {
         </div>
       </div>
 
-      <div className="bg-[#121214] border border-white/5 rounded-[32px] overflow-hidden shadow-2xl">
+      <div className="bg-zinc-950 border border-white/5 rounded-[32px] overflow-hidden shadow-2xl">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>

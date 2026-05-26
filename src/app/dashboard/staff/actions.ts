@@ -216,6 +216,19 @@ export async function editStaffAction(formData: FormData) {
     daily_commission_rates
   };
 
+  // Parse and include barber working hours if provided
+  const workingHoursRaw = formData.get("working_hours")?.toString();
+  if (workingHoursRaw) {
+    try {
+      const parsed = JSON.parse(workingHoursRaw);
+      if (Array.isArray(parsed) && parsed.length === 7) {
+        updateData.working_hours = parsed;
+      }
+    } catch {
+      // Ignore malformed JSON
+    }
+  }
+
   let { error: staffError } = await (adminSupabase as any)
     .from("tenant_staff")
     .update(updateData)
@@ -270,4 +283,241 @@ export async function deleteStaffAction(staffId: string) {
 
   revalidatePath("/dashboard/staff");
   return { success: true };
+}
+
+export async function getLedgerDataAction(staffId: string) {
+  try {
+    const { tenantId, user: currentUser } = await getSession();
+    if (!tenantId || !currentUser) {
+      return { error: "No autorizado" };
+    }
+
+    const adminSupabase = await createAdminClient();
+
+    // Query ledger history with products join
+    const { data: history, error } = await (adminSupabase as any)
+      .from("staff_ledger")
+      .select("*, products(name, retail_price)")
+      .eq("staff_id", staffId)
+      .eq("tenant_id", tenantId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching ledger data:", error);
+      return { error: error.message };
+    }
+
+    let totalAdvances = 0;
+    let totalConsignments = 0;
+    let totalPayments = 0;
+
+    history?.forEach((item: any) => {
+      const amt = Number(item.amount || 0);
+      if (item.type === "advance") {
+        totalAdvances += amt;
+      } else if (item.type === "consignment") {
+        totalConsignments += amt;
+      } else if (item.type === "payment") {
+        totalPayments += amt;
+      }
+    });
+
+    const pendingBalance = totalAdvances + totalConsignments - totalPayments;
+
+    return {
+      success: true,
+      history: history || [],
+      totals: {
+        totalAdvances,
+        totalConsignments,
+        totalPayments,
+        pendingBalance
+      }
+    };
+  } catch (err: any) {
+    console.error("getLedgerDataAction error:", err);
+    return { error: err.message || "Error al obtener datos financieros" };
+  }
+}
+
+export async function getTenantProductsAction() {
+  try {
+    const { tenantId } = await getSession();
+    if (!tenantId) return { error: "No autorizado" };
+
+    const adminSupabase = await createAdminClient();
+
+    // Fetch active products with stock > 0
+    const { data: products, error } = await (adminSupabase as any)
+      .from("products")
+      .select("id, name, retail_price, stock")
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true)
+      .gt("stock", 0)
+      .order("name", { ascending: true });
+
+    if (error) {
+      console.error("Error fetching products:", error);
+      return { error: error.message };
+    }
+
+    return { success: true, products: products || [] };
+  } catch (err: any) {
+    console.error("getTenantProductsAction error:", err);
+    return { error: err.message || "Error al obtener productos" };
+  }
+}
+
+export async function addLedgerTransactionAction(formData: FormData) {
+  try {
+    const { tenantId, user: currentUser, staff } = await getSession();
+
+    // Only owners or admins can manage transactions
+    const isAuthorized = staff?.role === "admin" || staff?.role === "owner" || currentUser?.user_metadata?.role === "admin" || currentUser?.user_metadata?.role === "superadmin";
+    if (!tenantId || !currentUser || !isAuthorized) {
+      return { error: "No autorizado para registrar movimientos financieros." };
+    }
+
+    const adminSupabase = await createAdminClient();
+
+    const staffId = formData.get("staff_id")?.toString();
+    const type = formData.get("type")?.toString(); // 'advance' | 'consignment' | 'payment'
+    const amountStr = formData.get("amount")?.toString() || "0";
+    const amount = Number(amountStr.replace(/[^0-9]/g, ""));
+    const description = formData.get("description")?.toString() || "";
+    const productId = formData.get("product_id")?.toString() || null;
+
+    if (!staffId || !type || amount <= 0) {
+      return { error: "Datos del movimiento no válidos. El monto debe ser mayor a 0." };
+    }
+
+    // 1. Handle stock deduction if product consignment
+    let productQty = null;
+    if (type === "consignment" && productId) {
+      // Fetch product to verify stock
+      const { data: product, error: prodError } = await (adminSupabase as any)
+        .from("products")
+        .select("stock, name")
+        .eq("id", productId)
+        .eq("tenant_id", tenantId)
+        .single();
+
+      if (prodError || !product) {
+        return { error: "Producto no encontrado en inventario." };
+      }
+
+      if (product.stock <= 0) {
+        return { error: `Stock insuficiente para '${product.name}'. El stock actual es 0.` };
+      }
+
+      // Deduct stock by 1
+      const { error: updateStockError } = await (adminSupabase as any)
+        .from("products")
+        .update({ stock: product.stock - 1 })
+        .eq("id", productId);
+
+      if (updateStockError) {
+        console.error("Deduct stock error:", updateStockError);
+        return { error: "No se pudo actualizar el inventario del producto." };
+      }
+
+      productQty = 1;
+    }
+
+    // 2. Insert into ledger
+    const { error: insertError } = await (adminSupabase as any)
+      .from("staff_ledger")
+      .insert({
+        tenant_id: tenantId,
+        staff_id: staffId,
+        type,
+        amount,
+        description,
+        product_id: productId,
+        product_quantity: productQty
+      });
+
+    if (insertError) {
+      console.error("Ledger insert error:", insertError);
+      // Rollback stock deduction if it was a consignment
+      if (type === "consignment" && productId) {
+        const { data: product } = await (adminSupabase as any)
+          .from("products")
+          .select("stock")
+          .eq("id", productId)
+          .single();
+        if (product) {
+          await (adminSupabase as any).from("products").update({ stock: product.stock + 1 }).eq("id", productId);
+        }
+      }
+      return { error: `Error al registrar en el historial: ${insertError.message}` };
+    }
+
+    revalidatePath("/dashboard/appointments");
+    revalidatePath("/dashboard/staff");
+    return { success: true };
+  } catch (err: any) {
+    console.error("addLedgerTransactionAction error:", err);
+    return { error: err.message || "Error al registrar movimiento" };
+  }
+}
+
+export async function deleteLedgerTransactionAction(transactionId: string) {
+  try {
+    const { tenantId, user: currentUser, staff } = await getSession();
+
+    // Only owners or admins can manage transactions
+    const isAuthorized = staff?.role === "admin" || staff?.role === "owner" || currentUser?.user_metadata?.role === "admin" || currentUser?.user_metadata?.role === "superadmin";
+    if (!tenantId || !currentUser || !isAuthorized) {
+      return { error: "No autorizado para eliminar movimientos financieros." };
+    }
+
+    const adminSupabase = await createAdminClient();
+
+    // 1. Fetch transaction details to see if stock needs to be restored
+    const { data: transaction, error: fetchError } = await (adminSupabase as any)
+      .from("staff_ledger")
+      .select("*")
+      .eq("id", transactionId)
+      .eq("tenant_id", tenantId)
+      .single();
+
+    if (fetchError || !transaction) {
+      return { error: "Movimiento financiero no encontrado." };
+    }
+
+    // 2. Restore stock if it was a product consignment
+    if (transaction.type === "consignment" && transaction.product_id && transaction.product_quantity) {
+      const { data: product } = await (adminSupabase as any)
+        .from("products")
+        .select("stock")
+        .eq("id", transaction.product_id)
+        .single();
+      
+      if (product) {
+        await (adminSupabase as any)
+          .from("products")
+          .update({ stock: product.stock + transaction.product_quantity })
+          .eq("id", transaction.product_id);
+      }
+    }
+
+    // 3. Delete from ledger
+    const { error: deleteError } = await (adminSupabase as any)
+      .from("staff_ledger")
+      .delete()
+      .eq("id", transactionId);
+
+    if (deleteError) {
+      console.error("Ledger delete error:", deleteError);
+      return { error: `Error al eliminar el movimiento: ${deleteError.message}` };
+    }
+
+    revalidatePath("/dashboard/appointments");
+    revalidatePath("/dashboard/staff");
+    return { success: true };
+  } catch (err: any) {
+    console.error("deleteLedgerTransactionAction error:", err);
+    return { error: err.message || "Error al eliminar movimiento" };
+  }
 }

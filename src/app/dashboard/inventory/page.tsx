@@ -9,8 +9,18 @@ import { SalesHistoryCard } from "./SalesHistoryCard";
 import { getProducts, getDailySales } from "@/services/products.service";
 
 export default async function InventoryPage() {
-  const { user, staff } = await getSession();
-  const role = staff?.role ?? user?.user_metadata?.role ?? "admin";
+  const { user, staff, activeRole } = await getSession();
+  const authRole = user?.user_metadata?.role;
+  let role = (authRole === "admin" || authRole === "superadmin")
+    ? authRole
+    : (staff?.role ?? authRole ?? "admin");
+
+  // Si se inició sesión explícitamente como barbero usando PIN, aplicar el rol
+  if (activeRole === "barber" && (role === "admin" || role === "superadmin" || staff?.role === "barber")) {
+    role = "barber";
+  } else if (activeRole === "admin" && (authRole === "admin" || authRole === "superadmin")) {
+    role = authRole;
+  }
   if (role === "barber") {
     redirect("/dashboard/appointments");
   }
@@ -36,7 +46,7 @@ export default async function InventoryPage() {
 
       {/* Resumen de Ventas Hoy */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-[#121214] border border-white/5 rounded-[32px] p-6 shadow-xl flex items-center gap-5 group hover:border-emerald-500/20 transition-all relative overflow-hidden">
+        <div className="bg-zinc-950 border border-white/5 rounded-[32px] p-6 shadow-xl flex items-center gap-5 group hover:border-emerald-500/20 transition-all relative overflow-hidden">
           <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 shrink-0">
             <ShoppingBag className="w-6 h-6 text-emerald-500" />
           </div>
@@ -52,7 +62,7 @@ export default async function InventoryPage() {
           <DailySalesDialog sales={dailySales} />
         </div>
 
-        <div className="bg-[#121214] border border-white/5 rounded-[32px] p-6 shadow-xl flex items-center gap-5 group hover:border-primary/20 transition-all">
+        <div className="bg-zinc-950 border border-white/5 rounded-[32px] p-6 shadow-xl flex items-center gap-5 group hover:border-primary/20 transition-all">
           <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center border border-primary/20 shrink-0">
             <DollarSign className="w-6 h-6 text-primary" />
           </div>
@@ -65,7 +75,7 @@ export default async function InventoryPage() {
           </div>
         </div>
 
-        <div className="bg-[#121214] border border-white/5 rounded-[32px] p-6 shadow-xl flex items-center gap-5 group hover:border-amber-500/20 transition-all">
+        <div className="bg-zinc-950 border border-white/5 rounded-[32px] p-6 shadow-xl flex items-center gap-5 group hover:border-amber-500/20 transition-all">
           <div className="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20 shrink-0">
             <TrendingUp className="w-6 h-6 text-amber-500" />
           </div>
@@ -82,7 +92,7 @@ export default async function InventoryPage() {
       </div>
 
       {/* Cuerpo: Estado de Carga/Vacío o Tabla */}
-      <div className="bg-[#121214] border border-white/5 rounded-[32px] overflow-hidden shadow-2xl min-h-[400px]">
+      <div className="bg-zinc-950 border border-white/5 rounded-[32px] overflow-hidden shadow-2xl min-h-[400px]">
         {products.length === 0 ? (
           <div className="py-20 text-center px-8">
             <div className="w-20 h-20 rounded-3xl bg-zinc-800/50 flex items-center justify-center mx-auto border border-zinc-700/50 mb-6">

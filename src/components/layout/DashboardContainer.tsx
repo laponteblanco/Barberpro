@@ -8,6 +8,7 @@ interface DashboardContainerProps {
   tenantName: string;
   tenantLogoUrl?: string | null;
   role: string;
+  userName?: string;
   children: React.ReactNode;
 }
 
@@ -15,6 +16,7 @@ export function DashboardContainer({
   tenantName,
   tenantLogoUrl,
   role,
+  userName,
   children,
 }: DashboardContainerProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -26,6 +28,7 @@ export function DashboardContainer({
         tenantName={tenantName}
         tenantLogoUrl={tenantLogoUrl}
         role={role}
+        userName={userName}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
       />

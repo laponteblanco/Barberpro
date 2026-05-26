@@ -728,7 +728,7 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
 
   const renderRegister = () => (
     <div className="max-w-md mx-auto pt-20 px-6 animate-in fade-in slide-in-from-bottom-8 duration-700 pb-20">
-      <div className="glass-card rounded-[32px] border border-white/10 shadow-2xl overflow-hidden flex flex-col bg-[#121214]">
+      <div className="glass-card rounded-[32px] border border-white/10 shadow-2xl overflow-hidden flex flex-col bg-zinc-950">
         {/* Header */}
         <div className="px-8 py-6 border-b border-white/5 flex items-center justify-between shrink-0 bg-zinc-900/50">
           <div>

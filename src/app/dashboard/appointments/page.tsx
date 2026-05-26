@@ -7,7 +7,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { CalendarView } from "@/components/appointments/CalendarView";
 
 export default async function AppointmentsPage({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
-  const { tenantId, staff: sessionStaff } = await getSession();
+  const { tenantId, staff: sessionStaff, user, activeRole } = await getSession();
   if (!tenantId) return <div>No se encontró la barbería. Por favor, inicia sesión.</div>;
 
   const { date: dateParam } = await searchParams;
@@ -18,7 +18,20 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   const bogotaToday = `${bogotaTime.getUTCFullYear()}-${String(bogotaTime.getUTCMonth() + 1).padStart(2, '0')}-${String(bogotaTime.getUTCDate()).padStart(2, '0')}`;
   
   const selectedDate = dateParam || bogotaToday;
-  const isBarber = sessionStaff?.role === "barber";
+  
+  const authRole = user?.user_metadata?.role;
+  let role = (authRole === "admin" || authRole === "superadmin")
+    ? authRole
+    : (sessionStaff?.role ?? authRole ?? "admin");
+
+  // Si se inició sesión explícitamente como barbero usando PIN, aplicar el rol
+  if (activeRole === "barber" && (role === "admin" || role === "superadmin" || sessionStaff?.role === "barber")) {
+    role = "barber";
+  } else if (activeRole === "admin" && (authRole === "admin" || authRole === "superadmin")) {
+    role = authRole;
+  }
+
+  const isBarber = role === "barber";
 
   // Navigation dates logic
   const d = new Date(selectedDate + "T12:00:00");
@@ -47,7 +60,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
     fetchEnd.setHours(fetchEnd.getHours() + 36);
   }
 
-  const [ {data: appointmentsRaw}, {data: clients}, {data: staffRaw}, {data: services}, {data: tenant} ] = await Promise.all([
+  const [ {data: appointmentsRaw}, {data: clients}, {data: staffRaw}, {data: services}, {data: tenant}, {data: blocksRaw} ] = await Promise.all([
     adminSupabase
       .from("appointments")
       .select("*, client:clients(*), service:services(*), staff:tenant_staff(*, profiles(*))")
@@ -59,15 +72,25 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
     adminSupabase.from("clients").select("id, full_name, id_number").eq("tenant_id", tenantId).order("full_name"),
     adminSupabase
       .from("tenant_staff")
-      .select("id, role, commission_rate, daily_commission_rates, compensation_type, rent_amount, profiles(full_name, avatar_url)")
+      .select("id, role, commission_rate, daily_commission_rates, compensation_type, rent_amount, working_hours, profiles(full_name, avatar_url)")
       .eq("tenant_id", tenantId)
       .eq("is_active", true)
-      .match(isBarber ? { id: sessionStaff.id } : { role: "barber" }),
+      // Admin: fetch ALL active staff (barbers + admins who cut hair)
+      // Barber: fetch only themselves
+      .match(isBarber ? { id: sessionStaff.id } : {}),
     adminSupabase.from("services").select("id, name, price").eq("tenant_id", tenantId).eq("is_active", true).order("name"),
-    (adminSupabase as any).from("tenants").select("settings").eq("id", tenantId).single()
+    (adminSupabase as any).from("tenants").select("settings").eq("id", tenantId).single(),
+    (adminSupabase as any)
+      .from("agenda_blocks")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .match(isBarber ? { staff_id: sessionStaff.id } : {})
+      .gte("start_time", fetchStart.toISOString())
+      .lte("start_time", fetchEnd.toISOString())
   ]);
 
   const appointments = (appointmentsRaw as any[]) || [];
+  const agendaBlocks = (blocksRaw as any[]) || [];
 
   // Map staff
   const staff = staffRaw?.map((s: any) => ({
@@ -78,12 +101,28 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
     daily_commission_rates: s.daily_commission_rates || {},
     compensation_type: s.compensation_type,
     rent_amount: s.rent_amount || 0,
-    role: s.role
+    role: s.role,
+    working_hours: s.working_hours || null,
   })) || [];
 
   const settings = (tenant as any)?.settings || {};
-  const startHour = settings?.business_hours?.start || 8;
-  const endHour = settings?.business_hours?.end || 20;
+  const selectedDayIndex = new Date(selectedDate + "T12:00:00Z").getDay(); // 0=Sun…6=Sat
+  const byDay: Array<{open: boolean; start: number; end: number}> | undefined =
+    settings?.business_hours_by_day;
+
+  let startHour: number;
+  let endHour: number;
+  let isShopClosed = false;
+
+  if (byDay && byDay.length === 7) {
+    const dayConfig = byDay[selectedDayIndex];
+    startHour = dayConfig.open ? dayConfig.start : 8;
+    endHour = dayConfig.open ? dayConfig.end : 20;
+    isShopClosed = !dayConfig.open;
+  } else {
+    startHour = settings?.business_hours?.start || 8;
+    endHour = settings?.business_hours?.end || 20;
+  }
 
   const displayDate = new Date(selectedDate + "T12:00:00").toLocaleDateString("es-ES", {
     weekday: 'long',
@@ -144,6 +183,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
       <div className="animate-float-slow">
         <CalendarView 
           appointments={appointments} 
+          agendaBlocks={agendaBlocks}
           staff={staff} 
           startHour={startHour} 
           endHour={endHour}

@@ -1,14 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Camera, Loader2, Check, Globe, MapPin, Coins, Link as LinkIcon, Phone, Mail, Map, Clock, Copy, ExternalLink, Share2, Download } from "lucide-react";
+import { Camera, Loader2, Check, Globe, MapPin, Coins, Link as LinkIcon, Phone, Mail, Map, Clock, Copy, ExternalLink, Share2, Download, ToggleLeft, ToggleRight } from "lucide-react";
 import { updateTenantProfile, type ProfileFormData } from "@/app/dashboard/settings/actions";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useRef } from "react";
+
+const dayHoursSchema = z.object({
+  open: z.boolean().default(true),
+  start: z.number().min(0).max(23).default(8),
+  end: z.number().min(0).max(23).default(20),
+});
 
 const profileSchema = z.object({
   name: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
@@ -23,7 +29,11 @@ const profileSchema = z.object({
   address: z.string().optional().nullable(),
   business_start: z.number().default(8),
   business_end: z.number().default(20),
+  business_hours_by_day: z.array(dayHoursSchema).length(7).optional(),
 });
+
+const DAY_NAMES = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+const DAY_FULL = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 
 interface Props {
   initialData: ProfileFormData;
@@ -405,37 +415,89 @@ export function BarbershopProfileForm({ initialData }: Props) {
                 </select>
               </div>
 
-              {/* Business Hours */}
+              {/* Business Hours per Day */}
               <div className="space-y-4 sm:col-span-2 pt-4 border-t border-white/5">
-                <label className="text-sm font-bold text-primary flex items-center gap-2">
-                  <Clock className="w-4 h-4" /> Horario de Atención (Agenda)
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-zinc-500 ml-1">Hora de Apertura</label>
-                    <select
-                      {...register("business_start", { valueAsNumber: true })}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-5 py-4 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition-all appearance-none"
-                    >
-                      {Array.from({ length: 24 }).map((_, i) => (
-                        <option key={i} value={i}>{i}:00 {i >= 12 ? 'PM' : 'AM'}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-zinc-500 ml-1">Hora de Cierre</label>
-                    <select
-                      {...register("business_end", { valueAsNumber: true })}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-5 py-4 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition-all appearance-none"
-                    >
-                      {Array.from({ length: 24 }).map((_, i) => (
-                        <option key={i} value={i}>{i}:00 {i >= 12 ? 'PM' : 'AM'}</option>
-                      ))}
-                    </select>
-                  </div>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-bold text-primary flex items-center gap-2">
+                    <Clock className="w-4 h-4" /> Horario de Atención por Día
+                  </label>
+                  <span className="text-[10px] text-zinc-500">Solo el administrador puede editarlo</span>
                 </div>
+
+                <div className="space-y-2">
+                  {DAY_FULL.map((dayName, idx) => {
+                    const dayData = watch(`business_hours_by_day.${idx}`);
+                    const isOpen = dayData?.open ?? true;
+                    return (
+                      <div
+                        key={idx}
+                        className={cn(
+                          "flex flex-wrap items-center gap-3 p-3 rounded-2xl border transition-all",
+                          isOpen
+                            ? "bg-zinc-900 border-zinc-700"
+                            : "bg-zinc-950 border-zinc-800 opacity-60"
+                        )}
+                      >
+                        {/* Day label + toggle */}
+                        <div className="flex items-center gap-2 w-24 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setValue(`business_hours_by_day.${idx}.open`, !isOpen)}
+                            className={cn(
+                              "transition-colors",
+                              isOpen ? "text-primary" : "text-zinc-600"
+                            )}
+                            title={isOpen ? "Marcar como cerrado" : "Marcar como abierto"}
+                          >
+                            {isOpen ? (
+                              <ToggleRight className="w-5 h-5" />
+                            ) : (
+                              <ToggleLeft className="w-5 h-5" />
+                            )}
+                          </button>
+                          <span className={cn(
+                            "text-xs font-bold",
+                            isOpen ? "text-white" : "text-zinc-500"
+                          )}>
+                            {dayName}
+                          </span>
+                        </div>
+
+                        {isOpen ? (
+                          <>
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <label className="text-[10px] text-zinc-500 shrink-0">Desde</label>
+                              <select
+                                {...register(`business_hours_by_day.${idx}.start`, { valueAsNumber: true })}
+                                className="flex-1 min-w-0 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-primary/50 outline-none transition-all appearance-none"
+                              >
+                                {Array.from({ length: 24 }).map((_, h) => (
+                                  <option key={h} value={h}>{h}:00 {h >= 12 ? 'PM' : 'AM'}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <label className="text-[10px] text-zinc-500 shrink-0">Hasta</label>
+                              <select
+                                {...register(`business_hours_by_day.${idx}.end`, { valueAsNumber: true })}
+                                className="flex-1 min-w-0 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-primary/50 outline-none transition-all appearance-none"
+                              >
+                                {Array.from({ length: 24 }).map((_, h) => (
+                                  <option key={h} value={h}>{h}:00 {h >= 12 ? 'PM' : 'AM'}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </>
+                        ) : (
+                          <span className="text-[10px] text-zinc-600 italic">Cerrado este día</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
                 <p className="text-[10px] text-zinc-500 ml-1 italic">
-                  Este horario define los límites de tu calendario de citas.
+                  Este horario define los límites de tu calendario de citas por día.
                 </p>
               </div>
             </div>

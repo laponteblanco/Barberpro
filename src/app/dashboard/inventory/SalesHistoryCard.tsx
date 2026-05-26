@@ -46,7 +46,7 @@ export function SalesHistoryCard() {
 
       {isOpen && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:justify-end p-4 sm:p-8 pointer-events-none">
-          <div className="w-full max-w-md bg-[#121214] border border-white/10 rounded-[32px] shadow-[0_0_100px_-20px_rgba(0,0,0,0.8)] pointer-events-auto animate-in slide-in-from-right-10 duration-500 flex flex-col max-h-[80vh]">
+          <div className="w-full max-w-md bg-zinc-950 border border-white/10 rounded-[32px] shadow-[0_0_100px_-20px_rgba(0,0,0,0.8)] pointer-events-auto animate-in slide-in-from-right-10 duration-500 flex flex-col max-h-[80vh]">
             <div className="px-8 py-6 border-b border-white/5 flex items-center justify-between bg-zinc-900/50 shrink-0">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">

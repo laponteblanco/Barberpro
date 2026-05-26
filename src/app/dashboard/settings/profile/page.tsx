@@ -20,11 +20,28 @@ export default async function ProfileSettingsPage() {
     .eq("id", tenantId)
     .single();
 
+  // Default schedule: Mon–Sat open 8-20, Sun closed
+  const defaultByDay = [
+    { open: true,  start: 8, end: 20 }, // domingo (0)
+    { open: true,  start: 8, end: 20 }, // lunes (1)
+    { open: true,  start: 8, end: 20 }, // martes (2)
+    { open: true,  start: 8, end: 20 }, // miércoles (3)
+    { open: true,  start: 8, end: 20 }, // jueves (4)
+    { open: true,  start: 8, end: 20 }, // viernes (5)
+    { open: true,  start: 8, end: 20 }, // sábado (6)
+  ];
+
+  const savedByDay: Array<{open: boolean; start: number; end: number}> | undefined =
+    tenant?.settings?.business_hours_by_day;
+
+  const business_hours_by_day = savedByDay && savedByDay.length === 7 ? savedByDay : defaultByDay;
+
   const initialData = {
     ...tenant,
     short_code: tenant?.short_code || "SIN-CODIGO",
     business_start: tenant?.settings?.business_hours?.start || 8,
     business_end: tenant?.settings?.business_hours?.end || 20,
+    business_hours_by_day,
   };
 
   if (!tenant) {

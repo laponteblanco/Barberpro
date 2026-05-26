@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { createClient, createAdminClient } from "./server";
+import { cookies } from "next/headers";
 
 /**
  * Cached session helper — deduplicates auth + tenant lookups
@@ -15,7 +16,16 @@ export const getSession = cache(async () => {
 
   const user = session?.user;
 
-  if (!user) return { user: null, staff: null, tenantId: null, supabase };
+  // Leer la cookie del rol activo de forma segura
+  let activeRole: string | null = null;
+  try {
+    const cookieStore = await cookies();
+    activeRole = cookieStore.get("active_role")?.value || null;
+  } catch (e) {
+    // Evitar fallos fuera de contexto de petición
+  }
+
+  if (!user) return { user: null, staff: null, tenantId: null, supabase, activeRole: null };
 
   const adminSupabase = await createAdminClient();
   
@@ -44,6 +54,7 @@ export const getSession = cache(async () => {
       staff: staffData,
       tenantId: staffData.tenant_id,
       supabase,
+      activeRole,
     };
   }
 
@@ -95,6 +106,7 @@ export const getSession = cache(async () => {
             staff: newStaff as any,
             tenantId: targetTenant.id,
             supabase,
+            activeRole,
           };
         }
       } catch (e) {
@@ -107,6 +119,7 @@ export const getSession = cache(async () => {
         staff: { tenant: targetTenant, role: 'admin' } as any,
         tenantId: targetTenant.id,
         supabase,
+        activeRole,
       };
     }
   }
@@ -116,5 +129,6 @@ export const getSession = cache(async () => {
     staff: null,
     tenantId: null,
     supabase,
+    activeRole,
   };
 });

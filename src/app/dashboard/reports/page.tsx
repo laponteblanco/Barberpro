@@ -14,9 +14,19 @@ export default async function ReportsPage({
   searchParams: Promise<{ range?: string, date?: string }> 
 }) {
   const { range = "month", date } = await searchParams;
-  const { staff } = await getSession();
+  const { user, staff, activeRole } = await getSession();
   
-  const role = staff?.role || "admin";
+  const authRole = user?.user_metadata?.role;
+  let role = (authRole === "admin" || authRole === "superadmin")
+    ? authRole
+    : (staff?.role ?? authRole ?? "admin");
+
+  // Si se inició sesión explícitamente como barbero usando PIN, aplicar el rol
+  if (activeRole === "barber" && (role === "admin" || role === "superadmin" || staff?.role === "barber")) {
+    role = "barber";
+  } else if (activeRole === "admin" && (authRole === "admin" || authRole === "superadmin")) {
+    role = authRole;
+  }
   const staffId = role === "barber" ? staff.id : undefined;
   const data = await getBIAnalytics(range, date, staffId);
 

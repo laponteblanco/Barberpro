@@ -275,3 +275,76 @@ export async function updateAppointmentDetailsAction(appointmentId: string, form
   revalidatePath("/dashboard/appointments");
   return { success: true };
 }
+
+export async function createAgendaBlockAction(staffId: string, startTime: string, durationMinutes: number, reason: string = "Bloqueo") {
+  const { tenantId, user: currentUser } = await getSession();
+  if (!tenantId || !currentUser) throw new Error("No autorizado");
+
+  const adminSupabase = await createAdminClient();
+  
+  const start = new Date(startTime);
+  const end = new Date(start.getTime() + durationMinutes * 60000);
+
+  // Check conflicts with appointments
+  const { data: apptConflict } = await (adminSupabase as any)
+    .from("appointments")
+    .select("id")
+    .eq("staff_id", staffId)
+    .neq("status", "cancelled")
+    .lt("start_time", end.toISOString())
+    .gt("end_time", start.toISOString())
+    .maybeSingle();
+
+  if (apptConflict) {
+    throw new Error("El horario seleccionado choca con una cita existente.");
+  }
+
+  // Check conflicts with other blocks
+  const { data: blockConflict } = await (adminSupabase as any)
+    .from("agenda_blocks")
+    .select("id")
+    .eq("staff_id", staffId)
+    .lt("start_time", end.toISOString())
+    .gt("end_time", start.toISOString())
+    .maybeSingle();
+
+  if (blockConflict) {
+    throw new Error("El horario seleccionado ya está bloqueado.");
+  }
+
+  const { error } = await (adminSupabase as any).from("agenda_blocks").insert({
+    tenant_id: tenantId,
+    staff_id: staffId,
+    start_time: start.toISOString(),
+    end_time: end.toISOString(),
+    reason: reason
+  });
+
+  if (error) {
+    throw new Error(`Error al crear bloqueo: ${error.message}`);
+  }
+
+  revalidatePath("/dashboard/appointments");
+  return { success: true };
+}
+
+export async function deleteAgendaBlockAction(blockId: string) {
+  const { tenantId, user: currentUser } = await getSession();
+  if (!tenantId || !currentUser) throw new Error("No autorizado");
+
+  const adminSupabase = await createAdminClient();
+  
+  const { error } = await (adminSupabase as any)
+    .from("agenda_blocks")
+    .delete()
+    .eq("id", blockId)
+    .eq("tenant_id", tenantId);
+
+  if (error) {
+    throw new Error(`Error al eliminar bloqueo: ${error.message}`);
+  }
+
+  revalidatePath("/dashboard/appointments");
+  return { success: true };
+}
+

@@ -297,6 +297,22 @@ export interface Database {
         Insert: Omit<Database["public"]["Tables"]["product_sales"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["product_sales"]["Insert"]>;
       };
+      staff_ledger: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          staff_id: string;
+          type: "advance" | "consignment" | "payment";
+          amount: number;
+          description: string | null;
+          product_id: string | null;
+          product_quantity: number | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["staff_ledger"]["Row"], "id" | "created_at" | "updated_at">;
+        Update: Partial<Database["public"]["Tables"]["staff_ledger"]["Insert"]>;
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -320,3 +336,4 @@ export type SuperAdminAuditLog = Database["public"]["Tables"]["superadmin_audit_
 export type ImpersonationSession = Database["public"]["Tables"]["impersonation_sessions"]["Row"];
 export type LicenseNotification = Database["public"]["Tables"]["license_notifications"]["Row"];
 export type ProductSale = Database["public"]["Tables"]["product_sales"]["Row"];
+export type StaffLedger = Database["public"]["Tables"]["staff_ledger"]["Row"];

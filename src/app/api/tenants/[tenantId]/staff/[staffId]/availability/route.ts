@@ -24,8 +24,54 @@ export async function GET(
       .single();
 
     const settings = tenant?.settings || {};
-    const startHour = settings?.business_hours?.start || 8;
-    const endHour = settings?.business_hours?.end || 20;
+
+    // Determine the day-of-week for the requested date (0=Sun … 6=Sat)
+    const requestedDayIndex = new Date(`${date}T12:00:00Z`).getDay();
+    const byDay: Array<{open: boolean; start: number; end: number}> | undefined =
+      settings?.business_hours_by_day;
+
+    let shopStart: number;
+    let shopEnd: number;
+
+    if (byDay && byDay.length === 7) {
+      const dayConfig = byDay[requestedDayIndex];
+      // If the shop is closed that day, return empty slots immediately
+      if (!dayConfig.open) {
+        return NextResponse.json({ slots: [] });
+      }
+      shopStart = dayConfig.start;
+      shopEnd = dayConfig.end;
+    } else {
+      // Fallback to global hours
+      shopStart = settings?.business_hours?.start ?? 8;
+      shopEnd = settings?.business_hours?.end ?? 20;
+    }
+
+    // 1b. Get barber's own working hours for this day
+    const { data: staffRow } = await (supabase as any)
+      .from("tenant_staff")
+      .select("working_hours")
+      .eq("id", staffId)
+      .eq("tenant_id", tenantId)
+      .single();
+
+    const barberByDay: Array<{open: boolean; start: number; end: number}> | null = staffRow?.working_hours;
+    let startHour = shopStart;
+    let endHour = shopEnd;
+
+    if (barberByDay && Array.isArray(barberByDay) && barberByDay.length === 7) {
+      const barberDay = barberByDay[requestedDayIndex];
+      // If the barber is off that day, return empty
+      if (!barberDay.open) {
+        return NextResponse.json({ slots: [] });
+      }
+      // Effective window is the intersection of shop and barber hours
+      startHour = Math.max(shopStart, barberDay.start);
+      endHour = Math.min(shopEnd, barberDay.end);
+      if (startHour >= endHour) {
+        return NextResponse.json({ slots: [] });
+      }
+    }
 
     // 2. Get existing appointments for that staff and date
     // Shift to Bogota time (UTC-5)
@@ -44,6 +90,15 @@ export async function GET(
       .lt("start_time", endOfDay.toISOString())
       .neq("status", "cancelled")
       .neq("status", "deleted");
+
+    // Fetch agenda blocks
+    const { data: blocks } = await (supabase as any)
+      .from("agenda_blocks")
+      .select("start_time, end_time")
+      .eq("staff_id", staffId)
+      .eq("tenant_id", tenantId)
+      .gte("start_time", startOfDay.toISOString())
+      .lt("start_time", endOfDay.toISOString());
 
     // 3. Generate slots
     const slots = [];
@@ -73,14 +128,21 @@ export async function GET(
         // Build a proper UTC timestamp for this Bogotá-local slot
         const slotUTC = new Date(`${date}T${slotTime}:00-05:00`);
 
-        // Check if slot is taken
+        // Check if slot is taken by appointment
         const isTaken = appointments?.some((appt: any) => {
           const apptStart = new Date(appt.start_time);
-          const apptEnd = new Date(apptStart.getTime() + (appt.services?.duration_minutes || 30) * 60000);
+          const apptEnd = new Date(appt.end_time || apptStart.getTime() + (appt.services?.duration_minutes || 30) * 60000);
           return slotUTC >= apptStart && slotUTC < apptEnd;
         });
 
-        if (!isTaken) {
+        // Check if slot is taken by agenda block
+        const isBlocked = blocks?.some((b: any) => {
+          const bStart = new Date(b.start_time);
+          const bEnd = new Date(b.end_time);
+          return slotUTC >= bStart && slotUTC < bEnd;
+        });
+
+        if (!isTaken && !isBlocked) {
           slots.push(slotTime);
         }
       }

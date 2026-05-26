@@ -52,7 +52,7 @@ export default function SettingsPage() {
             </Link>
           ))}
           
-          {/* Extras placeholders */}
+          {/* Seguridad */}
           <div className="w-full glass-card rounded-3xl p-6 text-left opacity-50 border-dashed border-zinc-800 flex items-center gap-5">
              <div className="w-14 h-14 rounded-2xl bg-zinc-800 flex items-center justify-center">
                 <Shield className="w-6 h-6 text-zinc-600" />
@@ -62,15 +62,21 @@ export default function SettingsPage() {
                 <p className="text-sm text-zinc-600 mt-1">Próximamente: Roles y permisos avanzados</p>
              </div>
           </div>
-          <div className="w-full glass-card rounded-3xl p-6 text-left opacity-50 border-dashed border-zinc-800 flex items-center gap-5">
-             <div className="w-14 h-14 rounded-2xl bg-zinc-800 flex items-center justify-center">
-                <Palette className="w-6 h-6 text-zinc-600" />
-             </div>
-             <div className="flex-1">
-                <p className="font-bold text-lg">Apariencia</p>
-                <p className="text-sm text-zinc-600 mt-1">Próximamente: Personaliza tu portal</p>
-             </div>
-          </div>
+
+          {/* Apariencia */}
+          <Link 
+            href="/dashboard/settings/appearance"
+            className="w-full glass-card rounded-3xl p-6 text-left hover:border-primary/30 transition-all group flex items-center gap-5 bg-zinc-900/50 border-zinc-800"
+          >
+            <div className="w-14 h-14 rounded-2xl bg-indigo-400/10 flex items-center justify-center transition-transform group-hover:scale-110">
+              <Palette className="w-6 h-6 text-indigo-400" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-lg font-bold">Apariencia</h2>
+              <p className="text-sm text-zinc-500 mt-1">Personaliza los colores y el tema visual de tu portal</p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-zinc-600 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+          </Link>
         </div>
       </div>
     </div>

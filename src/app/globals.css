@@ -3,6 +3,20 @@
 
 @layer base {
   :root {
+    --color-zinc-50: #fafafa;
+    --color-zinc-100: #f4f4f5;
+    --color-zinc-200: #e4e4e7;
+    --color-zinc-300: #d4d4d8;
+    --color-zinc-400: #a1a1aa;
+    --color-zinc-500: #71717a;
+    --color-zinc-600: #52525b;
+    --color-zinc-700: #3f3f46;
+    --color-zinc-800: #27272a;
+    --color-zinc-900: #18181b;
+    --color-zinc-950: #09090b;
+    --color-white: #ffffff;
+    --color-black: #000000;
+
     --background: 0 0% 3.9%;
     --foreground: 0 0% 98%;
     --card: 0 0% 6%;
@@ -26,6 +40,45 @@
     --radius: 0.75rem;
     --sidebar-bg: 0 0% 5%;
     --sidebar-border: 0 0% 10%;
+  }
+
+  .theme-light {
+    --color-zinc-950: #ffffff;
+    --color-zinc-900: #f8fafc;
+    --color-zinc-800: #f1f5f9;
+    --color-zinc-700: #e2e8f0;
+    --color-zinc-600: #cbd5e1;
+    --color-zinc-500: #94a3b8;
+    --color-zinc-400: #64748b;
+    --color-zinc-300: #475569;
+    --color-zinc-200: #334155;
+    --color-zinc-100: #1e293b;
+    --color-zinc-50: #0f172a;
+    --color-white: #0f172a;
+    --color-black: #ffffff;
+
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%; /* blue-600 */
+    --primary-glow: 221.2 83.2% 53.3% / 0.4;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --sidebar-bg: 0 0% 100%;
+    --sidebar-border: 214.3 31.8% 91.4%;
   }
 
   .dark {

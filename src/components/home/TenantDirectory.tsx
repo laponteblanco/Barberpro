@@ -20,7 +20,7 @@ export function TenantDirectory({ initialTenants }: { initialTenants: any[] }) {
   }, [searchQuery, initialTenants]);
 
   return (
-    <section className="bg-[#121214] border border-white/5 rounded-[40px] p-8 md:p-12 shadow-2xl relative overflow-hidden">
+    <section className="bg-zinc-950 border border-white/5 rounded-[40px] p-8 md:p-12 shadow-2xl relative overflow-hidden">
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
       
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">

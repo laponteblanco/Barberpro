@@ -24,7 +24,7 @@ export function ParetoSection({ data: paretoData, topClients }: { data: any[], t
   });
 
   return (
-    <div className="bg-[#121214] border border-white/5 rounded-[32px] p-8 shadow-2xl space-y-10">
+    <div className="bg-zinc-950 border border-white/5 rounded-[32px] p-8 shadow-2xl space-y-10">
       {/* Pareto Chart */}
       <div className="space-y-6">
         <div className="flex items-center justify-between">
