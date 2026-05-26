@@ -50,8 +50,14 @@ export default async function PublicBookingPage({
     <main className="min-h-screen bg-zinc-950 text-white selection:bg-primary/30">
       {/* Background Decor */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px] animate-pulse" />
-        <div className="absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }} />
+        <div 
+          className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px] animate-pulse" 
+          style={{ transform: 'translate3d(0,0,0)', willChange: 'filter' }}
+        />
+        <div 
+          className="absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[120px] animate-pulse" 
+          style={{ animationDelay: '2s', transform: 'translate3d(0,0,0)', willChange: 'filter' }} 
+        />
       </div>
 
       <BookingPortal 

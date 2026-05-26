@@ -36,8 +36,14 @@ export default async function HomePage() {
     <div className="min-h-screen bg-zinc-950 text-white selection:bg-primary/30 font-sans">
       {/* Dynamic Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-        <div className="absolute top-[-20%] left-[-10%] w-[50vw] h-[50vw] bg-primary/10 blur-[150px] rounded-full mix-blend-screen opacity-50" />
-        <div className="absolute bottom-[-20%] right-[-10%] w-[50vw] h-[50vw] bg-indigo-500/10 blur-[150px] rounded-full mix-blend-screen opacity-50" />
+        <div 
+          className="absolute top-[-20%] left-[-10%] w-[50vw] h-[50vw] bg-primary/10 blur-[150px] rounded-full mix-blend-screen opacity-50" 
+          style={{ transform: 'translate3d(0,0,0)', willChange: 'filter' }}
+        />
+        <div 
+          className="absolute bottom-[-20%] right-[-10%] w-[50vw] h-[50vw] bg-indigo-500/10 blur-[150px] rounded-full mix-blend-screen opacity-50" 
+          style={{ transform: 'translate3d(0,0,0)', willChange: 'filter' }}
+        />
       </div>
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-24">
