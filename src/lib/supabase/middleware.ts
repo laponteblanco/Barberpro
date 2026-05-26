@@ -34,16 +34,15 @@ export async function updateSession(request: NextRequest) {
 
   const url = request.nextUrl.clone();
   const isAuthPage = url.pathname.startsWith("/auth");
-  const isPublicPage =
-    url.pathname === "/" ||
-    url.pathname.startsWith("/pricing") ||
-    url.pathname.startsWith("/features");
+  const isDashboardPage = url.pathname.startsWith("/dashboard");
 
-  if (!user && !isAuthPage && !isPublicPage) {
+  // Protect dashboard routes — require authentication
+  if (!user && isDashboardPage) {
     url.pathname = "/";
     return NextResponse.redirect(url);
   }
 
+  // Redirect authenticated users trying to access auth pages back to dashboard
   if (user && isAuthPage) {
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);
