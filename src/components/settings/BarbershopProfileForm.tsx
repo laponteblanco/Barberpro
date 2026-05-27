@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Camera, Loader2, Check, Globe, MapPin, Coins, Link as LinkIcon, Phone, Mail, Map, Clock, Copy, ExternalLink, Share2, Download, ToggleLeft, ToggleRight } from "lucide-react";
+import { Camera, Loader2, Check, Globe, MapPin, Coins, Link as LinkIcon, Phone, Mail, Map, Clock, Copy, ExternalLink, Share2, Download, ToggleLeft, ToggleRight, Lock } from "lucide-react";
 import { updateTenantProfile, type ProfileFormData } from "@/app/dashboard/settings/actions";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -30,6 +30,7 @@ const profileSchema = z.object({
   business_start: z.number().default(8),
   business_end: z.number().default(20),
   business_hours_by_day: z.array(dayHoursSchema).length(7).optional(),
+  security_pin: z.string().optional().nullable(),
 });
 
 const DAY_NAMES = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -499,6 +500,20 @@ export function BarbershopProfileForm({ initialData }: Props) {
                 <p className="text-[10px] text-zinc-500 ml-1 italic">
                   Este horario define los límites de tu calendario de citas por día.
                 </p>
+              </div>
+
+              {/* Security PIN */}
+              <div className="space-y-2 sm:col-span-2">
+                <label className="text-sm font-bold text-zinc-400 ml-1 flex items-center gap-2">
+                  <Lock className="w-3.5 h-3.5" /> PIN de Seguridad (Modificación de Caja)
+                </label>
+                <input
+                  {...register("security_pin")}
+                  type="password"
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-5 py-4 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition-all"
+                  placeholder="Ej. 1234 o dejar en blanco"
+                />
+                <p className="text-[10px] text-zinc-500 ml-2">Este PIN se solicitará al editar o eliminar cierres de caja (arqueos). Puede dejarse en blanco.</p>
               </div>
             </div>
           </div>

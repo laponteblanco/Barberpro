@@ -55,9 +55,11 @@ export async function GET(
       .eq("tenant_id", tenantId)
       .single();
 
-    const barberByDay: Array<{open: boolean; start: number; end: number}> | null = staffRow?.working_hours;
+    const barberByDay: Array<{open: boolean; start: number; end: number; has_break?: boolean; break_start?: number; break_end?: number}> | null = staffRow?.working_hours;
     let startHour = shopStart;
     let endHour = shopEnd;
+    let breakStart: number | null = null;
+    let breakEnd: number | null = null;
 
     if (barberByDay && Array.isArray(barberByDay) && barberByDay.length === 7) {
       const barberDay = barberByDay[requestedDayIndex];
@@ -70,6 +72,10 @@ export async function GET(
       endHour = Math.min(shopEnd, barberDay.end);
       if (startHour >= endHour) {
         return NextResponse.json({ slots: [] });
+      }
+      if (barberDay.has_break && barberDay.break_start != null && barberDay.break_end != null) {
+        breakStart = barberDay.break_start;
+        breakEnd = barberDay.break_end;
       }
     }
 
@@ -142,7 +148,10 @@ export async function GET(
           return slotUTC >= bStart && slotUTC < bEnd;
         });
 
-        if (!isTaken && !isBlocked) {
+        // Check if slot is taken by lunch break
+        const isLunchBreak = breakStart !== null && breakEnd !== null && hour >= breakStart && hour < breakEnd;
+
+        if (!isTaken && !isBlocked && !isLunchBreak) {
           slots.push(slotTime);
         }
       }

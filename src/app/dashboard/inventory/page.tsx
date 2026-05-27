@@ -7,6 +7,7 @@ import { SellProductDialog } from "./SellProductDialog";
 import { DailySalesDialog } from "./DailySalesDialog";
 import { SalesHistoryCard } from "./SalesHistoryCard";
 import { getProducts, getDailySales } from "@/services/products.service";
+import { formatCurrency } from "@/lib/utils";
 
 export default async function InventoryPage() {
   const { user, staff, activeRole } = await getSession();
@@ -112,7 +113,7 @@ export default async function InventoryPage() {
                 <tr className="border-b border-white/5 bg-zinc-900/30">
                   <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Producto</th>
                   <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 text-center">Stock</th>
-                  <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Precio Venta</th>
+                  <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Finanzas</th>
                   <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 text-right">Acciones</th>
                 </tr>
               </thead>
@@ -146,9 +147,19 @@ export default async function InventoryPage() {
                       </div>
                     </td>
                     <td className="px-8 py-6">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-lg font-black text-white">${product.retail_price}</span>
-                        <span className="text-zinc-500 text-xs font-medium">COP</span>
+                      <div className="flex flex-col gap-1.5 w-32">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-zinc-500">Venta:</span>
+                          <span className="font-bold text-white">{formatCurrency(product.retail_price)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-zinc-500">Costo:</span>
+                          <span className="font-bold text-red-400/80">{formatCurrency(product.cost_price || 0)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs pt-1.5 mt-0.5 border-t border-white/10">
+                          <span className="text-zinc-500 font-bold">Ganancia:</span>
+                          <span className="font-black text-emerald-400">{formatCurrency(product.retail_price - (product.cost_price || 0))}</span>
+                        </div>
                       </div>
                     </td>
                     <td className="px-8 py-6 text-right">

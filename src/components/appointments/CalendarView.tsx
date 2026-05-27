@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { updateAppointmentTimeAction, updateAppointmentStatusAction, deleteAgendaBlockAction, createAgendaBlockAction } from "@/app/dashboard/appointments/actions";
 import { User, Clock, LayoutList, CheckCircle2, DollarSign, Calendar, Ban, Trash2, Scissors, X } from "lucide-react";
@@ -314,7 +315,7 @@ export function CalendarView({
   }, [mobileFilteredAppointments, mobileFilteredBlocks]);
 
   return (
-    <div className="glass-card rounded-[30px] md:rounded-[40px] overflow-hidden border border-white/10 bg-zinc-950/95 flex flex-col h-[calc(100vh-120px)] md:h-[calc(100vh-180px)] relative shadow-[0_0_100px_-20px_rgba(0,0,0,0.8)] md:backdrop-blur-3xl animate-in fade-in zoom-in-95 duration-700">
+    <div className="glass-card rounded-[30px] md:rounded-[40px] overflow-hidden border border-white/10 bg-zinc-950/95 flex flex-col h-full w-full min-h-0 relative shadow-[0_0_100px_-20px_rgba(0,0,0,0.8)] md:backdrop-blur-3xl animate-in fade-in zoom-in-95 duration-700">
       
       <div className="px-4 py-3 md:px-6 md:py-4 bg-zinc-900/40 border-b border-white/5 flex flex-wrap items-center gap-3 md:gap-4 relative z-40">
         <div className="flex-1 min-w-[120px] md:min-w-[140px] glass-card bg-zinc-950/40 border-white/5 p-2 md:p-3 rounded-2xl flex items-center gap-2 md:gap-3">
@@ -352,7 +353,7 @@ export function CalendarView({
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto custom-scrollbar relative">
+      <div className="flex-1 overflow-auto min-h-0 custom-scrollbar relative">
         {calendarColumns.length === 0 ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 bg-zinc-950/50">
             <User className="w-16 h-16 text-zinc-800 mb-4" />
@@ -378,11 +379,19 @@ export function CalendarView({
                 }).length})
               </button>
               {staff.map(s => {
-                const count = appointments.filter(a => {
+                const completedAppts = appointments.filter(a => {
                   if (a.staff_id !== s.id) return false;
                   const bogota = getBogotaTime(a.start_time);
-                  return `${bogota.yyyy}-${bogota.mm}-${bogota.dd}` === selectedDate;
-                }).length;
+                  return `${bogota.yyyy}-${bogota.mm}-${bogota.dd}` === selectedDate && (a.status === 'completed' || a.status === 'confirmed');
+                });
+                
+                const dayIndex = getBogotaTime(selectedDate + "T12:00:00").dayIndex;
+                const rate = s.daily_commission_rates?.[String(dayIndex)] ?? s.commission_rate ?? 0;
+                
+                const earnings = completedAppts.reduce((acc, appt) => {
+                  return acc + ((appt.service?.price || 0) * (rate / 100));
+                }, 0);
+
                 return (
                   <button
                     key={s.id}
@@ -396,7 +405,8 @@ export function CalendarView({
                   >
                     {s.avatar_url && <img src={s.avatar_url} className="w-4 h-4 rounded-full object-cover" />}
                     <span>{s.display_name}</span>
-                    <span className="bg-white/10 px-1.5 py-0.5 rounded-full text-[9px]">{count}</span>
+                    <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 text-[9px]">{rate}%</span>
+                    <span className="px-1.5 py-0.5 rounded-md bg-white/5 text-primary text-[9px]">{new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(earnings)}</span>
                   </button>
                 );
               })}
@@ -564,7 +574,7 @@ export function CalendarView({
                               <span className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-300 group-hover/h:text-white transition-colors truncate flex-1 text-left">
                                 {col.label}
                               </span>
-                              {col.type === 'staff' && barber?.compensation_type !== 'rent' && (
+                              {col.type === 'staff' && (
                                 <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[8px] font-black tracking-widest shrink-0 animate-in fade-in duration-300">
                                   {rate}%
                                 </span>
@@ -592,15 +602,15 @@ export function CalendarView({
             </div>
 
             <div className="flex flex-1 relative">
-              <div className="w-24 bg-zinc-900/95 border-r border-white/10 sticky left-0 z-10 shadow-2xl">
+              <div className="w-24 bg-zinc-900/95 border-r border-zinc-200/60 dark:border-white/10 sticky left-0 z-10 shadow-2xl">
                 {slots.map(({ hour, min }) => (
-                  <div key={`${hour}:${min}`} className={cn("h-8 border-b border-white/5 flex flex-col items-center justify-center transition-all", min === 0 ? "bg-white/[0.03] border-b-white/10" : "opacity-30")}>
+                  <div key={`${hour}:${min}`} className={cn("h-8 border-b border-zinc-200/40 dark:border-white/5 flex flex-col items-center justify-center transition-all", min === 0 ? "bg-white/[0.03] border-b-zinc-200/60 dark:border-b-white/10" : "opacity-30")}>
                     {min === 0 ? (
                       <div className="flex items-baseline gap-1">
-                        <span className="text-[13px] font-black text-white tracking-tighter">{hour > 12 ? hour - 12 : hour}</span>
-                        <span className="text-[8px] font-black opacity-50 uppercase tracking-widest">{hour >= 12 ? "PM" : "AM"}</span>
+                        <span className="text-[13px] font-black text-zinc-900 dark:text-white tracking-tighter">{hour > 12 ? hour - 12 : hour}</span>
+                        <span className="text-[8px] font-black text-zinc-500 dark:text-white/50 uppercase tracking-widest">{hour >= 12 ? "PM" : "AM"}</span>
                       </div>
-                    ) : <span className="text-[9px] font-bold text-zinc-500">:{min}</span>}
+                    ) : <span className="text-[9px] font-bold text-zinc-600 dark:text-zinc-400">:{min}</span>}
                   </div>
                 ))}
               </div>
@@ -614,15 +624,19 @@ export function CalendarView({
                 )}
 
                 {calendarColumns.map((col) => (
-                  <div key={col.id} className="w-[260px] relative border-r border-white/10 group/col">
+                  <div key={col.id} className="w-[260px] relative border-r border-zinc-200/60 dark:border-white/10 group/col">
                     {slots.map(({ hour, min }) => (
                       <div 
                         key={`${hour}:${min}`}
                         onClick={(e) => {
                           const rect = e.currentTarget.getBoundingClientRect();
+                          const winH = typeof window !== 'undefined' ? window.innerHeight : 1000;
+                          const rawY = rect.top + rect.height / 2;
+                          // Prevent menu from going off bottom of screen
+                          const safeY = Math.min(rawY, winH - 120);
                           setSlotMenu({ 
                             x: rect.left + rect.width / 2, 
-                            y: rect.top + rect.height / 2, 
+                            y: safeY, 
                             staffId: col.staffId as string, 
                             date: col.date as string, 
                             time: `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}` 
@@ -630,7 +644,7 @@ export function CalendarView({
                         }}
                         onDragOver={(e) => e.preventDefault()}
                         onDrop={(e) => handleDrop(e, col.staffId as string, hour, min, col.date)}
-                        className={cn("h-8 border-b border-white/5 hover:bg-primary/20 hover:z-10 transition-colors relative cursor-pointer", min === 0 ? "border-b-white/10" : "border-b-white/[0.02]")}
+                        className={cn("h-8 border-b border-zinc-200/40 dark:border-white/5 hover:bg-primary/20 hover:z-10 transition-colors relative cursor-pointer", min === 0 ? "border-b-zinc-200/60 dark:border-b-white/10" : "border-b-zinc-200/20 dark:border-b-white/[0.02]")}
                       />
                     ))}
 
@@ -697,12 +711,17 @@ export function CalendarView({
                       const top = ((hour - effectiveStartHour) * 60 + min) / 15 * 32;
                       const height = (durationMins / 15) * 32 - 2;
                       
+                      const isLunch = block.is_lunch_break;
                       return (
                         <div 
                           key={block.id}
-                          onClick={() => setSelectedBlock(block)}
+                          onClick={() => { if(!isLunch) setSelectedBlock(block); }}
                           style={{ top: `${top}px`, height: `${height}px` }}
-                          className="absolute inset-x-2 z-[1] rounded-xl p-2.5 border shadow-2xl transition-all cursor-pointer group/block overflow-hidden animate-in zoom-in-95 duration-300 bg-zinc-800/80 border-zinc-700/50 backdrop-blur-sm text-zinc-400 hover:bg-red-900/40 hover:border-red-500/30 hover:text-red-400"
+                          className={cn("absolute inset-x-2 z-[1] rounded-xl p-2.5 border shadow-2xl transition-all group/block overflow-hidden animate-in zoom-in-95 duration-300 backdrop-blur-sm",
+                            isLunch 
+                              ? "bg-amber-500/10 border-amber-500/20 text-amber-500/80 cursor-default" 
+                              : "cursor-pointer bg-zinc-800/80 border-zinc-700/50 text-zinc-400 hover:bg-red-900/40 hover:border-red-500/30 hover:text-red-400"
+                          )}
                         >
                           <div className="absolute inset-0 opacity-10 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSIvPjwvc3ZnPg==')] pointer-events-none" />
                           <div className="flex flex-col h-full relative z-10">
@@ -734,8 +753,8 @@ export function CalendarView({
         />
       )}
 
-      {selectedAppt && (
-        <div className="fixed inset-0 z-[100] flex justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto">
+      {mounted && typeof document !== 'undefined' && selectedAppt && createPortal(
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto">
           <div className="w-full max-w-sm bg-zinc-950 border border-white/10 rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 h-fit my-auto">
             <div className="flex items-center justify-between px-6 py-5 border-b border-white/5 bg-zinc-900/50">
               <h3 className="font-bold text-white tracking-tight">Detalles de la Cita</h3>
@@ -755,11 +774,11 @@ export function CalendarView({
                 <>
                   <div className="space-y-1">
                     <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black">Cliente</p>
-                    <p className="font-bold text-lg">{selectedAppt.client?.full_name}</p>
+                    <p className="font-bold text-lg text-white">{selectedAppt.client?.full_name}</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black">Horario</p>
-                    <p className="font-medium text-sm">
+                    <p className="font-medium text-sm text-zinc-300">
                       {new Date(selectedAppt.start_time).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
                     </p>
                   </div>
@@ -831,8 +850,10 @@ export function CalendarView({
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
+
       {summaryBarber && (
         <StaffSummaryDialog 
           barber={summaryBarber} 
@@ -842,11 +863,11 @@ export function CalendarView({
       )}
 
       {/* Slot Menu */}
-      {slotMenu && (
+      {mounted && typeof document !== 'undefined' && slotMenu && createPortal(
         <>
-          <div className="fixed inset-0 z-[110]" onClick={() => setSlotMenu(null)} />
+          <div className="fixed inset-0 z-[200] bg-black/20" onClick={() => setSlotMenu(null)} />
           <div 
-            className="fixed z-[120] bg-zinc-900 border border-white/10 shadow-2xl rounded-xl p-2 w-48 animate-in zoom-in-95 duration-200"
+            className="fixed z-[210] bg-zinc-900 border border-white/10 shadow-2xl rounded-xl p-2 w-48 animate-in zoom-in-95 duration-200"
             style={{ top: slotMenu.y - 10, left: slotMenu.x + 10 }}
           >
             <div className="px-2 py-1.5 mb-1 border-b border-white/5">
@@ -874,12 +895,13 @@ export function CalendarView({
               <span>Bloquear Horario</span>
             </button>
           </div>
-        </>
+        </>,
+        document.body
       )}
 
       {/* Block Creation Dialog */}
-      {showBlockDialog && blockData && (
-        <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
+      {mounted && typeof document !== 'undefined' && showBlockDialog && blockData && createPortal(
+        <div className="fixed inset-0 z-[220] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
           <div className="w-full max-w-sm bg-zinc-950 border border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="px-6 py-5 border-b border-white/5 flex items-center justify-between">
               <h3 className="font-black text-white uppercase tracking-widest text-sm flex items-center gap-2">
@@ -926,12 +948,13 @@ export function CalendarView({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Selected Block Details Dialog */}
-      {selectedBlock && (
-        <div className="fixed inset-0 z-[130] flex justify-center items-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
+      {mounted && typeof document !== 'undefined' && selectedBlock && createPortal(
+        <div className="fixed inset-0 z-[220] flex justify-center items-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
           <div className="w-full max-w-sm bg-zinc-950 border border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-6 py-5 border-b border-white/5">
               <h3 className="font-bold text-white tracking-tight flex items-center gap-2">
@@ -965,7 +988,8 @@ export function CalendarView({
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

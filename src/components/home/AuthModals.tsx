@@ -57,10 +57,21 @@ export function AuthModals() {
           return;
         }
 
-        const origin = window.location.origin;
-        const result = await getBarberCredentialsAction(shopCode, pin, origin);
-        if (result.error || !result.actionLink) {
+        const result = await getBarberCredentialsAction(shopCode, pin);
+        if (result.error || !result.email || !result.password) {
           setError(result.error || "Error al verificar el PIN.");
+          setLoading(false);
+          return;
+        }
+
+        const supabase = createClient();
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({
+          email: result.email,
+          password: result.password,
+        });
+
+        if (signInError) {
+          setError("PIN o Código de Barbería incorrecto.");
           setLoading(false);
           return;
         }
@@ -68,8 +79,7 @@ export function AuthModals() {
         // Guardar el rol activo en cookies antes de redirigir como Barbero
         document.cookie = "active_role=barber; path=/; max-age=31536000; SameSite=Lax; Secure";
 
-        // Redirigir directamente al enlace único de Supabase
-        window.location.href = result.actionLink;
+        window.location.href = '/dashboard/appointments';
         return;
       }
 

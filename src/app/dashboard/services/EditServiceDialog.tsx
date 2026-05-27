@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Loader2, X, Scissors, Clock, DollarSign, Tag, Edit2, Camera, Image as ImageIcon } from "lucide-react";
 import { updateServiceAction } from "./actions";
 import * as Dialog from "@radix-ui/react-dialog";
+import { formatCurrency } from "@/lib/utils";
 
 interface EditProps {
   service: any;
@@ -12,7 +13,10 @@ interface EditProps {
 export function EditServiceDialog({ service }: EditProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const isLightTheme = typeof document !== 'undefined' && document.documentElement.classList.contains('theme-light') || (typeof document !== 'undefined' && document.querySelector('.theme-light') !== null);
   const [preview, setPreview] = useState<string | null>(service.image_url || null);
+  const [priceStr, setPriceStr] = useState(service.price ? formatCurrency(service.price) : "");
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -58,7 +62,7 @@ export function EditServiceDialog({ service }: EditProps) {
       
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-start justify-center p-4 sm:items-center overflow-y-auto pt-10 sm:pt-4" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-zinc-950 border border-white/10 rounded-[32px] shadow-2xl z-50 overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col my-auto max-h-[90vh]">
+        <Dialog.Content className={`fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md border rounded-[32px] shadow-2xl z-50 overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col my-auto max-h-[90vh] ${isLightTheme ? "theme-light bg-white border-blue-100" : "bg-zinc-950 border-white/10"}`}>
           <div className="px-8 py-6 border-b border-white/5 flex items-center justify-between shrink-0 bg-zinc-900/50">
             <div>
               <Dialog.Title className="text-xl font-bold text-white tracking-tight flex items-center gap-3">
@@ -131,14 +135,16 @@ export function EditServiceDialog({ service }: EditProps) {
                   <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-2 ml-1">
                     <DollarSign className="w-3 h-3 text-indigo-500/70" /> Precio ($)
                   </label>
+                  <input type="hidden" name="price" value={priceStr.replace(/[^0-9]/g, "")} />
                   <input 
-                    name="price"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    defaultValue={service.price}
+                    type="text"
+                    value={priceStr}
+                    onChange={(e) => {
+                      const clean = e.target.value.replace(/[^0-9]/g, "");
+                      setPriceStr(clean ? formatCurrency(Number(clean)) : "");
+                    }}
                     required
-                    placeholder="25.00" 
+                    placeholder="$ 25.000" 
                     className="w-full h-12 px-5 bg-zinc-900/50 border border-white/5 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-white" 
                   />
                 </div>

@@ -36,9 +36,7 @@ export const getSession = cache(async () => {
       .select("*, tenant:tenants(id, name, slug, logo_url)" as any)
       .eq("user_id", user.id)
       .eq("is_active", true)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+      .order("created_at", { ascending: false }),
     adminSupabase
       .from("tenants")
       .select("id, name, slug, logo_url")
@@ -47,8 +45,13 @@ export const getSession = cache(async () => {
       .maybeSingle()
   ]);
 
-  if (staffRes.data) {
-    const staffData = staffRes.data as any;
+  if (staffRes.data && staffRes.data.length > 0) {
+    const allStaff = staffRes.data as any[];
+    // Si el usuario tiene múltiples perfiles (ej. admin y barbero), usar el que coincida con activeRole
+    const staffData = activeRole 
+      ? allStaff.find(s => s.role === activeRole) || allStaff[0]
+      : allStaff[0];
+      
     return {
       user,
       staff: staffData,

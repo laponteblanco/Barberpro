@@ -42,15 +42,15 @@ export function EditStaffDialog({ member }: { member: any }) {
 
   // Working hours per day state (0=Sun … 6=Sat)
   const defaultWorkingHours = [
-    { open: true, start: 8, end: 20 }, // dom
-    { open: true, start: 8, end: 20 }, // lun
-    { open: true, start: 8, end: 20 }, // mar
-    { open: true, start: 8, end: 20 }, // mié
-    { open: true, start: 8, end: 20 }, // jue
-    { open: true, start: 8, end: 20 }, // vie
-    { open: true, start: 8, end: 20 }, // sáb
+    { open: true, start: 8, end: 20, has_break: false, break_start: 13, break_end: 14 }, // dom
+    { open: true, start: 8, end: 20, has_break: false, break_start: 13, break_end: 14 }, // lun
+    { open: true, start: 8, end: 20, has_break: false, break_start: 13, break_end: 14 }, // mar
+    { open: true, start: 8, end: 20, has_break: false, break_start: 13, break_end: 14 }, // mié
+    { open: true, start: 8, end: 20, has_break: false, break_start: 13, break_end: 14 }, // jue
+    { open: true, start: 8, end: 20, has_break: false, break_start: 13, break_end: 14 }, // vie
+    { open: true, start: 8, end: 20, has_break: false, break_start: 13, break_end: 14 }, // sáb
   ];
-  const [workingHours, setWorkingHours] = useState<Array<{open: boolean; start: number; end: number}>>(
+  const [workingHours, setWorkingHours] = useState<Array<{open: boolean; start: number; end: number; has_break?: boolean; break_start?: number; break_end?: number}>>(
     () => {
       const saved = member.working_hours;
       return (saved && Array.isArray(saved) && saved.length === 7) ? saved : defaultWorkingHours;
@@ -58,7 +58,7 @@ export function EditStaffDialog({ member }: { member: any }) {
   );
   const [showWorkingHours, setShowWorkingHours] = useState(false);
 
-  const updateWorkingDay = (idx: number, field: "open" | "start" | "end", value: boolean | number) => {
+  const updateWorkingDay = (idx: number, field: "open" | "start" | "end" | "has_break" | "break_start" | "break_end", value: boolean | number) => {
     setWorkingHours(prev => {
       const copy = prev.map(d => ({ ...d }));
       (copy[idx] as any)[field] = value;
@@ -340,32 +340,76 @@ export function EditStaffDialog({ member }: { member: any }) {
                               </span>
                             </div>
                             {day.open ? (
-                              <>
-                                <div className="flex items-center gap-1 flex-1 min-w-0">
-                                  <span className="text-[9px] text-zinc-500 shrink-0">De</span>
-                                  <select
-                                    value={day.start}
-                                    onChange={e => updateWorkingDay(idx, "start", Number(e.target.value))}
-                                    className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1 text-[10px] outline-none"
-                                  >
-                                    {Array.from({length: 24}).map((_,h) => (
-                                      <option key={h} value={h}>{h}:00</option>
-                                    ))}
-                                  </select>
+                              <div className="flex flex-col gap-2 flex-1 w-full mt-2 lg:mt-0">
+                                <div className="flex items-center gap-2 flex-1 w-full">
+                                  <div className="flex items-center gap-1 flex-1 min-w-0">
+                                    <span className="text-[9px] text-zinc-500 shrink-0">De</span>
+                                    <select
+                                      value={day.start}
+                                      onChange={e => updateWorkingDay(idx, "start", Number(e.target.value))}
+                                      className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1 text-[10px] outline-none text-white"
+                                    >
+                                      {Array.from({length: 24}).map((_,h) => (
+                                        <option key={h} value={h}>{h}:00</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div className="flex items-center gap-1 flex-1 min-w-0">
+                                    <span className="text-[9px] text-zinc-500 shrink-0">A</span>
+                                    <select
+                                      value={day.end}
+                                      onChange={e => updateWorkingDay(idx, "end", Number(e.target.value))}
+                                      className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1 text-[10px] outline-none text-white"
+                                    >
+                                      {Array.from({length: 24}).map((_,h) => (
+                                        <option key={h} value={h}>{h}:00</option>
+                                      ))}
+                                    </select>
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-1 flex-1 min-w-0">
-                                  <span className="text-[9px] text-zinc-500 shrink-0">A</span>
-                                  <select
-                                    value={day.end}
-                                    onChange={e => updateWorkingDay(idx, "end", Number(e.target.value))}
-                                    className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1 text-[10px] outline-none"
-                                  >
-                                    {Array.from({length: 24}).map((_,h) => (
-                                      <option key={h} value={h}>{h}:00</option>
-                                    ))}
-                                  </select>
+                                <div className="flex flex-col gap-2 pt-2 border-t border-white/5 w-full">
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => updateWorkingDay(idx, "has_break", !day.has_break)}
+                                      className={cn("transition-colors", day.has_break ? "text-amber-500" : "text-zinc-600")}
+                                    >
+                                      {day.has_break ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                                    </button>
+                                    <span className={cn("text-[9px] font-bold", day.has_break ? "text-white" : "text-zinc-500")}>
+                                      Hora de Almuerzo
+                                    </span>
+                                  </div>
+                                  {day.has_break && (
+                                    <div className="flex items-center gap-2 pl-6">
+                                      <div className="flex items-center gap-1 flex-1 min-w-0">
+                                        <span className="text-[9px] text-zinc-500 shrink-0">Inicio</span>
+                                        <select
+                                          value={day.break_start || 13}
+                                          onChange={e => updateWorkingDay(idx, "break_start", Number(e.target.value))}
+                                          className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1 text-[10px] outline-none text-white"
+                                        >
+                                          {Array.from({length: 24}).map((_,h) => (
+                                            <option key={h} value={h}>{h}:00</option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                      <div className="flex items-center gap-1 flex-1 min-w-0">
+                                        <span className="text-[9px] text-zinc-500 shrink-0">Fin</span>
+                                        <select
+                                          value={day.break_end || 14}
+                                          onChange={e => updateWorkingDay(idx, "break_end", Number(e.target.value))}
+                                          className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1 text-[10px] outline-none text-white"
+                                        >
+                                          {Array.from({length: 24}).map((_,h) => (
+                                            <option key={h} value={h}>{h}:00</option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
-                              </>
+                              </div>
                             ) : (
                               <span className="text-[9px] text-zinc-600 italic">Libre este día</span>
                             )}

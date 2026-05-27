@@ -8,12 +8,15 @@ import { Plus, Loader2, Package, X } from "lucide-react";
 import { createProductAction } from "./actions";
 import { productSchema, type ProductFormValues } from "./schema";
 import * as Dialog from "@radix-ui/react-dialog";
+import { formatCurrency } from "@/lib/utils";
 
 export function AddProductDialog() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<ProductFormValues>({
+  const isLightTheme = typeof document !== 'undefined' && document.documentElement.classList.contains('theme-light') || (typeof document !== 'undefined' && document.querySelector('.theme-light') !== null);
+
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema) as any,
     defaultValues: { 
       name: "",
@@ -22,6 +25,9 @@ export function AddProductDialog() {
       retail_price: 0
     }
   });
+
+  const retailPrice = watch("retail_price");
+  const costPrice = watch("cost_price");
 
   const onSubmit = async (data: ProductFormValues) => {
     setLoading(true);
@@ -51,7 +57,7 @@ export function AddProductDialog() {
       
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-start justify-center p-4 sm:items-center overflow-y-auto pt-10 sm:pt-4" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-zinc-950 border border-white/10 rounded-[32px] shadow-2xl z-50 overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col my-auto max-h-[90vh]">
+        <Dialog.Content className={`fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md border rounded-[32px] shadow-2xl z-50 overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col my-auto max-h-[90vh] ${isLightTheme ? "theme-light bg-white border-blue-100" : "bg-zinc-950 border-white/10"}`}>
           <div className="px-8 py-6 border-b border-white/5 flex items-center justify-between shrink-0 bg-zinc-900/50">
             <div>
               <Dialog.Title className="text-xl font-bold text-white tracking-tight flex items-center gap-3">
@@ -78,12 +84,41 @@ export function AddProductDialog() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div className="space-y-2.5">
-                  <label className="text-[10px] font-bold text-zinc-500 uppercase ml-1">Precio Venta ($)</label>
-                  <input type="number" step="0.01" {...register("retail_price")} placeholder="0" className="w-full h-12 px-5 bg-zinc-900/50 border border-white/5 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-amber-500/50 transition-all text-white" />
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase ml-1">Costo (Valor Compra)</label>
+                  <input 
+                    type="text" 
+                    value={costPrice ? formatCurrency(costPrice) : ""}
+                    onChange={(e) => {
+                      const clean = e.target.value.replace(/[^0-9]/g, "");
+                      setValue("cost_price", clean ? Number(clean) : 0);
+                    }}
+                    placeholder="$ 0" 
+                    className="w-full h-12 px-5 bg-zinc-900/50 border border-white/5 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-amber-500/50 transition-all text-white" 
+                  />
                 </div>
+                <div className="space-y-2.5">
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase ml-1">Precio Venta (Público)</label>
+                  <input 
+                    type="text" 
+                    value={retailPrice ? formatCurrency(retailPrice) : ""}
+                    onChange={(e) => {
+                      const clean = e.target.value.replace(/[^0-9]/g, "");
+                      setValue("retail_price", clean ? Number(clean) : 0);
+                    }}
+                    placeholder="$ 0" 
+                    className="w-full h-12 px-5 bg-zinc-900/50 border border-white/5 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-amber-500/50 transition-all text-white" 
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div className="space-y-2.5">
                   <label className="text-[10px] font-bold text-zinc-500 uppercase ml-1">Stock Inicial</label>
                   <input type="number" {...register("stock")} className="w-full h-12 px-5 bg-zinc-900/50 border border-white/5 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-amber-500/50 transition-all text-white" />
+                </div>
+                <div className="space-y-2.5">
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase ml-1">Alerta Stock Bajo</label>
+                  <input type="number" {...register("low_stock_threshold")} className="w-full h-12 px-5 bg-zinc-900/50 border border-white/5 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-amber-500/50 transition-all text-white" />
                 </div>
               </div>
 

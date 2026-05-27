@@ -20,11 +20,14 @@ import {
   ChevronDown,
   ChevronUp,
   Smartphone,
-  CreditCard
+  CreditCard,
+  Edit2,
+  Trash2
 } from "lucide-react";
 import { formatCurrency, formatDate, formatTime } from "@/lib/utils";
 import { openCashAction, closeCashAction } from "./actions";
 import { useRouter } from "next/navigation";
+import { CashActionSecurityDialog } from "@/components/cash/CashActionSecurityDialog";
 
 interface CajaClientPageProps {
   activeSession: any;
@@ -52,6 +55,11 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
 
   // History row expansion state
   const [expandedSessions, setExpandedSessions] = useState<Record<string, boolean>>({});
+
+  // Security action states
+  const [securityDialogOpen, setSecurityDialogOpen] = useState(false);
+  const [selectedSessionForAction, setSelectedSessionForAction] = useState<any | null>(null);
+  const [actionType, setActionType] = useState<"edit" | "delete" | null>(null);
 
   const showNotification = (message: string, type: "success" | "error" | "info" = "info") => {
     setNotification({ message, type });
@@ -252,7 +260,7 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
                     placeholder="Ej: $100.000"
                     required
                     disabled={loading}
-                    className="w-full h-14 pl-12 pr-4 bg-black/40 border border-white/10 rounded-2xl text-white placeholder:text-zinc-700 outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/5 transition-all text-lg font-bold"
+                    className="w-full h-14 pl-12 pr-4 bg-zinc-950 border border-white/10 rounded-2xl text-white placeholder:text-zinc-700 outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/5 transition-all text-lg font-bold"
                   />
                 </div>
               </div>
@@ -457,7 +465,7 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
                             onChange={(e) => handleBarberActualChange(barber.id, e.target.value)}
                             placeholder="Ej: $50.000"
                             disabled={delivery.isConfirmed}
-                            className="w-full h-11 pl-9 pr-3 bg-black/40 border border-white/5 rounded-xl text-white placeholder:text-zinc-800 outline-none focus:border-primary/40 text-sm font-bold disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+                            className="w-full h-11 pl-9 pr-3 bg-zinc-950 border border-white/5 rounded-xl text-white placeholder:text-zinc-800 outline-none focus:border-primary/40 text-sm font-bold disabled:opacity-60 disabled:cursor-not-allowed transition-all"
                           />
                         </div>
                       </div>
@@ -616,7 +624,7 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
                       placeholder="Ej: $250.000"
                       required
                       disabled={loading}
-                      className="w-full h-14 pl-12 pr-4 bg-black/40 border border-white/10 rounded-2xl text-white placeholder:text-zinc-700 outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/5 transition-all text-lg font-bold"
+                      className="w-full h-14 pl-12 pr-4 bg-zinc-950 border border-white/10 rounded-2xl text-white placeholder:text-zinc-700 outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/5 transition-all text-lg font-bold"
                     />
                   </div>
                   <p className="text-[10px] text-zinc-500 ml-1 leading-relaxed">
@@ -733,13 +741,40 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
                           )}
                         </td>
                         <td className="px-8 py-5 text-center">
-                          <button
-                            type="button"
-                            onClick={() => toggleSessionExpand(session.id)}
-                            className="p-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-xl transition-all"
-                          >
-                            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                          </button>
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedSessionForAction(session);
+                                setActionType("edit");
+                                setSecurityDialogOpen(true);
+                              }}
+                              className="p-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 hover:text-primary text-zinc-400 rounded-xl transition-all"
+                              title="Editar Cierre"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedSessionForAction(session);
+                                setActionType("delete");
+                                setSecurityDialogOpen(true);
+                              }}
+                              className="p-2 bg-zinc-900 border border-zinc-800 hover:border-red-500 hover:text-red-500 text-zinc-400 rounded-xl transition-all"
+                              title="Eliminar Cierre"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => toggleSessionExpand(session.id)}
+                              className="p-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-xl transition-all ml-2"
+                              title="Detalles"
+                            >
+                              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                            </button>
+                          </div>
                         </td>
                       </tr>
 
@@ -845,6 +880,17 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
           )}
         </div>
       </div>
+
+      <CashActionSecurityDialog 
+        isOpen={securityDialogOpen}
+        onOpenChange={setSecurityDialogOpen}
+        session={selectedSessionForAction}
+        actionType={actionType}
+        onSuccess={() => {
+          showNotification(actionType === "delete" ? "Cierre eliminado con éxito" : "Cierre actualizado con éxito", "success");
+          router.refresh();
+        }}
+      />
     </div>
   );
 }

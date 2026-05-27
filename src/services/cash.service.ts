@@ -381,3 +381,93 @@ export async function getCashSessionHistory() {
     barbers_breakdown: session.barbers_breakdown || [],
   }));
 }
+
+/**
+ * Verifies if the provided PIN matches the tenant's security pin.
+ */
+export async function verifySecurityPin(pin: string): Promise<{ success: boolean; error?: string }> {
+  const { tenantId } = await getSession();
+  if (!tenantId) return { success: false, error: "No autorizado" };
+
+  const adminSupabase = await createAdminClient();
+
+  const { data: tenant } = await (adminSupabase as any)
+    .from("tenants")
+    .select("settings")
+    .eq("id", tenantId)
+    .single();
+
+  if (!tenant) return { success: false, error: "Tenant no encontrado" };
+
+  const savedPin = tenant.settings?.security_pin;
+  if (!savedPin) {
+    // If no pin is configured, allow it? Let's say yes, or maybe fail?
+    // If they want to use this feature, they should set a PIN.
+    return { success: true };
+  }
+
+  if (savedPin !== pin) {
+    return { success: false, error: "PIN incorrecto" };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Permanently deletes a closed cash session from history.
+ */
+export async function deleteCashSession(sessionId: string): Promise<{ success: boolean; error?: string }> {
+  const { tenantId } = await getSession();
+  if (!tenantId) return { success: false, error: "No autorizado" };
+
+  const adminSupabase = await createAdminClient();
+
+  const { error } = await (adminSupabase as any)
+    .from("cash_sessions")
+    .delete()
+    .eq("id", sessionId)
+    .eq("tenant_id", tenantId);
+
+  if (error) {
+    console.error("Error deleting cash session:", error);
+    return { success: false, error: `Error al eliminar: ${error.message}` };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Updates a closed cash session's actual balance and optionally its barbers breakdown.
+ */
+export async function updateClosedCashSession(
+  sessionId: string,
+  actualBalance: number,
+  barbersBreakdown?: any[]
+): Promise<{ success: boolean; error?: string }> {
+  const { tenantId } = await getSession();
+  if (!tenantId) return { success: false, error: "No autorizado" };
+
+  const adminSupabase = await createAdminClient();
+
+  const updatePayload: any = {
+    actual_balance: actualBalance,
+  };
+
+  if (barbersBreakdown) {
+    updatePayload.barbers_breakdown = barbersBreakdown;
+  }
+
+  const { error } = await (adminSupabase as any)
+    .from("cash_sessions")
+    .update(updatePayload)
+    .eq("id", sessionId)
+    .eq("tenant_id", tenantId);
+
+  if (error) {
+    console.error("Error updating cash session:", error);
+    return { success: false, error: `Error al actualizar: ${error.message}` };
+  }
+
+  return { success: true };
+}
+

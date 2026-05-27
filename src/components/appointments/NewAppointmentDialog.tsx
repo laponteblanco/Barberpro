@@ -160,8 +160,13 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
     }
   };
 
+  const isLightTheme = typeof document !== 'undefined' && document.documentElement.classList.contains('theme-light') || (typeof document !== 'undefined' && document.querySelector('.theme-light') !== null);
+
   const modalContent = isModalOpen ? (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div className={cn(
+          "fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200",
+          isLightTheme ? "theme-light" : "theme-dark"
+        )}>
           <div className="w-[92vw] max-w-[500px] bg-zinc-950 border border-white/10 rounded-[32px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-200">
             {/* Header */}
             <div className="flex items-center justify-between px-8 py-6 border-b border-white/5 bg-zinc-900/50 shrink-0">

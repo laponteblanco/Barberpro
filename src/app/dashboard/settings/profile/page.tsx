@@ -42,6 +42,7 @@ export default async function ProfileSettingsPage() {
     business_start: tenant?.settings?.business_hours?.start || 8,
     business_end: tenant?.settings?.business_hours?.end || 20,
     business_hours_by_day,
+    security_pin: tenant?.settings?.security_pin || "",
   };
 
   if (!tenant) {

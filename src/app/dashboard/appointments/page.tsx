@@ -105,6 +105,37 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
     working_hours: s.working_hours || null,
   })) || [];
 
+  // Inject Lunch Breaks as virtual agenda blocks
+  staff.forEach(s => {
+    if (s.working_hours && Array.isArray(s.working_hours) && s.working_hours.length === 7) {
+       const msInDay = 24 * 3600000;
+       const daysToIterate = isBarber ? 7 : 1;
+       const baseDate = new Date(selectedDate + "T12:00:00-05:00");
+       
+       for(let i = 0; i < daysToIterate; i++) {
+          const currentDate = new Date(baseDate.getTime() + i * msInDay);
+          const dayIndex = currentDate.getDay(); // 0=Sun
+          const dayConfig = s.working_hours[dayIndex];
+          if (dayConfig && dayConfig.has_break && dayConfig.break_start != null && dayConfig.break_end != null) {
+            const yyyy = currentDate.getFullYear();
+            const mm = String(currentDate.getMonth() + 1).padStart(2, '0');
+            const dd = String(currentDate.getDate()).padStart(2, '0');
+            const dateStr = `${yyyy}-${mm}-${dd}`;
+            
+            agendaBlocks.push({
+               id: `lunch-${s.id}-${dateStr}`,
+               tenant_id: tenantId,
+               staff_id: s.id,
+               start_time: new Date(`${dateStr}T${String(dayConfig.break_start).padStart(2, '0')}:00:00-05:00`).toISOString(),
+               end_time: new Date(`${dateStr}T${String(dayConfig.break_end).padStart(2, '0')}:00:00-05:00`).toISOString(),
+               reason: "Almuerzo",
+               is_lunch_break: true
+            });
+          }
+       }
+    }
+  });
+
   const settings = (tenant as any)?.settings || {};
   const selectedDayIndex = new Date(selectedDate + "T12:00:00Z").getDay(); // 0=Sun…6=Sat
   const byDay: Array<{open: boolean; start: number; end: number}> | undefined =
@@ -182,7 +213,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
         </div>
       </div>
 
-      <div className="animate-float-slow flex-1 min-h-0">
+      <div className="animate-float-slow flex-1 min-h-0 flex flex-col">
         <CalendarView 
           appointments={appointments} 
           agendaBlocks={agendaBlocks}
