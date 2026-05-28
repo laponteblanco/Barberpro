@@ -360,7 +360,7 @@ export function CalendarView({
             <h3 className="text-xl font-bold text-white mb-2">No hay barberos para mostrar</h3>
             <p className="text-zinc-500 text-sm max-w-md">Ve a la sección de Personal (Staff) en Ajustes para registrar a tus barberos y comenzar a agendar citas.</p>
           </div>
-        ) : isMobile ? (
+        ) : false ? (
           <div className="flex flex-col h-full bg-zinc-950/20">
             {/* Active Barber Selector */}
             <div className="flex gap-2 overflow-x-auto px-4 py-3 bg-zinc-900/40 border-b border-white/5 no-scrollbar">

@@ -167,17 +167,25 @@ export async function publicCancelAppointmentAction(
 ) {
   const adminSupabase = await createAdminClient();
 
-  // Verify the appointment belongs to the tenant and the client
+  // Verify the appointment belongs to the tenant and the client (allow either clients.id or profiles.id / user_id)
   const { data: appointment, error: fetchError } = await (adminSupabase as any)
     .from("appointments")
-    .select("id")
+    .select("id, client_id, clients(id, user_id)")
     .eq("id", appointmentId)
     .eq("tenant_id", tenantId)
-    .eq("client_id", clientId)
     .maybeSingle();
 
   if (fetchError || !appointment) {
-    throw new Error("Cita no encontrada o no tienes permiso para cancelarla.");
+    throw new Error("Cita no encontrada.");
+  }
+
+  const matchesClient = 
+    appointment.client_id === clientId || 
+    appointment.clients?.id === clientId || 
+    appointment.clients?.user_id === clientId;
+
+  if (!matchesClient) {
+    throw new Error("No tienes permiso para cancelar esta cita.");
   }
 
   // Update status to 'cancelled'
