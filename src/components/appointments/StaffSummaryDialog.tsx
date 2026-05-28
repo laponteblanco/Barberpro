@@ -379,7 +379,7 @@ export function StaffSummaryDialog({ barber, appointments, onClose }: StaffSumma
                               setTxDescription(`Consignación de ${selected.name}`);
                             }
                           }}
-                          className="w-full h-11 px-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:border-amber-500/50 text-xs font-bold"
+                          className="w-full h-11 px-3 bg-zinc-900/50 border border-white/10 rounded-xl text-white outline-none focus:border-amber-500/50 text-xs font-bold"
                         >
                           <option value="" disabled className="bg-zinc-900 text-zinc-500">Seleccionar producto...</option>
                           {products.map(p => (
@@ -403,7 +403,7 @@ export function StaffSummaryDialog({ barber, appointments, onClose }: StaffSumma
                             onChange={(e) => setTxAmount(e.target.value.replace(/[^0-9]/g, ""))}
                             placeholder="Ej: 20000"
                             required
-                            className="w-full h-11 pl-7 pr-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:border-amber-500/50 text-xs font-bold"
+                            className="w-full h-11 pl-7 pr-3 bg-zinc-900/50 border border-white/10 rounded-xl text-white outline-none focus:border-amber-500/50 text-xs font-bold"
                           />
                         </div>
                       </div>
@@ -415,7 +415,7 @@ export function StaffSummaryDialog({ barber, appointments, onClose }: StaffSumma
                           value={txDescription}
                           onChange={(e) => setTxDescription(e.target.value)}
                           placeholder="Ej: Adelanto transporte"
-                          className="w-full h-11 px-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:border-amber-500/50 text-xs font-semibold"
+                          className="w-full h-11 px-3 bg-zinc-900/50 border border-white/10 rounded-xl text-white outline-none focus:border-amber-500/50 text-xs font-semibold"
                         />
                       </div>
                     </div>
