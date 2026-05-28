@@ -226,7 +226,7 @@ export function StaffSummaryDialog({ barber, appointments, onClose }: StaffSumma
             </div>
 
             {/* Services List */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar px-8 pb-8">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pl-8 pr-6 pb-8">
               <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-4 sticky top-0 bg-zinc-950 py-2 z-10">Servicios Terminados</h4>
               <div className="space-y-3">
                 {completedAppts.length === 0 ? (
@@ -278,7 +278,7 @@ export function StaffSummaryDialog({ barber, appointments, onClose }: StaffSumma
 
         {/* Tab 2: Finance Content */}
         {activeTab === 'finance' && (
-          <div className="flex-1 overflow-y-auto custom-scrollbar px-8 pb-8 space-y-6 pt-6">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pl-8 pr-6 pb-8 space-y-6 pt-6">
             {loadingLedger && !ledgerData ? (
               <div className="py-20 text-center">
                 <Clock className="w-8 h-8 text-zinc-600 animate-spin mx-auto mb-2" />
@@ -391,8 +391,8 @@ export function StaffSummaryDialog({ barber, appointments, onClose }: StaffSumma
                       </div>
                     )}
 
-                    {/* Amount & Description */}
-                    <div className="grid grid-cols-2 gap-3">
+                    {/* Amount & Description stacked vertically to avoid horizontal clipping */}
+                    <div className="space-y-4">
                       <div className="space-y-1.5">
                         <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Valor / Monto</label>
                         <div className="relative">

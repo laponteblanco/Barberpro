@@ -48,7 +48,7 @@ export default async function PublicBookingPage({
   const theme = tenant.settings?.theme || "dark";
 
   return (
-    <main className={`min-h-screen ${theme === "light" ? "theme-light" : "theme-dark"} bg-zinc-950 text-white selection:bg-primary/30 transition-colors duration-500`}>
+    <main className={`min-h-screen ${theme === "light" ? "theme-light" : "theme-dark"} bg-background text-foreground selection:bg-primary/30 transition-colors duration-500`}>
       {/* Background Decor */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div 

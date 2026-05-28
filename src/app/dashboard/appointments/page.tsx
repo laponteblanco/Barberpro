@@ -72,10 +72,11 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
     adminSupabase.from("clients").select("id, full_name, id_number").eq("tenant_id", tenantId).order("full_name"),
     adminSupabase
       .from("tenant_staff")
-      .select("id, role, commission_rate, daily_commission_rates, compensation_type, rent_amount, working_hours, profiles(full_name, avatar_url)")
+      .select("id, role, commission_rate, daily_commission_rates, compensation_type, rent_amount, working_hours, profile:profiles(full_name, avatar_url)")
       .eq("tenant_id", tenantId)
       .eq("is_active", true)
-      // Admin: fetch ALL active staff (barbers + admins who cut hair)
+      .eq("role", "barber")
+      // Admin: fetch ALL active barbers
       // Barber: fetch only themselves
       .match(isBarber ? { id: sessionStaff.id } : {}),
     adminSupabase.from("services").select("id, name, price").eq("tenant_id", tenantId).eq("is_active", true).order("name"),
@@ -95,8 +96,8 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   // Map staff
   const staff = staffRaw?.map((s: any) => ({
     id: s.id,
-    display_name: s.profiles?.full_name || "Sin nombre",
-    avatar_url: s.profiles?.avatar_url,
+    display_name: s.profile?.full_name || s.display_name || "Sin nombre",
+    avatar_url: s.profile?.avatar_url || s.avatar_url,
     commission_rate: s.commission_rate || 0,
     daily_commission_rates: s.daily_commission_rates || {},
     compensation_type: s.compensation_type,

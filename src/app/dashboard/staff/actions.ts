@@ -269,6 +269,21 @@ export async function deleteStaffAction(staffId: string) {
 
   const adminSupabase = await createAdminClient();
 
+  // PREVENCIÓN: El dueño nunca se puede eliminar
+  const { data: memberToDelete, error: fetchError } = await (adminSupabase as any)
+    .from("tenant_staff")
+    .select("role")
+    .eq("id", staffId)
+    .single();
+
+  if (fetchError || !memberToDelete) {
+    return { error: "No se encontró el miembro del personal a eliminar." };
+  }
+
+  if (memberToDelete.role === "owner") {
+    return { error: "El dueño de la barbería no puede ser eliminado." };
+  }
+
   // Cambiamos DELETE por UPDATE para no romper la integridad de las citas (Soft Delete)
   const { error } = await (adminSupabase as any)
     .from("tenant_staff")

@@ -1,15 +1,48 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
+import { headers, cookies } from "next/headers";
 import { DashboardContainer } from "@/components/layout/DashboardContainer";
 import { getSession } from "@/lib/supabase/session";
 import { createAdminClient } from "@/lib/supabase/server";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import { AdminSelectorModal } from "@/components/layout/AdminSelectorModal";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, staff, activeRole } = await getSession();
   
   if (!user) redirect("/");
+
+  // Check if owner needs to select an admin
+  let admins: any[] = [];
+  let showSelector = false;
+
+  const isOwner = (
+    staff?.role === "owner" || 
+    staff?.role === "admin" || 
+    (staff?.originalStaff && (staff.originalStaff.role === "owner" || staff.originalStaff.role === "admin"))
+  ) && user.email && !user.email.endsWith("@barberos.app");
+  
+  if (isOwner && !staff?.isImpersonating) {
+    let skipAdminSelector = false;
+    try {
+      const cookieStore = await cookies();
+      skipAdminSelector = cookieStore.get("skip_admin_selector")?.value === "true";
+    } catch (e) {}
+
+    if (!skipAdminSelector) {
+      const adminSupabase = await createAdminClient();
+      const { data } = await (adminSupabase as any)
+        .from("tenant_staff")
+        .select("*, profile:profiles(full_name, avatar_url)")
+        .eq("tenant_id", staff.tenant_id)
+        .eq("role", "admin")
+        .eq("is_active", true)
+        .neq("user_id", user.id); // Excluir al propio dueño de la lista de selección
+      
+      admins = data || [];
+      showSelector = true;
+    }
+  }
   
   // 1. Identificar rol: prioridad para el rol de autenticación del dueño (admin/superadmin)
   const authRole = user.user_metadata?.role;
@@ -61,9 +94,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <ErrorBoundary>
       <div className={`${theme === "light" ? "theme-light" : "theme-dark"} min-h-screen w-full bg-background text-foreground transition-colors duration-500`}>
-        <DashboardContainer tenantName={tenantName} tenantLogoUrl={tenantLogoUrl} role={role} userName={userName}>
+        <DashboardContainer 
+          tenantName={tenantName} 
+          tenantLogoUrl={tenantLogoUrl} 
+          role={role} 
+          userName={userName}
+          isImpersonating={staff?.isImpersonating === true}
+        >
           {children}
         </DashboardContainer>
+        <AdminSelectorModal admins={admins} isOpen={showSelector} />
       </div>
     </ErrorBoundary>
   );

@@ -132,10 +132,12 @@ export default async function StaffPage() {
                   <td className="px-8 py-6 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <EditStaffDialog member={member} />
-                      <DeleteStaffButton 
-                        staffId={member.id} 
-                        staffName={member.profile?.full_name || "este miembro"} 
-                      />
+                      {member.role !== "owner" && (
+                        <DeleteStaffButton 
+                          staffId={member.id} 
+                          staffName={member.profile?.full_name || "este miembro"} 
+                        />
+                      )}
                     </div>
                   </td>
                 </tr>

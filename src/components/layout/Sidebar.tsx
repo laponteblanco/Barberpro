@@ -88,8 +88,10 @@ export function Sidebar({
   }, [lockedTooltip]);
 
   const handleLogout = async () => {
-    // Limpiar la cookie del rol activo al cerrar sesión
+    // Limpiar las cookies de rol e impersonación al cerrar sesión
     document.cookie = "active_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax; Secure";
+    document.cookie = "impersonated_staff_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax; Secure";
+    document.cookie = "skip_admin_selector=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax; Secure";
     await supabase.auth.signOut();
     router.push("/");
   };

@@ -48,9 +48,41 @@ export const getSession = cache(async () => {
   if (staffRes.data && staffRes.data.length > 0) {
     const allStaff = staffRes.data as any[];
     // Si el usuario tiene múltiples perfiles (ej. admin y barbero), usar el que coincida con activeRole
-    const staffData = activeRole 
+    let staffData = activeRole 
       ? allStaff.find(s => s.role === activeRole) || allStaff[0]
       : allStaff[0];
+
+    // Impersonación para Dueño (Owner)
+    let impersonatedStaffId: string | null = null;
+    try {
+      const cookieStore = await cookies();
+      impersonatedStaffId = cookieStore.get("impersonated_staff_id")?.value || null;
+    } catch (e) {
+      // Evitar fallos fuera de contexto de petición
+    }
+
+    const isOwnerUser = (staffData.role === "owner" || staffData.role === "admin") && user.email && !user.email.endsWith("@barberos.app");
+
+    if (isOwnerUser && impersonatedStaffId) {
+      const { data: impersonatedData } = await adminSupabase
+        .from("tenant_staff" as any)
+        .select("*, tenant:tenants(id, name, slug, logo_url)" as any)
+        .eq("id", impersonatedStaffId)
+        .eq("tenant_id", staffData.tenant_id)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (impersonatedData) {
+        const originalStaff = { ...staffData };
+        staffData = {
+          ...impersonatedData,
+          isImpersonating: true,
+          originalStaff
+        };
+        // Sobreescribir el user.id de forma segura para que todas las operaciones registren bajo el administrador impersonado
+        user.id = impersonatedData.user_id;
+      }
+    }
       
     return {
       user,
