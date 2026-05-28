@@ -75,12 +75,12 @@ export const getSession = cache(async () => {
       if (impersonatedData) {
         const originalStaff = { ...staffData };
         staffData = {
-          ...impersonatedData,
+          ...(impersonatedData as any),
           isImpersonating: true,
           originalStaff
         };
         // Sobreescribir el user.id de forma segura para que todas las operaciones registren bajo el administrador impersonado
-        user.id = impersonatedData.user_id;
+        user.id = (impersonatedData as any).user_id;
       }
     }
       
