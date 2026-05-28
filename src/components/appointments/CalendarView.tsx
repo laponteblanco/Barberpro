@@ -854,12 +854,13 @@ export function CalendarView({
         document.body
       )}
 
-      {summaryBarber && (
+      {summaryBarber && mounted && typeof document !== 'undefined' && createPortal(
         <StaffSummaryDialog 
           barber={summaryBarber} 
           appointments={appointments.filter(a => a.staff_id === summaryBarber.id)} 
           onClose={() => setSummaryBarber(null)} 
-        />
+        />,
+        document.body
       )}
 
       {/* Slot Menu */}
