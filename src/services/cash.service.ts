@@ -9,6 +9,7 @@ export interface ActiveSessionDetails {
   expected_cash: number;
   expected_digital: number;
   appointments_total: number;
+  appointments_cash_total: number;
   appointments_digital_total: number;
   sales_total: number;
   expenses_total: number;
