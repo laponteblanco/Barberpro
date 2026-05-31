@@ -22,12 +22,15 @@ import {
   Smartphone,
   CreditCard,
   Edit2,
-  Trash2
+  Trash2,
+  Scissors,
+  Landmark
 } from "lucide-react";
 import { formatCurrency, formatDate, formatTime } from "@/lib/utils";
 import { openCashAction, closeCashAction } from "./actions";
 import { useRouter } from "next/navigation";
 import { CashActionSecurityDialog } from "@/components/cash/CashActionSecurityDialog";
+import { AddExpenseDialog } from "@/components/caja/AddExpenseDialog";
 
 interface CajaClientPageProps {
   activeSession: any;
@@ -46,6 +49,7 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
   const [openingBalance, setOpeningBalance] = useState("");
   const [actualBalance, setActualBalance] = useState("");
   const [showHistory, setShowHistory] = useState(false);
+  const [closedSessionReportUrl, setClosedSessionReportUrl] = useState<string | null>(null);
 
   // Barbers deliveries states
   const [barberDeliveries, setBarberDeliveries] = useState<Record<string, {
@@ -128,7 +132,9 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
           total_payments: b.total_payments || 0,
           total_consignments: b.total_consignments || 0,
           total_cash: b.total_cash || 0,
-          total_digital: b.total_digital || 0
+          total_digital: b.total_digital || 0,
+          total_commission: b.total_commission || 0,
+          total_shop_profit: b.total_shop_profit || 0
         };
       });
 
@@ -136,9 +142,31 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
       if (!res.success) {
         setError(res.error || "Ocurrió un error");
       } else {
+        showNotification("Caja cerrada. Generando PDF...", "info");
+        
+        try {
+          const { generateCashClosingPDF } = await import("@/lib/pdf");
+          const pdfBlob = await generateCashClosingPDF(activeSession, compiledBarbersBreakdown);
+          
+          const formData = new FormData();
+          formData.append("file", pdfBlob, "cierre.pdf");
+          
+          const { uploadClosingReportAction } = await import("./actions");
+          const uploadRes = await uploadClosingReportAction(formData);
+          
+          if (uploadRes.success && uploadRes.url) {
+            setClosedSessionReportUrl(uploadRes.url);
+          } else {
+            const url = URL.createObjectURL(pdfBlob);
+            setClosedSessionReportUrl(url);
+          }
+        } catch (e) {
+          console.error("PDF Error", e);
+          showNotification("Caja cerrada, pero error al generar PDF.", "error");
+        }
+
         setActualBalance("");
         setBarberDeliveries({});
-        showNotification("Caja cerrada con éxito y arqueo registrado", "success");
         router.refresh();
       }
     } catch (err: any) {
@@ -229,6 +257,44 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
         </div>
       )}
 
+      {/* Success Modal for Report */}
+      {closedSessionReportUrl && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-zinc-950 border border-emerald-500/20 rounded-[32px] w-full max-w-md shadow-2xl p-8 text-center animate-in zoom-in-95 duration-300">
+            <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+              <CheckCircle2 className="w-10 h-10 text-emerald-500" />
+            </div>
+            <h2 className="text-2xl font-black text-white mb-2">Caja Cerrada con Éxito</h2>
+            <p className="text-zinc-400 mb-8 font-medium">El arqueo se ha registrado correctamente y el PDF de cierre ha sido generado.</p>
+            
+            <div className="space-y-3">
+              <a 
+                href={closedSessionReportUrl}
+                download="cierre_de_caja.pdf"
+                className="w-full h-12 bg-zinc-900 hover:bg-zinc-800 text-white font-bold rounded-2xl flex items-center justify-center gap-2 border border-white/5 transition-all"
+              >
+                <ClipboardList className="w-5 h-5" /> Descargar PDF
+              </a>
+              <a 
+                href={`https://wa.me/?text=${encodeURIComponent("Hola, adjunto el resumen del cierre de caja: " + closedSessionReportUrl)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="w-full h-12 bg-emerald-500 hover:bg-emerald-600 text-black font-black rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/20"
+              >
+                <Smartphone className="w-5 h-5" /> Enviar por WhatsApp
+              </a>
+            </div>
+
+            <button 
+              onClick={() => setClosedSessionReportUrl(null)}
+              className="mt-6 text-zinc-500 hover:text-white text-sm font-bold uppercase tracking-wider transition-colors"
+            >
+              Cerrar esta ventana
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* --- CAJA CERRADA --- */}
       {!activeSession && (
         <div className="max-w-xl mx-auto">
@@ -280,8 +346,13 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
       {/* --- CAJA ABIERTA --- */}
       {activeSession && (
         <div className="space-y-8 animate-in fade-in duration-500">
+          {/* Header Actions */}
+          <div className="flex justify-end items-center gap-4">
+            <AddExpenseDialog />
+          </div>
+
           {/* Active stats grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
             {/* Card: Starting Base */}
             <div className="glass-card rounded-[24px] p-6 border-white/5 bg-zinc-900/30 flex items-center gap-5">
               <div className="w-12 h-12 rounded-xl bg-zinc-950 flex items-center justify-center text-zinc-400 border border-zinc-800 shadow-lg shrink-0">
@@ -292,6 +363,21 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
                 <p className="text-xl font-black text-white">{formatCurrency(activeSession.opening_balance)}</p>
                 <p className="text-[9px] text-zinc-500 font-medium truncate mt-1">
                   Aper. {formatTime(activeSession.opened_at)}
+                </p>
+              </div>
+            </div>
+
+            {/* Card: Expenses */}
+            <div className="glass-card rounded-[24px] p-6 border-white/5 bg-zinc-900/30 flex items-center gap-5 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-20 h-20 bg-rose-500/5 blur-2xl rounded-full" />
+              <div className="w-12 h-12 rounded-xl bg-zinc-950 flex items-center justify-center border border-zinc-800 shadow-lg shrink-0 z-10">
+                <ArrowDownLeft className="w-5 h-5 text-rose-400" />
+              </div>
+              <div className="min-w-0 flex-1 z-10">
+                <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest leading-none mb-1.5">Gastos del Día</p>
+                <p className="text-xl font-black text-rose-400">{formatCurrency(activeSession.expenses_total || 0)}</p>
+                <p className="text-[9px] text-zinc-500 font-medium mt-1">
+                  Salidas de dinero físico
                 </p>
               </div>
             </div>
@@ -407,6 +493,33 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
 
                     <div className="mt-5 space-y-4">
                       {/* Expected breakdown */}
+                      <div className="space-y-1.5 border-b border-white/5 pb-3 mb-3">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-semibold text-zinc-500 flex items-center gap-1.5">
+                            <Scissors className="w-3.5 h-3.5 text-primary" /> Servicios Totales:
+                          </span>
+                          <span className="font-bold text-white">{barber.appointments_count + barber.appointments_digital_count}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-semibold text-zinc-500 flex items-center gap-1.5">
+                            <DollarSign className="w-3.5 h-3.5 text-emerald-400" /> Recaudo Total:
+                          </span>
+                          <span className="font-bold text-white">{formatCurrency((barber.total_cash || 0) + (barber.total_digital || 0))}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-semibold text-zinc-500 flex items-center gap-1.5">
+                            <User className="w-3.5 h-3.5 text-primary" /> Comisión Barbero:
+                          </span>
+                          <span className="font-bold text-primary">{formatCurrency(barber.total_commission || 0)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-semibold text-zinc-500 flex items-center gap-1.5">
+                            <Landmark className="w-3.5 h-3.5 text-zinc-400" /> Utilidad Barbería:
+                          </span>
+                          <span className="font-bold text-zinc-300">{formatCurrency(barber.total_shop_profit || 0)}</span>
+                        </div>
+                      </div>
+
                       <div className="space-y-1.5 border-b border-white/5 pb-3">
                         <div className="flex justify-between items-center text-xs">
                           <span className="font-semibold text-zinc-500 flex items-center gap-1.5">
@@ -545,6 +658,15 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
                     <span className="text-zinc-400 font-medium">Ventas de Productos</span>
                     <span className="font-bold text-emerald-400">+{formatCurrency(activeSession.sales_total)}</span>
                   </div>
+                  {activeSession.expenses_total > 0 && (
+                    <div className="flex items-center justify-between py-1 text-xs animate-in fade-in">
+                      <span className="text-zinc-400 font-medium flex items-center gap-1">
+                        Gastos Registrados
+                        <span className="text-[9px] bg-white/10 px-1.5 py-0.5 rounded-md">{activeSession.expenses?.length || 0}</span>
+                      </span>
+                      <span className="font-bold text-rose-400">-{formatCurrency(activeSession.expenses_total)}</span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between py-2 text-sm font-black border-t border-white/5 pt-2">
                     <span className="text-white">Total Efectivo Esperado:</span>
                     <span className="text-emerald-400">{formatCurrency(activeSession.expected_cash)}</span>
@@ -558,28 +680,28 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
                   </h4>
                   
                   {activeSession.digital_breakdown && (
-                    <div className="grid grid-cols-2 gap-4 text-xs">
-                      <div className="flex items-center justify-between py-1 bg-black/20 rounded-lg px-2 border border-white/5">
-                        <span className="text-zinc-500 font-medium flex items-center gap-1">
-                          <CreditCard className="w-3 h-3 text-cyan-400" /> Tarjeta:
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between py-1 text-xs">
+                        <span className="text-zinc-400 font-medium flex items-center gap-1.5">
+                          <CreditCard className="w-3.5 h-3.5 text-cyan-400" /> Tarjeta
                         </span>
                         <span className="font-bold text-white">{formatCurrency(activeSession.digital_breakdown.card)}</span>
                       </div>
-                      <div className="flex items-center justify-between py-1 bg-black/20 rounded-lg px-2 border border-white/5">
-                        <span className="text-zinc-500 font-medium flex items-center gap-1">
-                          <Smartphone className="w-3 h-3 text-indigo-400" /> Nequi:
+                      <div className="flex items-center justify-between py-1 text-xs">
+                        <span className="text-zinc-400 font-medium flex items-center gap-1.5">
+                          <Smartphone className="w-3.5 h-3.5 text-indigo-400" /> Nequi
                         </span>
                         <span className="font-bold text-white">{formatCurrency(activeSession.digital_breakdown.nequi)}</span>
                       </div>
-                      <div className="flex items-center justify-between py-1 bg-black/20 rounded-lg px-2 border border-white/5">
-                        <span className="text-zinc-500 font-medium flex items-center gap-1">
-                          <Smartphone className="w-3 h-3 text-red-400" /> Daviplata:
+                      <div className="flex items-center justify-between py-1 text-xs">
+                        <span className="text-zinc-400 font-medium flex items-center gap-1.5">
+                          <Smartphone className="w-3.5 h-3.5 text-red-400" /> Daviplata
                         </span>
                         <span className="font-bold text-white">{formatCurrency(activeSession.digital_breakdown.daviplata)}</span>
                       </div>
-                      <div className="flex items-center justify-between py-1 bg-black/20 rounded-lg px-2 border border-white/5">
-                        <span className="text-zinc-500 font-medium flex items-center gap-1">
-                          <ArrowUpRight className="w-3 h-3 text-emerald-400" /> Transferencia:
+                      <div className="flex items-center justify-between py-1 text-xs">
+                        <span className="text-zinc-400 font-medium flex items-center gap-1.5">
+                          <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" /> Transferencia
                         </span>
                         <span className="font-bold text-white">{formatCurrency(activeSession.digital_breakdown.transfer)}</span>
                       </div>

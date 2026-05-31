@@ -229,6 +229,19 @@ export async function editStaffAction(formData: FormData) {
     }
   }
 
+  // Parse and include specialties (services)
+  const specialtiesRaw = formData.get("specialties")?.toString();
+  if (specialtiesRaw) {
+    try {
+      const parsed = JSON.parse(specialtiesRaw);
+      if (Array.isArray(parsed)) {
+        updateData.specialties = parsed;
+      }
+    } catch {
+      // Ignore malformed JSON
+    }
+  }
+
   let { error: staffError } = await (adminSupabase as any)
     .from("tenant_staff")
     .update(updateData)

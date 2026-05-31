@@ -120,3 +120,28 @@ export async function updateServiceAction(serviceId: string, formData: FormData)
   revalidatePath("/dashboard/appointments");
   return { success: true };
 }
+
+export async function deleteServiceAction(serviceId: string) {
+  const { tenantId } = await getSession();
+  if (!tenantId) return { error: "No session" };
+
+  const adminSupabase = await createAdminClient();
+
+  const { error } = await (adminSupabase as any)
+    .from("services")
+    .delete()
+    .eq("id", serviceId)
+    .eq("tenant_id", tenantId);
+
+  if (error) {
+    console.error("Error deleting service:", error);
+    if (error.code === '23503') { // Foreign key violation
+      return { error: "No se puede eliminar el servicio porque ya tiene citas o registros asociados. Por favor, cambia su estado a Inactivo." };
+    }
+    return { error: error.message };
+  }
+
+  revalidatePath("/dashboard/services");
+  revalidatePath("/dashboard/appointments");
+  return { success: true };
+}

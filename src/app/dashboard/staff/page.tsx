@@ -1,5 +1,6 @@
 import { UserPlus, Shield, Scissors, Mail, MoreVertical, CheckCircle2, XCircle, Info } from "lucide-react";
 import { getStaff } from "@/services/staff.service";
+import { getBarberServices } from "@/services/barber-services.service";
 import { getSession } from "@/lib/supabase/session";
 import { createAdminClient } from "@/lib/supabase/server";
 import { AddStaffDialog } from "@/components/staff/AddStaffDialog";
@@ -8,6 +9,7 @@ import { DeleteStaffButton } from "@/components/staff/DeleteStaffButton";
 
 export default async function StaffPage() {
   const staffMembers = await getStaff();
+  const services = await getBarberServices();
   const { tenantId } = await getSession();
   
   const adminSupabase = await createAdminClient();
@@ -131,7 +133,7 @@ export default async function StaffPage() {
                   </td>
                   <td className="px-8 py-6 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <EditStaffDialog member={member} />
+                      <EditStaffDialog member={member} services={services} />
                       {member.role !== "owner" && (
                         <DeleteStaffButton 
                           staffId={member.id} 

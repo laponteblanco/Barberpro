@@ -33,10 +33,11 @@ interface StaffSummaryDialogProps {
   barber: any;
   appointments: any[];
   onClose: () => void;
+  theme?: string;
 }
 
-export function StaffSummaryDialog({ barber, appointments, onClose }: StaffSummaryDialogProps) {
-  const [activeTab, setActiveTab] = useState<'services' | 'finance'>('services');
+export function StaffSummaryDialog({ barber, appointments, onClose, theme = "dark" }: StaffSummaryDialogProps) {
+  const [activeTab, setActiveTab] = useState<'arqueo' | 'services' | 'finance'>('arqueo');
   const [ledgerData, setLedgerData] = useState<any>(null);
   const [loadingLedger, setLoadingLedger] = useState(false);
   const [products, setProducts] = useState<any[]>([]);
@@ -94,11 +95,10 @@ export function StaffSummaryDialog({ barber, appointments, onClose }: StaffSumma
   };
 
   useEffect(() => {
-    if (activeTab === 'finance') {
-      fetchLedgerData();
-      fetchProducts();
-    }
-  }, [activeTab]);
+    fetchLedgerData();
+    fetchProducts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleRegisterTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -162,7 +162,10 @@ export function StaffSummaryDialog({ barber, appointments, onClose }: StaffSumma
   const history = ledgerData?.history || [];
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
+    <div className={cn(
+      theme === "light" ? "theme-light" : "theme-dark",
+      "fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-300"
+    )}>
       <div className="w-full max-w-lg bg-card border border-border rounded-[40px] shadow-[0_0_100px_-20px_rgba(0,0,0,0.8)] overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[85vh]">
         {/* Header */}
         <div className="px-8 py-6 border-b border-border flex items-center justify-between bg-muted/30 shrink-0">
@@ -187,46 +190,97 @@ export function StaffSummaryDialog({ barber, appointments, onClose }: StaffSumma
         {/* Tabs Navigation */}
         <div className="flex px-8 border-b border-border shrink-0 bg-muted/10">
           <button 
+            onClick={() => setActiveTab('arqueo')}
+            className={cn(
+              "flex-1 py-4 text-[10px] uppercase tracking-widest font-black transition-all border-b-2 text-center flex items-center justify-center gap-1.5",
+              activeTab === 'arqueo' 
+                ? "border-primary text-primary" 
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <DollarSign className="w-3.5 h-3.5" /> Arqueo
+          </button>
+          <button 
             onClick={() => setActiveTab('services')}
             className={cn(
-              "flex-1 py-4 text-xs uppercase tracking-widest font-black transition-all border-b-2 text-center",
+              "flex-1 py-4 text-[10px] uppercase tracking-widest font-black transition-all border-b-2 text-center flex items-center justify-center gap-1.5",
               activeTab === 'services' 
                 ? "border-primary text-primary" 
                 : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
-            Servicios del Día
+            <Scissors className="w-3.5 h-3.5" /> Servicios
           </button>
           <button 
             onClick={() => setActiveTab('finance')}
             className={cn(
-              "flex-1 py-4 text-xs uppercase tracking-widest font-black transition-all border-b-2 text-center flex items-center justify-center gap-1.5",
+              "flex-1 py-4 text-[10px] uppercase tracking-widest font-black transition-all border-b-2 text-center flex items-center justify-center gap-1.5",
               activeTab === 'finance' 
                 ? "border-primary text-primary" 
                 : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
-            <Wallet className="w-3.5 h-3.5" /> Adelantos / Consignación
+            <Wallet className="w-3.5 h-3.5" /> Finanzas
           </button>
         </div>
+
+        {/* Tab 0: Arqueo Content */}
+        {activeTab === 'arqueo' && (
+          <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar p-8 space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-5 rounded-3xl bg-secondary/30 border border-border space-y-1 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10"><Scissors className="w-12 h-12" /></div>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black relative z-10">Totalidad de Cortes</p>
+                <p className="text-3xl font-black text-foreground relative z-10">{completedAppts.length}</p>
+              </div>
+              <div className="p-5 rounded-3xl bg-secondary/30 border border-border space-y-1 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10"><DollarSign className="w-12 h-12" /></div>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black relative z-10">Costo Total</p>
+                <p className="text-3xl font-black text-foreground relative z-10">{formatter.format(totalValue)}</p>
+              </div>
+              <div className="p-5 rounded-3xl bg-primary/10 border border-primary/20 space-y-1 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10"><User className="w-12 h-12 text-primary" /></div>
+                <p className="text-[10px] text-primary uppercase tracking-widest font-black flex items-center gap-1.5 relative z-10">Para el Barbero</p>
+                <p className="text-3xl font-black text-primary relative z-10">{formatter.format(commissionValue)}</p>
+              </div>
+              <div className="p-5 rounded-3xl bg-emerald-500/10 border border-emerald-500/20 space-y-1 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10"><DollarSign className="w-12 h-12 text-emerald-500" /></div>
+                <p className="text-[10px] text-emerald-500 uppercase tracking-widest font-black flex items-center gap-1.5 relative z-10">Para la Barbería</p>
+                <p className="text-3xl font-black text-emerald-500 relative z-10">{formatter.format(totalValue - commissionValue)}</p>
+              </div>
+              <div className="p-5 rounded-3xl bg-red-500/10 border border-red-500/20 space-y-1 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10"><ArrowUpRight className="w-12 h-12 text-red-500" /></div>
+                <p className="text-[10px] text-red-500 uppercase tracking-widest font-black flex items-center gap-1.5 relative z-10">Vales (Adelantos)</p>
+                <p className="text-3xl font-black text-red-500 relative z-10">{formatter.format(totals.totalAdvances)}</p>
+              </div>
+              <div className="p-5 rounded-3xl bg-amber-500/10 border border-amber-500/20 space-y-1 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10"><ShoppingBag className="w-12 h-12 text-amber-500" /></div>
+                <p className="text-[10px] text-amber-500 uppercase tracking-widest font-black flex items-center gap-1.5 relative z-10">Saldo Productos</p>
+                <p className="text-3xl font-black text-amber-500 relative z-10">{formatter.format(totals.totalConsignments)}</p>
+              </div>
+            </div>
+
+            <div className="p-6 rounded-3xl bg-muted/20 border border-border flex items-center justify-between relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 blur-3xl rounded-full -mr-10 -mt-10" />
+              <div className="relative z-10">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black">A Pagar Hoy (Barbero)</p>
+                <p className="text-xs font-bold text-muted-foreground mt-0.5">Comisión - Vales - Productos</p>
+              </div>
+              <p className={cn(
+                "text-3xl font-black relative z-10",
+                (commissionValue - totals.totalAdvances - totals.totalConsignments) >= 0 ? "text-emerald-500" : "text-red-500"
+              )}>
+                {formatter.format(commissionValue - totals.totalAdvances - totals.totalConsignments)}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Tab 1: Services Content */}
         {activeTab === 'services' && (
           <>
-            {/* Stats Grid */}
-            <div className="grid grid-cols-2 gap-4 p-8 bg-muted/5 shrink-0">
-              <div className="p-5 rounded-3xl bg-secondary/30 border border-border space-y-1">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black">Recaudo Total</p>
-                <p className="text-2xl font-black text-foreground">{formatter.format(totalValue)}</p>
-              </div>
-              <div className="p-5 rounded-3xl bg-primary/10 border border-primary/20 space-y-1">
-                <p className="text-[10px] text-primary uppercase tracking-widest font-black">Comisión Estimada ({barber.commission_rate}%)</p>
-                <p className="text-2xl font-black text-primary">{formatter.format(commissionValue)}</p>
-              </div>
-            </div>
-
             {/* Services List */}
-            <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pl-8 pr-6 pb-8">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pl-8 pr-6 pb-8 pt-6">
               <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-4 sticky top-0 bg-card py-2 z-10">Servicios Terminados</h4>
               <div className="space-y-3">
                 {completedAppts.length === 0 ? (

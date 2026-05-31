@@ -8,16 +8,19 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 
-export function NewAppointmentDialog({ clients, staff, services, appointments, externalOpen, onCloseExternal, defaultValues, triggerButton, editApptId, startHour = 7, endHour = 22 }: any) {
+export function NewAppointmentDialog({ clients, staff, services, appointments, externalOpen, onCloseExternal, defaultValues, triggerButton, editApptId, startHour = 7, endHour = 22, theme = "dark" }: any) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isNewClient, setIsNewClient] = useState(false);
   const [availability, setAvailability] = useState<{ status: 'idle' | 'checking' | 'available' | 'busy', message?: string }>({ status: 'idle' });
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
     setMounted(true);
+    const themeEl = document.querySelector('.theme-light, .theme-dark') as HTMLElement;
+    setPortalContainer(themeEl || document.body);
   }, []);
 
   // Client search state
@@ -151,7 +154,7 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
       } else {
         await createAppointmentAction(fd);
       }
-      setIsOpen(false);
+      handleClose();
       router.refresh();
     } catch (err: any) {
       alert(err.message || (editApptId ? "Error al actualizar la cita" : "Error al crear la cita"));
@@ -160,14 +163,12 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
     }
   };
 
-  const isLightTheme = typeof document !== 'undefined' && document.documentElement.classList.contains('theme-light') || (typeof document !== 'undefined' && document.querySelector('.theme-light') !== null);
-
   const modalContent = isModalOpen ? (
-        <div className={cn(
-          "fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200",
-          isLightTheme ? "theme-light" : "theme-dark"
-        )}>
-          <div className="w-[92vw] max-w-[500px] bg-zinc-950 border border-white/10 rounded-[32px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-200">
+    <div className={cn(
+      theme === "light" ? "theme-light" : "theme-dark",
+      "fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+    )}>
+      <div className="w-[92vw] max-w-[500px] bg-zinc-950 border border-white/10 rounded-[32px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-200">
             {/* Header */}
             <div className="flex items-center justify-between px-8 py-6 border-b border-white/5 bg-zinc-900/50 shrink-0">
               <div>
@@ -413,7 +414,7 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
         </button>
       ))}
 
-      {mounted && typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null}
+      {mounted && portalContainer ? createPortal(modalContent, portalContainer) : null}
     </>
   );
 }

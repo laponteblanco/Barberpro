@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { updateAppointmentTimeAction, updateAppointmentStatusAction, deleteAgendaBlockAction, createAgendaBlockAction } from "@/app/dashboard/appointments/actions";
@@ -19,6 +19,7 @@ interface CalendarViewProps {
   endHour?: number;
   selectedDate?: string;
   viewMode?: "staff" | "days";
+  theme?: string;
 }
 
 const BARBER_COLORS: Record<string, string> = {
@@ -67,7 +68,8 @@ export function CalendarView({
   startHour = 7, 
   endHour = 22, 
   selectedDate,
-  viewMode = "staff"
+  viewMode = "staff",
+  theme = "dark"
 }: CalendarViewProps) {
   const router = useRouter();
   const [movingId, setMovingId] = useState<string | null>(null);
@@ -87,6 +89,7 @@ export function CalendarView({
   const [mounted, setMounted] = useState(false);
   const [showPaymentSelector, setShowPaymentSelector] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
 
   const [isMobile, setIsMobile] = useState(false);
   const [activeMobileBarber, setActiveMobileBarber] = useState<string>("all");
@@ -94,6 +97,10 @@ export function CalendarView({
   useEffect(() => {
     setMounted(true);
     const timer = setInterval(() => setCurrentTime(getBogotaNow()), 60000);
+    
+    // Find the theme container to portal into (so portaled content inherits theme CSS variables)
+    const themeEl = document.querySelector('.theme-light, .theme-dark') as HTMLElement;
+    setPortalContainer(themeEl || document.body);
     
     // Check mobile screen
     const media = window.matchMedia("(max-width: 767px)");
@@ -750,11 +757,15 @@ export function CalendarView({
           externalOpen={true} onCloseExternal={() => setNewApptData(null)}
           defaultValues={newApptData} editApptId={(newApptData as any).id}
           triggerButton={false} startHour={startHour} endHour={endHour}
+          theme={theme}
         />
       )}
 
-      {mounted && typeof document !== 'undefined' && selectedAppt && createPortal(
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto">
+      {mounted && portalContainer && selectedAppt && createPortal(
+        <div className={cn(
+          theme === "light" ? "theme-light" : "theme-dark",
+          "fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto"
+        )}>
           <div className="w-full max-w-sm bg-zinc-950 border border-white/10 rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 h-fit my-auto">
             <div className="flex items-center justify-between px-6 py-5 border-b border-white/5 bg-zinc-900/50">
               <h3 className="font-bold text-white tracking-tight">Detalles de la Cita</h3>
@@ -851,21 +862,22 @@ export function CalendarView({
             </div>
           </div>
         </div>,
-        document.body
+        portalContainer
       )}
 
-      {summaryBarber && mounted && typeof document !== 'undefined' && createPortal(
+      {summaryBarber && mounted && portalContainer && createPortal(
         <StaffSummaryDialog 
           barber={summaryBarber} 
           appointments={appointments.filter(a => a.staff_id === summaryBarber.id)} 
           onClose={() => setSummaryBarber(null)} 
+          theme={theme}
         />,
-        document.body
+        portalContainer
       )}
 
       {/* Slot Menu */}
-      {mounted && typeof document !== 'undefined' && slotMenu && createPortal(
-        <>
+      {mounted && portalContainer && slotMenu && createPortal(
+        <div className={theme === "light" ? "theme-light" : "theme-dark"}>
           <div className="fixed inset-0 z-[200] bg-black/20" onClick={() => setSlotMenu(null)} />
           <div 
             className="fixed z-[210] bg-zinc-900 border border-white/10 shadow-2xl rounded-xl p-2 w-48 animate-in zoom-in-95 duration-200"
@@ -896,13 +908,15 @@ export function CalendarView({
               <span>Bloquear Horario</span>
             </button>
           </div>
-        </>,
-        document.body
+        </div>,
+        portalContainer
       )}
 
-      {/* Block Creation Dialog */}
-      {mounted && typeof document !== 'undefined' && showBlockDialog && blockData && createPortal(
-        <div className="fixed inset-0 z-[220] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
+      {mounted && portalContainer && showBlockDialog && blockData && createPortal(
+        <div className={cn(
+          theme === "light" ? "theme-light" : "theme-dark",
+          "fixed inset-0 z-[220] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200"
+        )}>
           <div className="w-full max-w-sm bg-zinc-950 border border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="px-6 py-5 border-b border-white/5 flex items-center justify-between">
               <h3 className="font-black text-white uppercase tracking-widest text-sm flex items-center gap-2">
@@ -950,12 +964,14 @@ export function CalendarView({
             </div>
           </div>
         </div>,
-        document.body
+        portalContainer
       )}
 
-      {/* Selected Block Details Dialog */}
-      {mounted && typeof document !== 'undefined' && selectedBlock && createPortal(
-        <div className="fixed inset-0 z-[220] flex justify-center items-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
+      {mounted && portalContainer && selectedBlock && createPortal(
+        <div className={cn(
+          theme === "light" ? "theme-light" : "theme-dark",
+          "fixed inset-0 z-[220] flex justify-center items-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200"
+        )}>
           <div className="w-full max-w-sm bg-zinc-950 border border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-6 py-5 border-b border-white/5">
               <h3 className="font-bold text-white tracking-tight flex items-center gap-2">
@@ -990,7 +1006,7 @@ export function CalendarView({
             </div>
           </div>
         </div>,
-        document.body
+        portalContainer
       )}
     </div>
   );

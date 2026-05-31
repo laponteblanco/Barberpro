@@ -1,17 +1,27 @@
 "use client";
 
 import { useState } from "react";
-import { X, User, Percent, Shield, Loader2, Edit3, Camera, Calendar, Clock, ToggleLeft, ToggleRight } from "lucide-react";
+import { X, User, Percent, Shield, Loader2, Edit3, Camera, Calendar, Clock, ToggleLeft, ToggleRight, Scissors } from "lucide-react";
 import { editStaffAction } from "@/app/dashboard/staff/actions";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 
-export function EditStaffDialog({ member }: { member: any }) {
+export function EditStaffDialog({ member, services = [] }: { member: any, services?: any[] }) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [compType, setCompType] = useState(member.compensation_type || "percentage");
   const [preview, setPreview] = useState<string | null>(member.profile?.avatar_url || null);
+
+  const [selectedServices, setSelectedServices] = useState<string[]>(
+    member.specialties || []
+  );
+
+  const toggleService = (id: string) => {
+    setSelectedServices(prev => 
+      prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]
+    );
+  };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -97,6 +107,9 @@ export function EditStaffDialog({ member }: { member: any }) {
 
     // Append working hours as JSON
     formData.set("working_hours", JSON.stringify(workingHours));
+
+    // Append specialties
+    formData.set("specialties", JSON.stringify(selectedServices));
     
     try {
       const result = await editStaffAction(formData);
@@ -420,7 +433,45 @@ export function EditStaffDialog({ member }: { member: any }) {
                   )}
                 </div>
 
-                <div className="space-y-2.5">
+                {/* --- SECCION DE SERVICIOS HABILITADOS --- */}
+                {services && services.length > 0 && (
+                  <div className="space-y-3 pt-2 border-t border-white/5 animate-in fade-in duration-300">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 flex items-center gap-2 ml-1">
+                      <Scissors className="w-3.5 h-3.5 text-primary" /> Servicios Habilitados
+                    </label>
+                    <p className="text-[10px] text-zinc-500 mb-3 ml-1">
+                      Selecciona los servicios que este barbero puede realizar. Si no seleccionas ninguno, se asume que puede realizar todos.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-black/30 p-4 rounded-2xl border border-white/5 max-h-[200px] overflow-y-auto custom-scrollbar">
+                      {services.map((service) => (
+                        <div 
+                          key={service.id} 
+                          onClick={() => toggleService(service.id)}
+                          className={cn(
+                            "flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer",
+                            selectedServices.includes(service.id) 
+                              ? "bg-zinc-900 border-primary/30" 
+                              : "bg-zinc-950 border-white/5 hover:border-white/10"
+                          )}
+                        >
+                          <div className={cn(
+                            "w-5 h-5 rounded flex items-center justify-center shrink-0 transition-colors",
+                            selectedServices.includes(service.id) ? "bg-primary text-black" : "bg-white/5 border border-white/10 text-transparent"
+                          )}>
+                            <Scissors className="w-3 h-3" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className={cn("text-sm font-bold truncate", selectedServices.includes(service.id) ? "text-white" : "text-zinc-400")}>
+                              {service.name}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-2.5 border-t border-white/5 pt-4">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 flex items-center gap-2 ml-1">
                     <Shield className="w-3 h-3 text-primary/70" /> Estado Operativo
                   </label>

@@ -141,6 +141,20 @@ export interface Database {
         Insert: Omit<Database["public"]["Tables"]["services"]["Row"], "id" | "created_at" | "updated_at">;
         Update: Partial<Database["public"]["Tables"]["services"]["Insert"]>;
       };
+      expenses: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          category: string;
+          description: string | null;
+          amount: number;
+          expense_date: string;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["expenses"]["Row"], "id" | "expense_date" | "created_at">;
+        Update: Partial<Database["public"]["Tables"]["expenses"]["Insert"]>;
+      };
       appointments: {
         Row: {
           id: string;

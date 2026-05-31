@@ -2,6 +2,7 @@ import { List, Scissors, Clock, DollarSign, Tag, CheckCircle2, XCircle } from "l
 import { getBarberServices } from "@/services/barber-services.service";
 import { AddServiceDialog } from "./AddServiceDialog";
 import { EditServiceDialog } from "./EditServiceDialog";
+import { DeleteServiceButton } from "./DeleteServiceButton";
 
 export default async function ServicesPage() {
   const services = await getBarberServices();
@@ -89,7 +90,10 @@ export default async function ServicesPage() {
                       </div>
                     </td>
                     <td className="px-8 py-6 text-right">
-                      <EditServiceDialog service={service} />
+                      <div className="flex items-center justify-end gap-2">
+                        <EditServiceDialog service={service} />
+                        <DeleteServiceButton serviceId={service.id} serviceName={service.name} />
+                      </div>
                     </td>
                   </tr>
                 ))}

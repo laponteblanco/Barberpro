@@ -9,9 +9,10 @@ export interface ActiveSessionDetails {
   expected_cash: number;
   expected_digital: number;
   appointments_total: number;
-  appointments_cash_total: number;
   appointments_digital_total: number;
   sales_total: number;
+  expenses_total: number;
+  expenses: any[];
   status: 'open' | 'closed';
   digital_breakdown: {
     card: number;
@@ -52,13 +53,13 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
   const [appointmentsRes, staffRes] = await Promise.all([
     (adminSupabase as any)
       .from("appointments")
-      .select("total_price, payment_method, staff_id, staff:tenant_staff(id, profiles(full_name))")
+      .select("total_price, payment_method, start_time, staff_id, staff:tenant_staff(id, profiles(full_name))")
       .eq("tenant_id", tenantId)
       .in("status", ["completed", "confirmed"])
       .gte("start_time", session.opened_at),
     (adminSupabase as any)
       .from("tenant_staff")
-      .select("id, role, profiles(full_name)")
+      .select("id, role, commission_rate, daily_commission_rates, profiles(full_name)")
       .eq("tenant_id", tenantId)
       .eq("is_active", true)
       .neq("role", "admin")
@@ -123,8 +124,26 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
     }
   });
 
+  // 2.7 Calculate Expenses
+  let expensesTotal = 0;
+  let expensesList: any[] = [];
+  try {
+    const { data: expensesData, error: expError } = await (adminSupabase as any)
+      .from("expenses")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .gte("created_at", session.opened_at);
+      
+    if (!expError && expensesData) {
+      expensesList = expensesData;
+      expensesTotal = expensesData.reduce((sum: number, exp: any) => sum + Number(exp.amount || 0), 0);
+    }
+  } catch (e) {
+    // Ignore if table doesn't exist yet
+  }
+
   const openingBalance = Number(session.opening_balance || 0);
-  const expectedCash = openingBalance + appointmentsCashTotal + salesTotal - ledgerAdvances + ledgerPayments;
+  const expectedCash = openingBalance + appointmentsCashTotal + salesTotal - ledgerAdvances + ledgerPayments - expensesTotal;
   const expectedDigital = appointmentsDigitalTotal;
   const expectedBalance = expectedCash + expectedDigital;
 
@@ -138,6 +157,8 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
   const breakdownMap = new Map<string, { 
     id: string; 
     name: string; 
+    commission_rate: number;
+    daily_commission_rates: any;
     appointments_count: number; 
     total_cash: number;
     appointments_digital_count: number;
@@ -146,12 +167,16 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
     total_payments: number;
     total_consignments: number;
     net_expected_cash: number;
+    total_commission: number;
+    total_shop_profit: number;
   }>();
 
   staffMembers.forEach((s: any) => {
     breakdownMap.set(s.id, {
       id: s.id,
       name: s.profiles?.full_name || "Desconocido",
+      commission_rate: Number(s.commission_rate || 0),
+      daily_commission_rates: s.daily_commission_rates || {},
       appointments_count: 0,
       total_cash: 0,
       appointments_digital_count: 0,
@@ -159,7 +184,9 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
       total_advances: 0,
       total_payments: 0,
       total_consignments: 0,
-      net_expected_cash: 0
+      net_expected_cash: 0,
+      total_commission: 0,
+      total_shop_profit: 0
     });
   });
 
@@ -172,6 +199,8 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
       breakdownMap.set(staffId, {
         id: staffId,
         name: "Staff Inactivo",
+        commission_rate: 0,
+        daily_commission_rates: {},
         appointments_count: 0,
         total_cash: 0,
         appointments_digital_count: 0,
@@ -179,7 +208,9 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
         total_advances: 0,
         total_payments: 0,
         total_consignments: 0,
-        net_expected_cash: 0
+        net_expected_cash: 0,
+        total_commission: 0,
+        total_shop_profit: 0
       });
     }
 
@@ -202,6 +233,8 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
       breakdownMap.set(staffId, {
         id: staffId,
         name: app.staff?.profiles?.full_name || "Staff Inactivo",
+        commission_rate: 0,
+        daily_commission_rates: {},
         appointments_count: 0,
         total_cash: 0,
         appointments_digital_count: 0,
@@ -209,7 +242,9 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
         total_advances: 0,
         total_payments: 0,
         total_consignments: 0,
-        net_expected_cash: 0
+        net_expected_cash: 0,
+        total_commission: 0,
+        total_shop_profit: 0
       });
     }
 
@@ -220,6 +255,18 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
     } else {
       b.appointments_digital_count++;
       b.total_digital += price;
+    }
+
+    if (app.start_time) {
+      const d = new Date(app.start_time);
+      const utc = d.getTime();
+      const bogotaDate = new Date(utc - (5 * 3600000));
+      const dayIndex = bogotaDate.getUTCDay();
+      
+      const rate = b.daily_commission_rates?.[String(dayIndex)] ?? b.commission_rate ?? 0;
+      const commission = price * (rate / 100);
+      b.total_commission += commission;
+      b.total_shop_profit += (price - commission);
     }
   });
 
@@ -241,6 +288,8 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
     appointments_cash_total: appointmentsCashTotal,
     appointments_digital_total: appointmentsDigitalTotal,
     sales_total: salesTotal,
+    expenses_total: expensesTotal,
+    expenses: expensesList,
     status: session.status,
     digital_breakdown: digitalBreakdown,
     barbers_breakdown: barbersBreakdown,

@@ -2,6 +2,8 @@
 
 import { openCashSession, closeCashSession, verifySecurityPin, deleteCashSession, updateClosedCashSession } from "@/services/cash.service";
 import { revalidatePath } from "next/cache";
+import { getSession } from "@/lib/supabase/session";
+import { createAdminClient } from "@/lib/supabase/server";
 
 export async function openCashAction(openingBalance: number) {
   try {
@@ -50,6 +52,37 @@ export async function updateCashSessionAction(sessionId: string, actualBalance: 
       revalidatePath("/dashboard/caja");
     }
     return res;
+  } catch (err: any) {
+    return { success: false, error: err.message || "Error desconocido" };
+  }
+}
+
+export async function uploadClosingReportAction(formData: FormData) {
+  try {
+    const { tenantId } = await getSession();
+    if (!tenantId) return { success: false, error: "No session" };
+
+    const file = formData.get("file") as File;
+    if (!file) return { success: false, error: "No file provided" };
+
+    const adminSupabase = await createAdminClient();
+    const filePath = `reports/${tenantId}_cierre_${Date.now()}.pdf`;
+
+    const { error: uploadError } = await adminSupabase.storage
+      .from("avatars") // Re-using avatars bucket since it is public
+      .upload(filePath, file, {
+        contentType: "application/pdf"
+      });
+
+    if (uploadError) {
+      return { success: false, error: uploadError.message };
+    }
+
+    const { data: { publicUrl } } = adminSupabase.storage
+      .from("avatars")
+      .getPublicUrl(filePath);
+
+    return { success: true, url: publicUrl };
   } catch (err: any) {
     return { success: false, error: err.message || "Error desconocido" };
   }
