@@ -57,7 +57,7 @@ export function BIHeader({ currentRange, currentDate }: { currentRange: string, 
         <p className="text-zinc-500 text-sm font-medium ml-5">Analítica avanzada y salud financiera de tu negocio</p>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         {/* Navegación Diaria */}
         <div className="flex items-center bg-zinc-900 border border-white/5 rounded-2xl h-12 px-1">
           <button 
@@ -68,10 +68,9 @@ export function BIHeader({ currentRange, currentDate }: { currentRange: string, 
             <ChevronLeft className="w-4 h-4" />
           </button>
           
-          <div className="relative px-2">
+          <div className="relative px-2 flex items-center justify-center">
             <button 
-              onClick={() => dateInputRef.current?.showPicker()}
-              className="flex items-center gap-2 px-2 py-1.5 hover:bg-white/5 rounded-xl transition-all"
+              className="flex items-center gap-2 px-2 py-1.5 hover:bg-white/5 rounded-xl transition-all pointer-events-none"
             >
               <Calendar className="w-3.5 h-3.5 text-amber-500/70" />
               <span className="text-[10px] font-black text-zinc-300 uppercase tracking-widest min-w-[80px] text-center">
@@ -81,7 +80,7 @@ export function BIHeader({ currentRange, currentDate }: { currentRange: string, 
             <input 
               ref={dateInputRef}
               type="date" 
-              className="absolute inset-0 opacity-0 cursor-pointer pointer-events-none"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               onChange={handleDateSelect}
               value={currentDate || format(new Date(), 'yyyy-MM-dd')}
             />

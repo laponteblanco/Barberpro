@@ -32,7 +32,7 @@ export async function getBIAnalytics(range: string = "month", specificDate?: str
   const [appointmentsRes, salesRes, staffRes] = await Promise.all([
     adminSupabase
       .from("appointments")
-      .select("*, staff:tenant_staff(id, profiles(full_name)), service:services(name), client:profiles(full_name)")
+      .select("*, staff:tenant_staff(id, profiles(full_name)), service:services(name), client:clients(full_name)")
       .eq("tenant_id", tenantId)
       .match(staffId ? { staff_id: staffId } : {})
       .gte("start_time", startDate.toISOString())
