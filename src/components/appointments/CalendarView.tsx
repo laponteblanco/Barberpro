@@ -20,6 +20,7 @@ interface CalendarViewProps {
   selectedDate?: string;
   viewMode?: "staff" | "days";
   theme?: string;
+  tenantId?: string;
 }
 
 const BARBER_COLORS: Record<string, string> = {
@@ -69,7 +70,8 @@ export function CalendarView({
   endHour = 22, 
   selectedDate,
   viewMode = "staff",
-  theme = "dark"
+  theme = "dark",
+  tenantId
 }: CalendarViewProps) {
   const router = useRouter();
   const [movingId, setMovingId] = useState<string | null>(null);
@@ -757,7 +759,7 @@ export function CalendarView({
           externalOpen={true} onCloseExternal={() => setNewApptData(null)}
           defaultValues={newApptData} editApptId={(newApptData as any).id}
           triggerButton={false} startHour={startHour} endHour={endHour}
-          theme={theme}
+          theme={theme} tenantId={tenantId}
         />
       )}
 

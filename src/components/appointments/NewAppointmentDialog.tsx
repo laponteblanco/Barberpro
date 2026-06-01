@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Plus, X, Calendar as CalendarIcon, Clock, User, Scissors, Loader2, UserPlus, CheckCircle2, AlertCircle, Search } from "lucide-react";
 import { createAppointmentAction, updateAppointmentDetailsAction } from "../../app/dashboard/appointments/actions";
@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 
-export function NewAppointmentDialog({ clients, staff, services, appointments, externalOpen, onCloseExternal, defaultValues, triggerButton, editApptId, startHour = 7, endHour = 22, theme = "dark" }: any) {
+export function NewAppointmentDialog({ clients, staff, services, appointments, externalOpen, onCloseExternal, defaultValues, triggerButton, editApptId, startHour = 7, endHour = 22, theme = "dark", tenantId }: any) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
@@ -55,73 +55,83 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
     }
   }, [defaultValues]);
 
-  const availableSlots = useMemo(() => {
-    const service = services.find((s: any) => s.id === formData.service_id);
-    const duration = service?.duration_minutes || 15; // default to 15 min chunk if no service
-    
-    if (!formData.date || !formData.staff_id) return [];
-    
-    // Get Bogota Now for comparison
-    const now = new Date();
-    const nowBogota = new Date(now.getTime() - (5 * 3600000));
-    const todayStr = `${nowBogota.getUTCFullYear()}-${String(nowBogota.getUTCMonth() + 1).padStart(2, '0')}-${String(nowBogota.getUTCDate()).padStart(2, '0')}`;
-    const currentHour = nowBogota.getUTCHours();
-    const currentMin = nowBogota.getUTCMinutes();
+  // Fetch available slots from the API for real-time accuracy
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
 
-    // Filter appointments for the selected date and staff
-    // A Bogota day starts at 05:00 UTC and ends at 05:00 UTC next day
-    const startOfBogotaDay = new Date(`${formData.date}T00:00:00Z`);
-    startOfBogotaDay.setTime(startOfBogotaDay.getTime() + (5 * 3600000));
-    
-    const endOfBogotaDay = new Date(startOfBogotaDay);
-    endOfBogotaDay.setHours(endOfBogotaDay.getHours() + 24);
+  const fetchAvailableSlots = useCallback(async () => {
+    if (!formData.date || !formData.staff_id || !tenantId) {
+      setAvailableSlots([]);
+      return;
+    }
 
-    const editId = editApptId || "00000000-0000-0000-0000-000000000000";
-    
-    const dailyAppointments = (appointments || []).filter((appt: any) => {
-      if (appt.staff_id !== formData.staff_id) return false;
-      if (appt.id === editId) return false;
-      if (appt.status === "cancelled") return false;
-      
-      const apptStart = new Date(appt.start_time).getTime();
-      return apptStart >= startOfBogotaDay.getTime() && apptStart < endOfBogotaDay.getTime();
-    });
+    setSlotsLoading(true);
+    try {
+      const res = await fetch(`/api/tenants/${tenantId}/staff/${formData.staff_id}/availability?date=${formData.date}`);
+      if (!res.ok) throw new Error("Error fetching slots");
+      const data = await res.json();
+      let slots: string[] = data.slots || [];
 
-    const slots = [];
-    // Use the passed business hours or fall back to defaults
-    const effectiveStartHour = startHour;
-    const effectiveEndHour = endHour;
-    
-    for (let h = effectiveStartHour; h <= effectiveEndHour; h++) {
-      for (let m of [0, 15, 30, 45]) {
-        if (h === effectiveEndHour && m > 0) continue; // limit to exactly endHour
-        
-        // Prevent booking in the past if it's today
-        if (formData.date === todayStr) {
-          if (h < currentHour || (h === currentHour && m < currentMin)) continue;
-        }
-
-        // Calculate slot range in UTC (h:m is Bogota time, so add 5h for UTC)
-        const slotStart = new Date(`${formData.date}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00Z`);
-        slotStart.setTime(slotStart.getTime() + (5 * 3600000));
-        
-        const slotEnd = new Date(slotStart.getTime() + duration * 60000);
-        
-        const hasConflict = dailyAppointments.some((appt: any) => {
-          const apptStart = new Date(appt.start_time).getTime();
-          const apptEnd = new Date(appt.end_time).getTime();
-          return slotStart.getTime() < apptEnd && slotEnd.getTime() > apptStart;
-        });
-        
-        if (!hasConflict) {
-          slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+      // If editing, add the current appointment's time slot back as available
+      if (editApptId && appointments) {
+        const editingAppt = appointments.find((a: any) => a.id === editApptId);
+        if (editingAppt) {
+          const bogotaParts = new Intl.DateTimeFormat("en-CA", {
+            timeZone: "America/Bogota",
+            hour: "2-digit", minute: "2-digit", hour12: false
+          }).formatToParts(new Date(editingAppt.start_time));
+          const editHour = bogotaParts.find(p => p.type === "hour")?.value || "";
+          const editMin = bogotaParts.find(p => p.type === "minute")?.value || "";
+          const editTimeStr = `${editHour}:${editMin}`;
+          if (!slots.includes(editTimeStr)) {
+            slots.push(editTimeStr);
+            slots.sort();
+          }
         }
       }
-    }
-    return slots;
-  }, [formData.date, formData.service_id, formData.staff_id, appointments, services, editApptId]);
 
-  // Automatically clear selected time if it's no longer valid for the selected service duration
+      // Filter slots based on service duration to ensure the full appointment fits
+      const service = services.find((s: any) => s.id === formData.service_id);
+      const duration = service?.duration_minutes || 30;
+      if (duration > 30) {
+        // For services longer than 30 min, ensure consecutive slots are available
+        slots = slots.filter((slot) => {
+          const [h, m] = slot.split(':').map(Number);
+          const slotStart = h * 60 + m;
+          const slotEnd = slotStart + duration;
+          // Check that all intermediate 30-min slots are also available
+          for (let t = slotStart + 30; t < slotEnd; t += 30) {
+            const checkH = Math.floor(t / 60);
+            const checkM = t % 60;
+            const checkStr = `${String(checkH).padStart(2, '0')}:${String(checkM).padStart(2, '0')}`;
+            if (!slots.includes(checkStr)) return false;
+          }
+          return true;
+        });
+      }
+
+      setAvailableSlots(slots);
+    } catch (err) {
+      console.error("Error fetching available slots:", err);
+      setAvailableSlots([]);
+    } finally {
+      setSlotsLoading(false);
+    }
+  }, [formData.date, formData.staff_id, formData.service_id, tenantId, editApptId, appointments, services]);
+
+  // Fetch slots whenever staff, date, or service changes
+  useEffect(() => {
+    fetchAvailableSlots();
+  }, [fetchAvailableSlots]);
+
+  // Also re-fetch slots when the modal opens to ensure fresh data
+  useEffect(() => {
+    if (isModalOpen && formData.date && formData.staff_id && tenantId) {
+      fetchAvailableSlots();
+    }
+  }, [isModalOpen]);
+
+  // Automatically clear selected time if it's no longer valid
   useEffect(() => {
     if (formData.time && availableSlots.length > 0 && !availableSlots.includes(formData.time)) {
       setFormData(prev => ({ ...prev, time: "" }));
@@ -362,7 +372,7 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
                       onChange={handleInputChange}
                       className="w-full h-12 px-4 bg-zinc-900/50 border border-white/5 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all text-white appearance-none cursor-pointer" 
                     >
-                      <option value="">Seleccionar hora...</option>
+                      <option value="">{slotsLoading ? "Cargando horarios..." : "Seleccionar hora..."}</option>
                       {availableSlots.map((timeStr: string) => (
                         <option key={timeStr} value={timeStr} className="bg-zinc-950">
                           {timeStr}

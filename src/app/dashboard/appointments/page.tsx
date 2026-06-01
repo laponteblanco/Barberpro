@@ -211,6 +211,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
             startHour={startHour}
             endHour={endHour}
             theme={tenant?.settings?.theme || "dark"}
+            tenantId={tenantId}
           />
         </div>
       </div>
@@ -227,6 +228,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
           selectedDate={selectedDate}
           viewMode={isBarber ? "days" : "staff"}
           theme={tenant?.settings?.theme || "dark"}
+          tenantId={tenantId}
         />
       </div>
     </div>

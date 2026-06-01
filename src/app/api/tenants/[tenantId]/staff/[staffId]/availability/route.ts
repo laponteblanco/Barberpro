@@ -123,7 +123,7 @@ export async function GET(
     const isToday = date === todayBogota;
 
     for (let hour = startHour; hour < endHour; hour++) {
-      for (const min of [0, 30]) {
+      for (const min of [0, 15, 30, 45]) {
         // Skip past slots when the selected date is today
         if (isToday && (hour < nowHour || (hour === nowHour && min <= nowMin))) {
           continue;
