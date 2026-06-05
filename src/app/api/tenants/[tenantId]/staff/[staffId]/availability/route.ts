@@ -9,6 +9,9 @@ export async function GET(
     const { tenantId, staffId } = await params;
     const { searchParams } = request.nextUrl;
     const date = searchParams.get("date");
+    const durationStr = searchParams.get("duration");
+    const parsedDuration = durationStr ? parseInt(durationStr, 10) : 15;
+    const requestedDuration = Math.max(parsedDuration, 15); // minimum 15 mins to prevent 0-duration bypassing conflict checks
 
     if (!date) {
       return NextResponse.json({ error: "Falta la fecha" }, { status: 400 });
@@ -16,18 +19,33 @@ export async function GET(
 
     const supabase = await createAdminClient();
 
-    // 1. Get tenant business hours
-    const { data: tenant } = await (supabase as any)
-      .from("tenants")
-      .select("settings")
-      .eq("id", tenantId)
-      .single();
+    const startOfDayUTC = new Date(`${date}T00:00:00-05:00`).toISOString();
+    const endOfDayUTC   = new Date(`${date}T23:59:59-05:00`).toISOString();
+
+    const [
+      { data: tenant },
+      { data: staffRow },
+      { data: appointments },
+      { data: blocks }
+    ] = await Promise.all([
+      // 1. Get tenant business hours
+      (supabase as any).from("tenants").select("settings").eq("id", tenantId).single(),
+      
+      // 1b. Get barber's own working hours for this day
+      (supabase as any).from("tenant_staff").select("working_hours").eq("id", staffId).eq("tenant_id", tenantId).single(),
+      
+      // 2. Get existing appointments for that staff on that day
+      (supabase as any).from("appointments").select("start_time, end_time, service:services(duration_minutes)").eq("staff_id", staffId).eq("tenant_id", tenantId).gte("start_time", startOfDayUTC).lte("start_time", endOfDayUTC).in("status", ["pending", "confirmed", "completed"]),
+      
+      // 3. Fetch agenda blocks for the same day
+      (supabase as any).from("agenda_blocks").select("start_time, end_time").eq("staff_id", staffId).eq("tenant_id", tenantId).gte("start_time", startOfDayUTC).lte("start_time", endOfDayUTC)
+    ]);
 
     const settings = tenant?.settings || {};
 
     // Determine the day-of-week for the requested date (0=Sun … 6=Sat)
     const requestedDayIndex = new Date(`${date}T12:00:00Z`).getDay();
-    const byDay: Array<{open: boolean; start: number; end: number}> | undefined =
+    const byDay: Array<{ open: boolean; start: number; end: number }> | undefined =
       settings?.business_hours_by_day;
 
     let shopStart: number;
@@ -35,27 +53,21 @@ export async function GET(
 
     if (byDay && byDay.length === 7) {
       const dayConfig = byDay[requestedDayIndex];
-      // If the shop is closed that day, return empty slots immediately
       if (!dayConfig.open) {
         return NextResponse.json({ slots: [] });
       }
       shopStart = dayConfig.start;
       shopEnd = dayConfig.end;
     } else {
-      // Fallback to global hours
       shopStart = settings?.business_hours?.start ?? 8;
       shopEnd = settings?.business_hours?.end ?? 20;
     }
 
-    // 1b. Get barber's own working hours for this day
-    const { data: staffRow } = await (supabase as any)
-      .from("tenant_staff")
-      .select("working_hours")
-      .eq("id", staffId)
-      .eq("tenant_id", tenantId)
-      .single();
+    const barberByDay: Array<{
+      open: boolean; start: number; end: number;
+      has_break?: boolean; break_start?: number; break_end?: number;
+    }> | null = staffRow?.working_hours;
 
-    const barberByDay: Array<{open: boolean; start: number; end: number; has_break?: boolean; break_start?: number; break_end?: number}> | null = staffRow?.working_hours;
     let startHour = shopStart;
     let endHour = shopEnd;
     let breakStart: number | null = null;
@@ -63,11 +75,9 @@ export async function GET(
 
     if (barberByDay && Array.isArray(barberByDay) && barberByDay.length === 7) {
       const barberDay = barberByDay[requestedDayIndex];
-      // If the barber is off that day, return empty
       if (!barberDay.open) {
         return NextResponse.json({ slots: [] });
       }
-      // Effective window is the intersection of shop and barber hours
       startHour = Math.max(shopStart, barberDay.start);
       endHour = Math.min(shopEnd, barberDay.end);
       if (startHour >= endHour) {
@@ -79,38 +89,47 @@ export async function GET(
       }
     }
 
-    // 2. Get existing appointments for that staff and date
-    // Shift to Bogota time (UTC-5)
-    const startOfDay = new Date(`${date}T00:00:00Z`);
-    startOfDay.setTime(startOfDay.getTime() + (5 * 3600000));
-    
-    const endOfDay = new Date(startOfDay);
-    endOfDay.setHours(endOfDay.getHours() + 24);
+    // 4. Build a Set of blocked minutes (total minutes since midnight Bogotá)
+    const blockedMinutes = new Set<number>();
 
-    const { data: appointments } = await (supabase as any)
-      .from("appointments")
-      .select("start_time, end_time, services(duration_minutes)")
-      .eq("staff_id", staffId)
-      .eq("tenant_id", tenantId)
-      .gte("start_time", startOfDay.toISOString())
-      .lt("start_time", endOfDay.toISOString())
-      .neq("status", "cancelled")
-      .neq("status", "deleted");
+    const bogotaMinutesFromISO = (iso: string): number => {
+      const d = new Date(iso);
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Bogota",
+        hour: "2-digit", minute: "2-digit", hour12: false
+      }).formatToParts(d);
+      const h = parseInt(parts.find(p => p.type === "hour")!.value, 10);
+      const m = parseInt(parts.find(p => p.type === "minute")!.value, 10);
+      return h * 60 + m;
+    };
 
-    // Fetch agenda blocks
-    const { data: blocks } = await (supabase as any)
-      .from("agenda_blocks")
-      .select("start_time, end_time")
-      .eq("staff_id", staffId)
-      .eq("tenant_id", tenantId)
-      .gte("start_time", startOfDay.toISOString())
-      .lt("start_time", endOfDay.toISOString());
+    for (const appt of appointments ?? []) {
+      const startMin = bogotaMinutesFromISO(appt.start_time);
+      // Use end_time if available, otherwise fallback to service duration
+      let endMin: number;
+      if (appt.end_time) {
+        endMin = bogotaMinutesFromISO(appt.end_time);
+      } else {
+        endMin = startMin + (appt.service?.duration_minutes || 30);
+      }
+      for (let t = startMin; t < endMin; t++) {
+        blockedMinutes.add(t);
+      }
+    }
 
-    // 3. Generate slots
-    const slots = [];
+    for (const block of blocks ?? []) {
+      const startMin = bogotaMinutesFromISO(block.start_time);
+      const endMin   = bogotaMinutesFromISO(block.end_time);
+      for (let t = startMin; t < endMin; t++) {
+        blockedMinutes.add(t);
+      }
+    }
+
+    // 5. Generate available slots
+    const slots: string[] = [];
+
+    // Get current Bogotá time to filter out past slots for today
     const now = new Date();
-
-    // Get current Bogotá time components using Intl
     const bogotaFormatter = new Intl.DateTimeFormat("en-CA", {
       timeZone: "America/Bogota",
       year: "numeric", month: "2-digit", day: "2-digit",
@@ -124,35 +143,45 @@ export async function GET(
 
     for (let hour = startHour; hour < endHour; hour++) {
       for (const min of [0, 15, 30, 45]) {
-        // Skip past slots when the selected date is today
+        // Skip slots in the past when booking for today
         if (isToday && (hour < nowHour || (hour === nowHour && min <= nowMin))) {
           continue;
         }
 
-        const slotTime = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
+        // Skip lunch break
+        if (breakStart !== null && breakEnd !== null && hour >= breakStart && hour < breakEnd) {
+          continue;
+        }
 
-        // Build a proper UTC timestamp for this Bogotá-local slot
-        const slotUTC = new Date(`${date}T${slotTime}:00-05:00`);
+        const slotTotalMin = hour * 60 + min;
 
-        // Check if slot is taken by appointment
-        const isTaken = appointments?.some((appt: any) => {
-          const apptStart = new Date(appt.start_time);
-          const apptEnd = new Date(appt.end_time || apptStart.getTime() + (appt.services?.duration_minutes || 30) * 60000);
-          return slotUTC >= apptStart && slotUTC < apptEnd;
-        });
+        // Check if the entire required duration fits without hitting a block
+        let canFit = true;
+        // 1. Check if it exceeds barber's shift end
+        if (slotTotalMin + requestedDuration > endHour * 60) {
+          canFit = false;
+        }
+        // 2. Check if it hits the lunch break
+        if (canFit && breakStart !== null && breakEnd !== null) {
+          const breakStartMin = breakStart * 60;
+          const breakEndMin = breakEnd * 60;
+          // If the slot starts before break but ends during/after break
+          if (slotTotalMin < breakStartMin && (slotTotalMin + requestedDuration) > breakStartMin) {
+            canFit = false;
+          }
+        }
+        // 3. Check against blocked minutes from appointments/blocks
+        if (canFit) {
+          for (let t = slotTotalMin; t < slotTotalMin + requestedDuration; t++) {
+            if (blockedMinutes.has(t)) {
+              canFit = false;
+              break;
+            }
+          }
+        }
 
-        // Check if slot is taken by agenda block
-        const isBlocked = blocks?.some((b: any) => {
-          const bStart = new Date(b.start_time);
-          const bEnd = new Date(b.end_time);
-          return slotUTC >= bStart && slotUTC < bEnd;
-        });
-
-        // Check if slot is taken by lunch break
-        const isLunchBreak = breakStart !== null && breakEnd !== null && hour >= breakStart && hour < breakEnd;
-
-        if (!isTaken && !isBlocked && !isLunchBreak) {
-          slots.push(slotTime);
+        if (canFit) {
+          slots.push(`${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`);
         }
       }
     }

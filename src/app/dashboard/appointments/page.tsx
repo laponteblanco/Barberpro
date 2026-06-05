@@ -63,7 +63,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   const [ {data: appointmentsRaw}, {data: clients}, {data: staffRaw}, {data: services}, {data: tenant}, {data: blocksRaw} ] = await Promise.all([
     adminSupabase
       .from("appointments")
-      .select("*, client:clients(*), service:services(*), staff:tenant_staff(*, profiles(*))")
+      .select("*, client:clients(*), staff:tenant_staff(*, profiles(*)), appointment_services(services(*))")
       .eq("tenant_id", tenantId)
       .match(isBarber ? { staff_id: sessionStaff.id } : {})
       .gte("start_time", fetchStart.toISOString())
@@ -79,7 +79,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
       // Admin: fetch ALL active barbers
       // Barber: fetch only themselves
       .match(isBarber ? { id: sessionStaff.id } : {}),
-    adminSupabase.from("services").select("id, name, price").eq("tenant_id", tenantId).eq("is_active", true).order("name"),
+    adminSupabase.from("services").select("id, name, price, duration_minutes").eq("tenant_id", tenantId).eq("is_active", true).order("price", { ascending: false }),
     (adminSupabase as any).from("tenants").select("settings").eq("id", tenantId).single(),
     (adminSupabase as any)
       .from("agenda_blocks")
@@ -90,7 +90,11 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
       .lte("start_time", fetchEnd.toISOString())
   ]);
 
-  const appointments = (appointmentsRaw as any[]) || [];
+  const appointments = ((appointmentsRaw as any[]) || []).map(appt => ({
+    ...appt,
+    services: appt.appointment_services?.map((as: any) => as.services) || [],
+    service: appt.appointment_services?.[0]?.services || appt.service // fallback for single-service backwards compatibility
+  }));
   const agendaBlocks = (blocksRaw as any[]) || [];
 
   // Map staff
@@ -164,8 +168,11 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   });
 
   return (
-    <div className="antigravity-bg -m-4 p-4 md:-m-8 md:p-8 h-[calc(100vh-64px)] overflow-hidden space-y-4 md:space-y-12 pb-4 md:pb-12 flex flex-col">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 md:gap-8 relative z-50">
+    <div
+      className="antigravity-bg flex flex-col gap-3 overflow-hidden -m-6 lg:-m-8 p-3 md:p-5 h-[calc(100%+48px)] lg:h-[calc(100%+64px)]"
+    >
+
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 md:gap-8 relative z-50 shrink-0">
         <div className="animate-float flex items-center justify-between lg:block">
           <div>
             <h1 className="text-2xl md:text-4xl font-black tracking-tight text-white capitalize">
@@ -216,7 +223,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
         </div>
       </div>
 
-      <div className="animate-float-slow flex-1 min-h-0 flex flex-col">
+      <div className="flex-1 min-h-0 flex flex-col">
         <CalendarView 
           appointments={appointments} 
           agendaBlocks={agendaBlocks}

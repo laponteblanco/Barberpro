@@ -59,33 +59,39 @@ export async function createAppointmentAction(formData: FormData) {
   }
 
   const staff_id = formData.get("staff_id")?.toString();
-  const service_id = formData.get("service_id")?.toString();
+  const service_ids_str = formData.get("service_ids")?.toString();
   const date = formData.get("date")?.toString();
   const time = formData.get("time")?.toString();
 
-  if (!client_id || !staff_id || !service_id || !date || !time) {
+  if (!client_id || !staff_id || !service_ids_str || !date || !time) {
     throw new Error("Faltan campos requeridos");
   }
 
+  const service_ids = JSON.parse(service_ids_str) as string[];
+  if (!Array.isArray(service_ids) || service_ids.length === 0) {
+    throw new Error("Debe seleccionar al menos un servicio");
+  }
+
   // Get service details
-  const { data: serviceData } = await (adminSupabase as any)
+  const { data: servicesData } = await (adminSupabase as any)
     .from("services")
-    .select("duration_minutes, price")
-    .eq("id", service_id)
-    .single();
+    .select("id, duration_minutes, price")
+    .in("id", service_ids);
   
-  const service = serviceData as unknown as ServiceRecord;
-  if (!service) throw new Error("Servicio no encontrado");
+  if (!servicesData || servicesData.length === 0) throw new Error("Servicios no encontrados");
+
+  const total_duration = servicesData.reduce((acc: number, s: any) => acc + (s.duration_minutes || 30), 0);
+  const total_price = servicesData.reduce((acc: number, s: any) => acc + Number(s.price || 0), 0);
 
   const start_time = new Date(`${date}T${time}:00-05:00`);
-  const end_time = new Date(start_time.getTime() + (service.duration_minutes || 30) * 60000);
+  const end_time = new Date(start_time.getTime() + total_duration * 60000);
 
   // Check for conflicts
   const { data: conflict } = await (adminSupabase as any)
     .from("appointments")
     .select("id")
     .eq("staff_id", staff_id)
-    .neq("status", "cancelled")
+    .in("status", ["pending", "confirmed", "completed"])
     .lt("start_time", end_time.toISOString())
     .gt("end_time", start_time.toISOString())
     .maybeSingle();
@@ -94,16 +100,37 @@ export async function createAppointmentAction(formData: FormData) {
     throw new Error("El barbero ya tiene una cita programada en este horario.");
   }
 
-  const { error } = await (adminSupabase as any).from("appointments").insert({
+  // Use the first service_id as a fallback for the old column if it still exists
+  const { data: appt, error } = await (adminSupabase as any).from("appointments").insert({
     tenant_id: tenantId,
     client_id,
     staff_id,
-    service_id,
+    service_id: service_ids[0], 
     start_time: start_time.toISOString(),
     end_time: end_time.toISOString(),
-    total_price: service.price || 0,
+    total_price: total_price,
     status: 'pending'
-  });
+  }).select('id').single();
+
+  if (error) {
+    console.error("Error inserting appointment:", error);
+    throw new Error(error.message);
+  }
+
+  // Insert into appointment_services
+  const apptServices = service_ids.map(id => ({
+    appointment_id: appt.id,
+    service_id: id
+  }));
+
+  const { error: asError } = await (adminSupabase as any)
+    .from("appointment_services")
+    .insert(apptServices);
+  
+  if (asError) {
+    console.error("Error linking services:", asError);
+    // Ignore error for now, or maybe rollback if it was critical
+  }
 
   if (error) {
     console.error("Error inserting appointment:", error);
@@ -138,7 +165,7 @@ export async function updateAppointmentTimeAction(appointmentId: string, newStar
     .select("id")
     .eq("staff_id", appt.staff_id)
     .neq("id", appointmentId)
-    .neq("status", "cancelled")
+    .in("status", ["pending", "confirmed", "completed"])
     .lt("start_time", end.toISOString())
     .gt("end_time", start.toISOString())
     .maybeSingle();
@@ -219,20 +246,31 @@ export async function updateAppointmentDetailsAction(appointmentId: string, form
 
   const adminSupabase = await createAdminClient();
 
-  const serviceId = formData.get("service_id") as string;
+  const serviceIdsStr = formData.get("service_ids") as string;
   const staffId = formData.get("staff_id") as string;
   const date = formData.get("date") as string;
   const time = formData.get("time") as string;
   const clientId = formData.get("client_id") as string;
 
-  // Retrieve service duration
-  const { data: service } = await (adminSupabase as any)
-    .from("services")
-    .select("duration_minutes")
-    .eq("id", serviceId)
-    .single();
+  let serviceIds: string[] = [];
+  try {
+    serviceIds = JSON.parse(serviceIdsStr);
+  } catch (e) {
+    // fallback if it's sent as a single string ID
+    serviceIds = [formData.get("service_id") as string].filter(Boolean);
+  }
 
-  const duration = service?.duration_minutes || 30;
+  if (serviceIds.length === 0) throw new Error("Debe seleccionar al menos un servicio");
+
+  // Retrieve service duration and price
+  const { data: servicesData } = await (adminSupabase as any)
+    .from("services")
+    .select("id, duration_minutes, price")
+    .in("id", serviceIds);
+
+  const duration = servicesData?.reduce((acc: number, s: any) => acc + (s.duration_minutes || 30), 0) || 30;
+  const totalPrice = servicesData?.reduce((acc: number, s: any) => acc + Number(s.price || 0), 0) || 0;
+
   const start = new Date(`${date}T${time}:00-05:00`);
   const end = new Date(start.getTime() + duration * 60000);
 
@@ -242,7 +280,7 @@ export async function updateAppointmentDetailsAction(appointmentId: string, form
     .select("id")
     .eq("staff_id", staffId)
     .neq("id", appointmentId)
-    .neq("status", "cancelled")
+    .in("status", ["pending", "confirmed", "completed"])
     .lt("start_time", end.toISOString())
     .gt("end_time", start.toISOString())
     .maybeSingle();
@@ -253,9 +291,10 @@ export async function updateAppointmentDetailsAction(appointmentId: string, form
 
   const updates: any = {
     staff_id: staffId,
-    service_id: serviceId,
+    service_id: serviceIds[0], // fallback
     start_time: start.toISOString(),
-    end_time: end.toISOString()
+    end_time: end.toISOString(),
+    total_price: totalPrice
   };
 
   if (clientId) {
@@ -271,6 +310,14 @@ export async function updateAppointmentDetailsAction(appointmentId: string, form
   if (error) {
     throw new Error(`Error al actualizar la cita: ${error.message}`);
   }
+
+  // Update appointment_services relation
+  await (adminSupabase as any).from("appointment_services").delete().eq("appointment_id", appointmentId);
+  const apptServices = serviceIds.map(id => ({
+    appointment_id: appointmentId,
+    service_id: id
+  }));
+  await (adminSupabase as any).from("appointment_services").insert(apptServices);
 
   revalidatePath("/dashboard/appointments");
   return { success: true };
@@ -290,7 +337,7 @@ export async function createAgendaBlockAction(staffId: string, startTime: string
     .from("appointments")
     .select("id")
     .eq("staff_id", staffId)
-    .neq("status", "cancelled")
+    .in("status", ["pending", "confirmed", "completed"])
     .lt("start_time", end.toISOString())
     .gt("end_time", start.toISOString())
     .maybeSingle();

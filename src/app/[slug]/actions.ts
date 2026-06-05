@@ -14,7 +14,7 @@ export async function publicCreateAppointmentAction(
     email?: string; 
     notes?: string;
   },
-  appointmentData: { staffId: string; serviceId: string; date: string; time: string }
+  appointmentData: { staffId: string; serviceIds: string[]; date: string; time: string }
 ) {
   const adminSupabase = await createAdminClient();
 
@@ -109,17 +109,23 @@ export async function publicCreateAppointmentAction(
     throw new Error("Ya tienes una cita activa programada. Completa o cancela tu cita antes de agendar otra.");
   }
 
-  // 2. Get service details
-  const { data: service } = await (adminSupabase as any)
-    .from("services")
-    .select("duration_minutes, price")
-    .eq("id", appointmentData.serviceId)
-    .single();
+  if (!appointmentData.serviceIds || appointmentData.serviceIds.length === 0) {
+    throw new Error("Debe seleccionar al menos un servicio");
+  }
 
-  if (!service) throw new Error("Servicio no encontrado");
+  // 2. Get service details
+  const { data: services } = await (adminSupabase as any)
+    .from("services")
+    .select("id, duration_minutes, price")
+    .in("id", appointmentData.serviceIds);
+
+  if (!services || services.length === 0) throw new Error("Servicios no encontrados");
+
+  const total_duration = services.reduce((acc: number, s: any) => acc + (s.duration_minutes || 30), 0);
+  const total_price = services.reduce((acc: number, s: any) => acc + Number(s.price || 0), 0);
 
   const start_time = new Date(`${appointmentData.date}T${appointmentData.time}:00-05:00`);
-  const end_time = new Date(start_time.getTime() + (service.duration_minutes || 30) * 60000);
+  const end_time = new Date(start_time.getTime() + total_duration * 60000);
 
   // 2.5. Validate that barber (staff_id) doesn't have overlapping appointments
   const { data: overlappingAppointment, error: overlapError } = await (adminSupabase as any)
@@ -127,7 +133,7 @@ export async function publicCreateAppointmentAction(
     .select("id")
     .eq("tenant_id", tenantId)
     .eq("staff_id", appointmentData.staffId)
-    .in("status", ["pending", "confirmed"])
+    .in("status", ["pending", "confirmed", "completed"])
     .lt("start_time", end_time.toISOString())
     .gt("end_time", start_time.toISOString())
     .maybeSingle();
@@ -141,18 +147,28 @@ export async function publicCreateAppointmentAction(
   }
 
   // 3. Insert appointment
-  const { error } = await (adminSupabase as any).from("appointments").insert({
+  const { data: appt, error } = await (adminSupabase as any).from("appointments").insert({
     tenant_id: tenantId,
     client_id,
     staff_id: appointmentData.staffId,
-    service_id: appointmentData.serviceId,
+    service_id: appointmentData.serviceIds[0], // fallback
     start_time: start_time.toISOString(),
     end_time: end_time.toISOString(),
-    total_price: service.price || 0,
+    total_price: total_price,
     status: 'pending'
-  });
+  }).select('id').single();
 
   if (error) throw new Error("No pudimos agendar tu cita: " + error.message);
+
+  // 4. Insert appointment services
+  const apptServices = appointmentData.serviceIds.map(id => ({
+    appointment_id: appt.id,
+    service_id: id
+  }));
+
+  await (adminSupabase as any)
+    .from("appointment_services")
+    .insert(apptServices);
 
   revalidatePath("/dashboard/appointments");
   revalidatePath(`/${tenantId}`);

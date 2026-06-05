@@ -92,9 +92,11 @@ export function DashboardContainer({
         )}
 
         {/* Page content scroll container */}
-        <main className="flex-1 overflow-y-auto">
-          <div className="p-6 lg:p-8 animate-fade-up pb-safe">
-            {children}
+        <main className="flex-1 overflow-hidden flex flex-col min-h-0">
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="p-6 lg:p-8 pb-safe">
+              {children}
+            </div>
           </div>
         </main>
       </div>

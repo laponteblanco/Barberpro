@@ -48,7 +48,7 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
   const [newNotes, setNewNotes] = useState("");
 
   // Selections
-  const [selectedService, setSelectedService] = useState<any>(null);
+  const [selectedServices, setSelectedServices] = useState<any[]>([]);
   const [selectedStaff, setSelectedStaff] = useState<any>(null);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [selectedTime, setSelectedTime] = useState<string>("");
@@ -115,7 +115,8 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
   const fetchSlots = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/tenants/${tenant.id}/staff/${selectedStaff.id}/availability?date=${selectedDate}`);
+      const totalDuration = selectedServices.reduce((acc, s) => acc + (s.duration_minutes || 30), 0);
+      const res = await fetch(`/api/tenants/${tenant.id}/staff/${selectedStaff.id}/availability?date=${selectedDate}&duration=${totalDuration}`);
       
       if (!res.ok) throw new Error("Error fetching slots");
       
@@ -150,7 +151,7 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
         },
         {
           staffId: selectedStaff.id,
-          serviceId: selectedService.id,
+          serviceIds: selectedServices.map(s => s.id),
           date: selectedDate,
           time: selectedTime
         }
@@ -427,25 +428,38 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
       </div>
 
       <div className="grid gap-5">
-        {services.map((service) => (
+        {services.map((service) => {
+          const isSelected = selectedServices.some(s => s.id === service.id);
+          return (
           <button 
             key={service.id}
             onClick={() => {
-              setSelectedService(service);
-              setStep("select-staff");
+              setSelectedServices(prev => 
+                isSelected 
+                  ? prev.filter(s => s.id !== service.id)
+                  : [...prev, service]
+              );
             }}
             className={cn(
-              "glass-card p-6 rounded-[32px] border-white/5 bg-zinc-900/20 text-left transition-all hover:border-primary/40 hover:bg-primary/5 active:scale-[0.98] flex items-center justify-between group",
-              selectedService?.id === service.id && "border-primary/50 bg-primary/10"
+              "glass-card p-6 rounded-[32px] border-white/5 bg-zinc-900/20 text-left transition-all hover:border-primary/40 hover:bg-primary/5 active:scale-[0.98] flex items-center justify-between group relative overflow-hidden",
+              isSelected && "border-primary/50 bg-primary/10"
             )}
           >
-            <div className="flex items-center gap-5">
-              <div className="w-16 h-16 rounded-2xl bg-zinc-800 flex items-center justify-center text-zinc-500 group-hover:text-primary transition-colors">
+            {isSelected && (
+              <div className="absolute top-0 right-0 p-4">
+                 <CheckCircle2 className="w-6 h-6 text-primary" />
+              </div>
+            )}
+            <div className="flex items-start gap-5">
+              <div className="w-16 h-16 shrink-0 rounded-2xl bg-zinc-800 flex items-center justify-center text-zinc-500 group-hover:text-primary transition-colors mt-1">
                 <Scissors className="w-8 h-8" />
               </div>
-              <div>
+              <div className="flex-1">
                 <h4 className="font-black text-xl group-hover:text-white transition-colors">{service.name}</h4>
-                <div className="flex items-center gap-3 mt-1.5">
+                {service.description && (
+                  <p className="text-xs text-zinc-500 mt-1.5 leading-relaxed pr-2">{service.description}</p>
+                )}
+                <div className="flex items-center gap-3 mt-2">
                   <div className="flex items-center gap-1.5">
                     <Clock className="w-3.5 h-3.5 text-zinc-600" />
                     <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{service.duration_minutes} min</span>
@@ -457,8 +471,33 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
               {formatCurrency(service.price)}
             </div>
           </button>
-        ))}
+          );
+        })}
       </div>
+
+      {selectedServices.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 p-6 bg-zinc-950/80 backdrop-blur-xl border-t border-white/5 z-50">
+          <div className="max-w-2xl mx-auto flex items-center gap-4">
+            <div className="flex-1">
+              <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest">
+                {selectedServices.length} {selectedServices.length === 1 ? "Servicio" : "Servicios"}
+              </p>
+              <p className="text-xs text-zinc-400 font-bold truncate max-w-[180px] sm:max-w-xs mt-0.5">
+                {selectedServices.map((s: any) => s.name).join(', ')}
+              </p>
+              <p className="text-xl font-black text-primary mt-1">
+                {formatCurrency(selectedServices.reduce((acc, s) => acc + (Number(s.price) || 0), 0))}
+              </p>
+            </div>
+            <button
+              onClick={() => setStep("select-staff")}
+              className="bg-primary hover:bg-primary/90 text-white font-black uppercase tracking-[0.2em] py-4 px-8 rounded-2xl transition-all shadow-xl shadow-primary/20 flex items-center gap-2"
+            >
+              Continuar <ArrowRight className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -588,13 +627,17 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
 
       <div className="glass-card p-8 rounded-[40px] border-white/5 bg-zinc-900/20 space-y-8 relative overflow-hidden mb-10">
         <div className="space-y-6 relative z-10">
-          <div className="flex items-center gap-5">
-            <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
+          <div className="flex items-start gap-5">
+            <div className="w-12 h-12 shrink-0 rounded-2xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20 mt-1">
               <Scissors className="w-6 h-6" />
             </div>
-            <div>
-              <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Servicio</p>
-              <p className="text-lg font-black">{selectedService?.name}</p>
+            <div className="flex-1">
+              <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Servicios</p>
+              <div className="space-y-2 mt-1">
+                {selectedServices.map(service => (
+                  <p key={service.id} className="text-sm font-black">{service.name}</p>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -693,24 +736,28 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
       <div className="glass-card p-6 rounded-[32px] border-white/5 bg-zinc-900/20 mb-10">
          <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-4">Resumen de tu Cita</p>
          <div className="space-y-3">
-            <div className="flex justify-between text-xs font-bold uppercase tracking-tighter">
-               <span className="text-zinc-500">Servicio</span>
-               <span className="text-white">{selectedService?.name}</span>
-            </div>
-            <div className="flex justify-between text-xs font-bold uppercase tracking-tighter">
-               <span className="text-zinc-500">Barbero</span>
-               <span className="text-white">{selectedStaff?.name}</span>
-            </div>
-            <div className="flex justify-between text-xs font-bold uppercase tracking-tighter">
-               <span className="text-zinc-500">Valor</span>
-               <span className="text-primary font-black">{formatCurrency(selectedService?.price)}</span>
-            </div>
+            <div className="flex justify-between items-start text-xs font-bold uppercase tracking-tighter">
+                <span className="text-zinc-500">Servicios</span>
+                <div className="text-right space-y-1 max-w-[60%]">
+                  {selectedServices.map(s => (
+                    <p key={s.id} className="text-white truncate">{s.name}</p>
+                  ))}
+                </div>
+             </div>
+             <div className="flex justify-between text-xs font-bold uppercase tracking-tighter pt-2">
+                <span className="text-zinc-500">Barbero</span>
+                <span className="text-white">{selectedStaff?.name}</span>
+             </div>
+             <div className="flex justify-between text-xs font-bold uppercase tracking-tighter border-t border-white/5 pt-3 mt-1">
+                <span className="text-zinc-500">Valor Total</span>
+                <span className="text-primary font-black">{formatCurrency(selectedServices.reduce((acc, s) => acc + (s.price || 0), 0))}</span>
+             </div>
          </div>
       </div>
 
       <button 
         onClick={() => {
-          setSelectedService(null);
+          setSelectedServices([]);
           setSelectedStaff(null);
           setSelectedTime("");
           if (idNumber) {

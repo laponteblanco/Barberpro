@@ -23,20 +23,26 @@ interface CalendarViewProps {
   tenantId?: string;
 }
 
-const BARBER_COLORS: Record<string, string> = {
-  blue: "bg-indigo-500/10 border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20",
-  emerald: "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20",
-  violet: "bg-violet-500/10 border-violet-500/20 text-violet-400 hover:bg-violet-500/20",
-  amber: "bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20",
-  rose: "bg-rose-500/10 border-rose-500/20 text-rose-400 hover:bg-rose-500/20",
-  cyan: "bg-cyan-500/10 border-cyan-500/20 text-cyan-400 hover:bg-cyan-500/20",
+const BARBER_COLORS = [
+  { base: "bg-indigo-500/15 border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/25", completed: "bg-indigo-500/25 border-indigo-400/40 text-indigo-200 hover:bg-indigo-500/35", dot: "bg-indigo-400" },
+  { base: "bg-amber-500/15 border-amber-500/30 text-amber-300 hover:bg-amber-500/25", completed: "bg-amber-500/25 border-amber-400/40 text-amber-200 hover:bg-amber-500/35", dot: "bg-amber-400" },
+  { base: "bg-rose-500/15 border-rose-500/30 text-rose-300 hover:bg-rose-500/25", completed: "bg-rose-500/25 border-rose-400/40 text-rose-200 hover:bg-rose-500/35", dot: "bg-rose-400" },
+  { base: "bg-cyan-500/15 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/25", completed: "bg-cyan-500/25 border-cyan-400/40 text-cyan-200 hover:bg-cyan-500/35", dot: "bg-cyan-400" },
+  { base: "bg-violet-500/15 border-violet-500/30 text-violet-300 hover:bg-violet-500/25", completed: "bg-violet-500/25 border-violet-400/40 text-violet-200 hover:bg-violet-500/35", dot: "bg-violet-400" },
+  { base: "bg-emerald-500/15 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25", completed: "bg-emerald-500/25 border-emerald-400/40 text-emerald-200 hover:bg-emerald-500/35", dot: "bg-emerald-400" },
+  { base: "bg-orange-500/15 border-orange-500/30 text-orange-300 hover:bg-orange-500/25", completed: "bg-orange-500/25 border-orange-400/40 text-orange-200 hover:bg-orange-500/35", dot: "bg-orange-400" },
+  { base: "bg-pink-500/15 border-pink-500/30 text-pink-300 hover:bg-pink-500/25", completed: "bg-pink-500/25 border-pink-400/40 text-pink-200 hover:bg-pink-500/35", dot: "bg-pink-400" },
+];
+
+const getBarberColorIndex = (id: string) =>
+  id.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0) % BARBER_COLORS.length;
+
+const getBarberColor = (id: string, completed = false) => {
+  const color = BARBER_COLORS[getBarberColorIndex(id)];
+  return completed ? color.completed : color.base;
 };
 
-const getBarberColor = (id: string) => {
-  const colors = Object.keys(BARBER_COLORS);
-  const index = id.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
-  return BARBER_COLORS[colors[index]];
-};
+const getBarberDot = (id: string) => BARBER_COLORS[getBarberColorIndex(id)].dot;
 
 const getBogotaNow = () => {
   const d = new Date();
@@ -95,6 +101,8 @@ export function CalendarView({
 
   const [isMobile, setIsMobile] = useState(false);
   const [activeMobileBarber, setActiveMobileBarber] = useState<string>("all");
+  const slotAreaRef = useRef<HTMLDivElement>(null);
+  const [slotAreaHeight, setSlotAreaHeight] = useState(0);
 
   useEffect(() => {
     setMounted(true);
@@ -109,12 +117,39 @@ export function CalendarView({
     setIsMobile(media.matches);
     const listener = (e: MediaQueryListEvent) => setIsMobile(e.matches);
     media.addEventListener("change", listener);
+
+    // Observe slot area height for dynamic slot sizing
+    let ro: ResizeObserver | null = null;
+    if (slotAreaRef.current) {
+      ro = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          setSlotAreaHeight(entry.contentRect.height);
+        }
+      });
+      ro.observe(slotAreaRef.current);
+      setSlotAreaHeight(slotAreaRef.current.getBoundingClientRect().height);
+    }
     
     return () => {
       clearInterval(timer);
       media.removeEventListener("change", listener);
+      ro?.disconnect();
     };
   }, []);
+
+  // Separate effect: re-observe whenever the ref element changes
+  useEffect(() => {
+    const el = slotAreaRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setSlotAreaHeight(entry.contentRect.height);
+      }
+    });
+    ro.observe(el);
+    setSlotAreaHeight(el.getBoundingClientRect().height);
+    return () => ro.disconnect();
+  }, [slotAreaRef.current]);
 
   const { effectiveStartHour, effectiveEndHour } = useMemo(() => {
     let s = startHour;
@@ -133,6 +168,13 @@ export function CalendarView({
     return { effectiveStartHour: s, effectiveEndHour: e };
   }, [appointments, selectedDate, startHour, endHour, viewMode]);
 
+  // Height per 15-min slot — computed so ALL slots fit the measured slot area with NO internal scroll.
+  // slotAreaRef points to the exact row-area div (excluding column headers).
+  const totalSlots = (effectiveEndHour - effectiveStartHour) * 4 + 1;
+  const SLOT_HEIGHT = slotAreaHeight > 0
+    ? Math.max(14, Math.floor(slotAreaHeight / totalSlots))
+    : 22;
+
   const currentTimeTop = useMemo(() => {
     const todayStr = new Intl.DateTimeFormat('en-CA', { 
       timeZone: 'America/Bogota', 
@@ -147,7 +189,7 @@ export function CalendarView({
     const min = currentTime.getUTCMinutes();
     if (hour < effectiveStartHour || hour >= effectiveEndHour) return null;
     const totalMinutesFromStart = (hour - effectiveStartHour) * 60 + min;
-    return (totalMinutesFromStart / 15) * 32;
+    return (totalMinutesFromStart / 15) * SLOT_HEIGHT;
   }, [currentTime, effectiveStartHour, effectiveEndHour, selectedDate, mounted]);
 
   const slots = useMemo(() => {
@@ -210,7 +252,7 @@ export function CalendarView({
         acc.total++;
         if (appt.status === 'completed' || appt.status === 'confirmed') {
           acc.completed++;
-          const price = appt.service?.price || 0;
+          const price = appt.total_price || (appt.service?.price || 0);
           const barber = staff.find(s => s.id === appt.staff_id);
           const rate = barber?.daily_commission_rates?.[String(bogota.dayIndex)] ?? barber?.commission_rate ?? 0;
           
@@ -362,7 +404,7 @@ export function CalendarView({
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto min-h-0 custom-scrollbar relative">
+      <div className="flex-1 overflow-x-auto overflow-y-hidden min-h-0 custom-scrollbar relative">
         {calendarColumns.length === 0 ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 bg-zinc-950/50">
             <User className="w-16 h-16 text-zinc-800 mb-4" />
@@ -398,7 +440,7 @@ export function CalendarView({
                 const rate = s.daily_commission_rates?.[String(dayIndex)] ?? s.commission_rate ?? 0;
                 
                 const earnings = completedAppts.reduce((acc, appt) => {
-                  return acc + ((appt.service?.price || 0) * (rate / 100));
+                  return acc + ((appt.total_price || (appt.service?.price || 0)) * (rate / 100));
                 }, 0);
 
                 return (
@@ -441,21 +483,23 @@ export function CalendarView({
                     const appt = item.data;
                     const bogotaStart = getBogotaTime(appt.start_time);
                     const barber = staff.find(s => s.id === appt.staff_id);
+                    const isCompleted = appt.status === 'completed' || appt.status === 'confirmed';
                     return (
                       <div
                         key={appt.id}
                         onClick={() => setSelectedAppt(appt)}
                         className={cn(
-                          "glass-card p-4 rounded-2xl border bg-zinc-900/60 transition-all active:scale-[0.98] cursor-pointer flex flex-col gap-3",
-                          appt.status === 'completed' ? "border-emerald-500/20 bg-emerald-500/[0.02]" : "border-white/5"
+                          "glass-card p-4 rounded-2xl border transition-all active:scale-[0.98] cursor-pointer flex flex-col gap-3",
+                          getBarberColor(appt.staff_id, isCompleted)
                         )}
                       >
                         <div className="flex justify-between items-start">
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-black text-white bg-white/5 px-2 py-1 rounded-lg">
+                            <div className={cn("w-2 h-2 rounded-full shrink-0", getBarberDot(appt.staff_id))} />
+                            <span className="text-xs font-black bg-white/10 px-2 py-1 rounded-lg">
                               {`${bogotaStart.hhStr}:${bogotaStart.minStr}`}
                             </span>
-                            <span className="text-[10px] text-zinc-400">
+                            <span className="text-[10px] opacity-70">
                               {barber?.display_name || "Barbero"}
                             </span>
                           </div>
@@ -473,15 +517,20 @@ export function CalendarView({
                         <div className="flex items-center justify-between min-w-0">
                           <div>
                             <h4 className="text-sm font-bold text-white truncate">{appt.client?.full_name || "Cliente"}</h4>
-                            <p className="text-xs text-zinc-400 truncate">{appt.service?.name || "Servicio"}</p>
+                            <p className="text-xs text-zinc-400 truncate">
+                              {appt.services?.length > 0 
+                                ? appt.services.map((s: any) => s.name).join(', ')
+                                : (appt.service?.name || "Servicio")}
+                            </p>
                           </div>
-                          <div className="text-right">
-                            <p className="text-sm font-black text-indigo-400">
-                              {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(appt.service?.price || 0)}
-                            </p>
-                            <p className="text-[10px] text-zinc-500">
-                              {appt.service?.duration || 30} min
-                            </p>
+                          <div className="flex items-center gap-3 mt-1.5">
+                            <span className="text-[10px] font-black text-primary px-2 py-0.5 rounded-full bg-primary/10">
+                              {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(appt.total_price || (appt.service?.price || 0))}
+                            </span>
+                            <span className="text-[10px] font-bold text-zinc-500 flex items-center gap-1">
+                              <Clock className="w-3 h-3" /> 
+                              {appt.end_time && appt.start_time ? Math.round((new Date(appt.end_time).getTime() - new Date(appt.start_time).getTime()) / 60000) : (appt.service?.duration_minutes || 30)} min
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -529,7 +578,7 @@ export function CalendarView({
             </button>
           </div>
         ) : (
-          <div className="min-w-max flex flex-col min-h-full pb-20">
+          <div className="min-w-max flex flex-col h-full">
             
             <div className="flex sticky top-0 z-20 border-b border-white/10 bg-zinc-900/95 shadow-xl">
               <div className="w-24 border-r border-white/10 flex items-center justify-center p-4 sticky left-0 bg-zinc-900/95 z-30">
@@ -548,7 +597,7 @@ export function CalendarView({
                   const completedAppts = colAppointments.filter(a => a.status === 'completed' || a.status === 'confirmed');
                   
                   const earnings = completedAppts.reduce((acc, appt) => {
-                    const price = appt.service?.price || 0;
+                    const price = appt.total_price || (appt.service?.price || 0);
                     const barber = staff.find(s => s.id === col.staffId);
                     const dayIndex = getBogotaTime(appt.start_time).dayIndex;
                     const rate = barber?.daily_commission_rates?.[String(dayIndex)] ?? barber?.commission_rate ?? 0;
@@ -610,16 +659,16 @@ export function CalendarView({
               </div>
             </div>
 
-            <div className="flex flex-1 relative">
-              <div className="w-24 bg-zinc-900/95 border-r border-zinc-200/60 dark:border-white/10 sticky left-0 z-10 shadow-2xl">
+            <div ref={slotAreaRef} className="flex flex-1 relative">
+              <div className="w-24 bg-zinc-900/95 border-r border-black/30 sticky left-0 z-10 shadow-2xl">
                 {slots.map(({ hour, min }) => (
-                  <div key={`${hour}:${min}`} className={cn("h-8 border-b border-zinc-200/40 dark:border-white/5 flex flex-col items-center justify-center transition-all", min === 0 ? "bg-white/[0.03] border-b-zinc-200/60 dark:border-b-white/10" : "opacity-30")}>
+                  <div key={`${hour}:${min}`} className={cn("border-b flex flex-col items-center justify-center transition-all", min === 0 ? "bg-black/[0.04] border-b-black/40" : "border-b-black/20 opacity-60")} style={{ height: `${SLOT_HEIGHT}px` }}>
                     {min === 0 ? (
                       <div className="flex items-baseline gap-1">
-                        <span className="text-[13px] font-black text-zinc-900 dark:text-white tracking-tighter">{hour > 12 ? hour - 12 : hour}</span>
-                        <span className="text-[8px] font-black text-zinc-500 dark:text-white/50 uppercase tracking-widest">{hour >= 12 ? "PM" : "AM"}</span>
+                        <span className="text-[13px] font-black text-black tracking-tighter">{hour > 12 ? hour - 12 : hour}</span>
+                        <span className="text-[8px] font-black text-black/50 uppercase tracking-widest">{hour >= 12 ? "PM" : "AM"}</span>
                       </div>
-                    ) : <span className="text-[9px] font-bold text-zinc-600 dark:text-zinc-400">:{min}</span>}
+                    ) : <span className="text-[9px] font-bold text-black/60">:{min}</span>}
                   </div>
                 ))}
               </div>
@@ -633,7 +682,7 @@ export function CalendarView({
                 )}
 
                 {calendarColumns.map((col) => (
-                  <div key={col.id} className="w-[260px] relative border-r border-zinc-200/60 dark:border-white/10 group/col">
+                  <div key={col.id} className="w-[260px] relative border-r border-black/20 group/col">
                     {slots.map(({ hour, min }) => (
                       <div 
                         key={`${hour}:${min}`}
@@ -653,7 +702,8 @@ export function CalendarView({
                         }}
                         onDragOver={(e) => e.preventDefault()}
                         onDrop={(e) => handleDrop(e, col.staffId as string, hour, min, col.date)}
-                        className={cn("h-8 border-b border-zinc-200/40 dark:border-white/5 hover:bg-primary/20 hover:z-10 transition-colors relative cursor-pointer", min === 0 ? "border-b-zinc-200/60 dark:border-b-white/10" : "border-b-zinc-200/20 dark:border-b-white/[0.02]")}
+                        className={cn("border-b hover:bg-primary/20 hover:z-10 transition-colors relative cursor-pointer", min === 0 ? "border-b-black/40" : "border-b-black/20")}
+                        style={{ height: `${SLOT_HEIGHT}px` }}
                       />
                     ))}
 
@@ -669,9 +719,9 @@ export function CalendarView({
                         const min = bogota.min;
                         if (hour < effectiveStartHour || hour >= effectiveEndHour) return null;
                         
-                        const top = ((hour - effectiveStartHour) * 60 + min) / 15 * 32;
-                        const duration = appt.service?.duration_minutes || 30;
-                        const height = (duration / 15) * 32 - 2;
+                        const top = ((hour - effectiveStartHour) * 60 + min) / 15 * SLOT_HEIGHT;
+                        const duration = appt.end_time && appt.start_time ? Math.round((new Date(appt.end_time).getTime() - new Date(appt.start_time).getTime()) / 60000) : (appt.service?.duration_minutes || 30);
+                        const height = (duration / 15) * SLOT_HEIGHT - 2;
                         const isCompleted = appt.status === 'completed' || appt.status === 'confirmed';
                       
                         return (
@@ -680,15 +730,20 @@ export function CalendarView({
                           onClick={() => setSelectedAppt(appt)}
                           style={{ top: `${top}px`, height: `${height}px` }}
                           className={cn("absolute inset-x-2 z-[2] rounded-xl p-2.5 border shadow-2xl transition-all cursor-grab active:cursor-grabbing group/appt overflow-hidden animate-in zoom-in-95 duration-300", 
-                            isCompleted ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-400" : getBarberColor(col.staffId as string))}
+                            getBarberColor(appt.staff_id, isCompleted))}
                         >
                           <div className="flex flex-col h-full relative">
                             <div className="absolute top-0 left-0 right-0 h-[2px] bg-white/20 rounded-full" />
                             <div className="flex items-center justify-between gap-1 mb-1">
-                              <span className="text-[10px] font-black uppercase tracking-widest truncate">{appt.client?.full_name}</span>
+                              <span className="text-[10px] font-black uppercase tracking-widest truncate flex items-center gap-1.5">
+                                {isCompleted && <CheckCircle2 className="w-3 h-3 shrink-0 opacity-70" />}
+                                {appt.client?.full_name}
+                              </span>
                               <span className="text-[8px] font-black bg-white/10 px-1.5 py-0.5 rounded-full">{duration}m</span>
                             </div>
-                            <p className="text-[9px] font-medium opacity-80 line-clamp-1">{appt.service?.name}</p>
+                            <p className="text-[9px] font-medium opacity-80 line-clamp-1">
+                              {appt.services?.length > 0 ? appt.services.map((s: any) => s.name).join(', ') : appt.service?.name}
+                            </p>
                             <div className="mt-auto flex items-center gap-1.5">
                               <Clock className="w-2.5 h-2.5 opacity-40" />
                               <span className="text-[8px] font-bold opacity-60">{`${bogota.hhStr}:${bogota.minStr}`}</span>
@@ -717,8 +772,8 @@ export function CalendarView({
                       const endTotalMin = bogotaEnd.hour * 60 + bogotaEnd.min;
                       const durationMins = endTotalMin - startTotalMin;
                       
-                      const top = ((hour - effectiveStartHour) * 60 + min) / 15 * 32;
-                      const height = (durationMins / 15) * 32 - 2;
+                      const top = ((hour - effectiveStartHour) * 60 + min) / 15 * SLOT_HEIGHT;
+                      const height = (durationMins / 15) * SLOT_HEIGHT - 2;
                       
                       const isLunch = block.is_lunch_break;
                       return (
@@ -768,8 +823,14 @@ export function CalendarView({
           theme === "light" ? "theme-light" : "theme-dark",
           "fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto"
         )}>
-          <div className="w-full max-w-sm bg-zinc-950 border border-white/10 rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 h-fit my-auto">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-white/5 bg-zinc-900/50">
+          <div className={cn(
+            "w-full max-w-sm border rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 h-fit my-auto",
+            theme === "light" ? "theme-light bg-white border-blue-200" : "bg-zinc-950 border-white/10"
+          )}>
+            <div className={cn(
+              "flex items-center justify-between px-6 py-5 border-b",
+              theme === "light" ? "bg-blue-50/80 border-blue-100" : "border-white/5 bg-zinc-900/50"
+            )}>
               <h3 className="font-bold text-white tracking-tight">Detalles de la Cita</h3>
               <button 
                 onClick={() => {
@@ -793,6 +854,12 @@ export function CalendarView({
                     <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black">Horario</p>
                     <p className="font-medium text-sm text-zinc-300">
                       {new Date(selectedAppt.start_time).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black">Servicios</p>
+                    <p className="font-medium text-sm text-zinc-300">
+                      {selectedAppt.services?.length > 0 ? selectedAppt.services.map((s: any) => s.name).join(', ') : (selectedAppt.service?.name || "Servicio")}
                     </p>
                   </div>
                   <div className="pt-2 grid gap-3">
@@ -919,8 +986,14 @@ export function CalendarView({
           theme === "light" ? "theme-light" : "theme-dark",
           "fixed inset-0 z-[220] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200"
         )}>
-          <div className="w-full max-w-sm bg-zinc-950 border border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="px-6 py-5 border-b border-white/5 flex items-center justify-between">
+          <div className={cn(
+            "w-full max-w-sm border rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200",
+            theme === "light" ? "theme-light bg-white border-blue-200" : "bg-zinc-950 border-white/10"
+          )}>
+            <div className={cn(
+              "px-6 py-5 border-b flex items-center justify-between",
+              theme === "light" ? "bg-blue-50/80 border-blue-100" : "border-white/5"
+            )}>
               <h3 className="font-black text-white uppercase tracking-widest text-sm flex items-center gap-2">
                 <Ban className="w-4 h-4 text-red-500" />
                 Bloquear Horario
@@ -974,8 +1047,14 @@ export function CalendarView({
           theme === "light" ? "theme-light" : "theme-dark",
           "fixed inset-0 z-[220] flex justify-center items-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200"
         )}>
-          <div className="w-full max-w-sm bg-zinc-950 border border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-white/5">
+          <div className={cn(
+            "w-full max-w-sm border rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200",
+            theme === "light" ? "theme-light bg-white border-blue-200" : "bg-zinc-950 border-white/10"
+          )}>
+            <div className={cn(
+              "flex items-center justify-between px-6 py-5 border-b",
+              theme === "light" ? "bg-blue-50/80 border-blue-100" : "border-white/5"
+            )}>
               <h3 className="font-bold text-white tracking-tight flex items-center gap-2">
                 <Ban className="w-4 h-4 text-red-500" />
                 Horario Bloqueado

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Plus, X, Calendar as CalendarIcon, Clock, User, Scissors, Loader2, UserPlus, CheckCircle2, AlertCircle, Search } from "lucide-react";
 import { createAppointmentAction, updateAppointmentDetailsAction } from "../../app/dashboard/appointments/actions";
@@ -38,7 +38,7 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
   // Form states for real-time check
   const [formData, setFormData] = useState({
     staff_id: defaultValues?.staff_id || "",
-    service_id: defaultValues?.service_id || "",
+    service_ids: defaultValues?.service_id ? [defaultValues.service_id] : (defaultValues?.service_ids || []),
     date: defaultValues?.date || "",
     time: defaultValues?.time || ""
   });
@@ -48,7 +48,7 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
       setFormData(prev => ({
         ...prev,
         staff_id: defaultValues.staff_id || prev.staff_id,
-        service_id: defaultValues.service_id || prev.service_id,
+        service_ids: defaultValues.service_id ? [defaultValues.service_id] : (defaultValues.service_ids || prev.service_ids),
         date: defaultValues.date || prev.date,
         time: defaultValues.time || prev.time
       }));
@@ -58,16 +58,24 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
   // Fetch available slots from the API for real-time accuracy
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
+  const fetchCounter = useRef(0);
+
+  const serviceIdsStr = useMemo(() => formData.service_ids.join(','), [formData.service_ids]);
 
   const fetchAvailableSlots = useCallback(async () => {
-    if (!formData.date || !formData.staff_id || !tenantId) {
+    if (!formData.date || !formData.staff_id || !tenantId || formData.service_ids.length === 0) {
       setAvailableSlots([]);
       return;
     }
 
+    const currentFetchId = ++fetchCounter.current;
     setSlotsLoading(true);
     try {
-      const res = await fetch(`/api/tenants/${tenantId}/staff/${formData.staff_id}/availability?date=${formData.date}`);
+      // Filter slots based on total service duration to ensure the full appointment fits
+      const selectedServices = services.filter((s: any) => formData.service_ids.includes(s.id));
+      const totalDuration = selectedServices.reduce((acc: number, s: any) => acc + (s.duration_minutes || 30), 0);
+      
+      const res = await fetch(`/api/tenants/${tenantId}/staff/${formData.staff_id}/availability?date=${formData.date}&duration=${totalDuration}`);
       if (!res.ok) throw new Error("Error fetching slots");
       const data = await res.json();
       let slots: string[] = data.slots || [];
@@ -90,34 +98,19 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
         }
       }
 
-      // Filter slots based on service duration to ensure the full appointment fits
-      const service = services.find((s: any) => s.id === formData.service_id);
-      const duration = service?.duration_minutes || 30;
-      if (duration > 30) {
-        // For services longer than 30 min, ensure consecutive slots are available
-        slots = slots.filter((slot) => {
-          const [h, m] = slot.split(':').map(Number);
-          const slotStart = h * 60 + m;
-          const slotEnd = slotStart + duration;
-          // Check that all intermediate 30-min slots are also available
-          for (let t = slotStart + 30; t < slotEnd; t += 30) {
-            const checkH = Math.floor(t / 60);
-            const checkM = t % 60;
-            const checkStr = `${String(checkH).padStart(2, '0')}:${String(checkM).padStart(2, '0')}`;
-            if (!slots.includes(checkStr)) return false;
-          }
-          return true;
-        });
-      }
+      if (currentFetchId !== fetchCounter.current) return;
 
       setAvailableSlots(slots);
     } catch (err) {
+      if (currentFetchId !== fetchCounter.current) return;
       console.error("Error fetching available slots:", err);
       setAvailableSlots([]);
     } finally {
-      setSlotsLoading(false);
+      if (currentFetchId === fetchCounter.current) {
+        setSlotsLoading(false);
+      }
     }
-  }, [formData.date, formData.staff_id, formData.service_id, tenantId, editApptId, appointments, services]);
+  }, [formData.date, formData.staff_id, serviceIdsStr, tenantId, editApptId, appointments, services]);
 
   // Fetch slots whenever staff, date, or service changes
   useEffect(() => {
@@ -158,6 +151,9 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
       fd.append("client_id", selectedClient.id);
     }
     
+    // Append all selected service ids as JSON array
+    fd.append("service_ids", JSON.stringify(formData.service_ids));
+
     try {
       if (editApptId) {
         await updateAppointmentDetailsAction(editApptId, fd);
@@ -178,9 +174,14 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
       theme === "light" ? "theme-light" : "theme-dark",
       "fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200"
     )}>
-      <div className="w-[92vw] max-w-[500px] bg-zinc-950 border border-white/10 rounded-[32px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-200">
-            {/* Header */}
-            <div className="flex items-center justify-between px-8 py-6 border-b border-white/5 bg-zinc-900/50 shrink-0">
+      <div className={cn(
+        "w-[92vw] max-w-[500px] border rounded-[32px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-200",
+        theme === "light" ? "theme-light bg-white border-blue-200" : "bg-zinc-950 border-white/10"
+      )}>
+            <div className={cn(
+              "flex items-center justify-between px-8 py-6 border-b shrink-0",
+              theme === "light" ? "bg-blue-50/80 border-blue-100" : "border-white/5 bg-zinc-900/50"
+            )}>
               <div>
                 <h2 className="text-xl font-bold text-white tracking-tight">{editApptId ? "Editar Cita" : "Agendar Cita"}</h2>
                 <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-1 font-medium">{editApptId ? "Modificar turno existente" : "Asignar turno en la agenda"}</p>
@@ -329,20 +330,40 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
 
                   <div className="space-y-2.5">
                     <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 flex items-center gap-2 ml-1">
-                      <Scissors className="w-3 h-3 text-primary/70" /> Servicio
+                      <Scissors className="w-3 h-3 text-primary/70" /> Servicios
                     </label>
-                    <select 
-                      name="service_id" 
-                      required 
-                      value={formData.service_id}
-                      onChange={handleInputChange}
-                      className="w-full h-12 px-4 bg-zinc-900/50 border border-white/5 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all text-white appearance-none cursor-pointer"
-                    >
-                      <option value="">Seleccionar...</option>
-                      {services.map((s: any) => (
-                        <option key={s.id} value={s.id} className="bg-zinc-950">{s.name} (${s.price})</option>
-                      ))}
-                    </select>
+                    <div className="w-full max-h-[160px] overflow-y-auto px-4 py-2 bg-zinc-900/50 border border-white/5 rounded-2xl text-sm transition-all flex flex-col gap-2 custom-scrollbar">
+                      {[...services].sort((a: any, b: any) => (b.price ?? 0) - (a.price ?? 0)).map((s: any) => {
+                        const isSelected = formData.service_ids.includes(s.id);
+                        return (
+                          <label key={s.id} className="flex items-center gap-3 cursor-pointer group">
+                            <div className={cn(
+                              "w-5 h-5 rounded border flex items-center justify-center transition-all flex-shrink-0",
+                              isSelected ? "bg-primary border-primary text-white" : "border-zinc-700 bg-zinc-950 group-hover:border-zinc-500"
+                            )}>
+                              {isSelected && <CheckCircle2 className="w-3.5 h-3.5" />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={cn("truncate transition-colors", isSelected ? "text-white" : "text-zinc-400 group-hover:text-zinc-300")}>{s.name}</p>
+                              <p className="text-xs text-zinc-600">${Number(s.price).toLocaleString('es-CO')}</p>
+                            </div>
+                            <input 
+                              type="checkbox" 
+                              className="hidden" 
+                              checked={isSelected}
+                              onChange={(e) => {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  service_ids: e.target.checked 
+                                    ? [...prev.service_ids, s.id]
+                                    : prev.service_ids.filter(id => id !== s.id)
+                                }));
+                              }}
+                            />
+                          </label>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
@@ -398,8 +419,10 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
                 )}
               </div>
 
-              {/* Fixed Footer */}
-              <div className="p-8 border-t border-white/5 bg-zinc-900/50 sticky bottom-0 z-10 shrink-0">
+              <div className={cn(
+                "p-8 border-t sticky bottom-0 z-10 shrink-0",
+                theme === "light" ? "bg-blue-50/80 border-blue-100" : "border-white/5 bg-zinc-900/50"
+              )}>
                 <button 
                   type="submit" 
                   disabled={loading || (formData.time && !availableSlots.includes(formData.time) && availability.status !== 'checking')}

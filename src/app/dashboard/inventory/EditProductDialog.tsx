@@ -43,9 +43,9 @@ export function EditProductDialog({ product }: EditProps) {
         return;
       }
       setOpen(false);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert("Ocurrió un error inesperado");
+      alert("Ocurrió un error inesperado: " + (e.message || e));
     } finally {
       setLoading(false);
     }
@@ -94,7 +94,7 @@ export function EditProductDialog({ product }: EditProps) {
                   <label className="text-[10px] font-bold text-zinc-500 uppercase ml-1">Costo (Valor Compra)</label>
                   <input 
                     type="text" 
-                    value={costPrice ? formatCurrency(costPrice) : ""}
+                    value={costPrice !== undefined && costPrice !== null ? formatCurrency(costPrice) : ""}
                     onChange={(e) => {
                       const clean = e.target.value.replace(/[^0-9]/g, "");
                       setValue("cost_price", clean ? Number(clean) : 0);
@@ -106,7 +106,7 @@ export function EditProductDialog({ product }: EditProps) {
                   <label className="text-[10px] font-bold text-zinc-500 uppercase ml-1">Precio Venta (Público)</label>
                   <input 
                     type="text" 
-                    value={retailPrice ? formatCurrency(retailPrice) : ""}
+                    value={retailPrice !== undefined && retailPrice !== null ? formatCurrency(retailPrice) : ""}
                     onChange={(e) => {
                       const clean = e.target.value.replace(/[^0-9]/g, "");
                       setValue("retail_price", clean ? Number(clean) : 0);

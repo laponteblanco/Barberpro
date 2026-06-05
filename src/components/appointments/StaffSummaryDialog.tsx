@@ -37,6 +37,7 @@ interface StaffSummaryDialogProps {
 }
 
 export function StaffSummaryDialog({ barber, appointments, onClose, theme = "dark" }: StaffSummaryDialogProps) {
+  const isLight = theme === "light";
   const [activeTab, setActiveTab] = useState<'arqueo' | 'services' | 'finance'>('arqueo');
   const [ledgerData, setLedgerData] = useState<any>(null);
   const [loadingLedger, setLoadingLedger] = useState(false);
@@ -166,9 +167,15 @@ export function StaffSummaryDialog({ barber, appointments, onClose, theme = "dar
       theme === "light" ? "theme-light" : "theme-dark",
       "fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-300"
     )}>
-      <div className="w-full max-w-lg bg-card border border-border rounded-[40px] shadow-[0_0_100px_-20px_rgba(0,0,0,0.8)] overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[85vh]">
+      <div className={cn(
+        "w-full max-w-lg border rounded-[40px] shadow-[0_0_100px_-20px_rgba(0,0,0,0.8)] overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[85vh]",
+        theme === "light" ? "theme-light bg-white border-blue-200" : "bg-card border-border"
+      )}>
         {/* Header */}
-        <div className="px-8 py-6 border-b border-border flex items-center justify-between bg-muted/30 shrink-0">
+        <div className={cn(
+          "px-8 py-6 border-b flex items-center justify-between shrink-0",
+          theme === "light" ? "bg-blue-50/80 border-blue-100" : "border-border bg-muted/30"
+        )}>
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-secondary border border-border flex items-center justify-center overflow-hidden shrink-0">
               {barber.avatar_url ? (
@@ -188,7 +195,10 @@ export function StaffSummaryDialog({ barber, appointments, onClose, theme = "dar
         </div>
 
         {/* Tabs Navigation */}
-        <div className="flex px-8 border-b border-border shrink-0 bg-muted/10">
+        <div className={cn(
+          "flex px-8 border-b shrink-0",
+          theme === "light" ? "border-blue-100 bg-blue-50/30" : "border-border bg-muted/10"
+        )}>
           <button 
             onClick={() => setActiveTab('arqueo')}
             className={cn(
@@ -228,39 +238,39 @@ export function StaffSummaryDialog({ barber, appointments, onClose, theme = "dar
         {activeTab === 'arqueo' && (
           <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar p-8 space-y-6">
             <div className="grid grid-cols-2 gap-4">
-              <div className="p-5 rounded-3xl bg-secondary/30 border border-border space-y-1 relative overflow-hidden">
+              <div className={cn("p-5 rounded-3xl space-y-1 relative overflow-hidden border", isLight ? "bg-blue-50 border-blue-200" : "bg-secondary/30 border-border")}>
                 <div className="absolute top-0 right-0 p-4 opacity-10"><Scissors className="w-12 h-12" /></div>
                 <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black relative z-10">Totalidad de Cortes</p>
                 <p className="text-3xl font-black text-foreground relative z-10">{completedAppts.length}</p>
               </div>
-              <div className="p-5 rounded-3xl bg-secondary/30 border border-border space-y-1 relative overflow-hidden">
+              <div className={cn("p-5 rounded-3xl space-y-1 relative overflow-hidden border", isLight ? "bg-blue-50 border-blue-200" : "bg-secondary/30 border-border")}>
                 <div className="absolute top-0 right-0 p-4 opacity-10"><DollarSign className="w-12 h-12" /></div>
                 <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black relative z-10">Costo Total</p>
                 <p className="text-3xl font-black text-foreground relative z-10">{formatter.format(totalValue)}</p>
               </div>
-              <div className="p-5 rounded-3xl bg-primary/10 border border-primary/20 space-y-1 relative overflow-hidden">
+              <div className={cn("p-5 rounded-3xl space-y-1 relative overflow-hidden border", isLight ? "bg-blue-100/60 border-blue-300" : "bg-primary/10 border-primary/20")}>
                 <div className="absolute top-0 right-0 p-4 opacity-10"><User className="w-12 h-12 text-primary" /></div>
                 <p className="text-[10px] text-primary uppercase tracking-widest font-black flex items-center gap-1.5 relative z-10">Para el Barbero</p>
                 <p className="text-3xl font-black text-primary relative z-10">{formatter.format(commissionValue)}</p>
               </div>
-              <div className="p-5 rounded-3xl bg-emerald-500/10 border border-emerald-500/20 space-y-1 relative overflow-hidden">
+              <div className={cn("p-5 rounded-3xl space-y-1 relative overflow-hidden border", isLight ? "bg-emerald-50 border-emerald-200" : "bg-emerald-500/10 border-emerald-500/20")}>
                 <div className="absolute top-0 right-0 p-4 opacity-10"><DollarSign className="w-12 h-12 text-emerald-500" /></div>
                 <p className="text-[10px] text-emerald-500 uppercase tracking-widest font-black flex items-center gap-1.5 relative z-10">Para la Barbería</p>
                 <p className="text-3xl font-black text-emerald-500 relative z-10">{formatter.format(totalValue - commissionValue)}</p>
               </div>
-              <div className="p-5 rounded-3xl bg-red-500/10 border border-red-500/20 space-y-1 relative overflow-hidden">
+              <div className={cn("p-5 rounded-3xl space-y-1 relative overflow-hidden border", isLight ? "bg-red-50 border-red-200" : "bg-red-500/10 border-red-500/20")}>
                 <div className="absolute top-0 right-0 p-4 opacity-10"><ArrowUpRight className="w-12 h-12 text-red-500" /></div>
                 <p className="text-[10px] text-red-500 uppercase tracking-widest font-black flex items-center gap-1.5 relative z-10">Vales (Adelantos)</p>
                 <p className="text-3xl font-black text-red-500 relative z-10">{formatter.format(totals.totalAdvances)}</p>
               </div>
-              <div className="p-5 rounded-3xl bg-amber-500/10 border border-amber-500/20 space-y-1 relative overflow-hidden">
+              <div className={cn("p-5 rounded-3xl space-y-1 relative overflow-hidden border", isLight ? "bg-amber-50 border-amber-200" : "bg-amber-500/10 border-amber-500/20")}>
                 <div className="absolute top-0 right-0 p-4 opacity-10"><ShoppingBag className="w-12 h-12 text-amber-500" /></div>
                 <p className="text-[10px] text-amber-500 uppercase tracking-widest font-black flex items-center gap-1.5 relative z-10">Saldo Productos</p>
                 <p className="text-3xl font-black text-amber-500 relative z-10">{formatter.format(totals.totalConsignments)}</p>
               </div>
             </div>
 
-            <div className="p-6 rounded-3xl bg-muted/20 border border-border flex items-center justify-between relative overflow-hidden">
+            <div className={cn("p-6 rounded-3xl flex items-center justify-between relative overflow-hidden border", isLight ? "bg-blue-50 border-blue-200" : "bg-muted/20 border-border")}>
               <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 blur-3xl rounded-full -mr-10 -mt-10" />
               <div className="relative z-10">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black">A Pagar Hoy (Barbero)</p>
@@ -281,7 +291,7 @@ export function StaffSummaryDialog({ barber, appointments, onClose, theme = "dar
           <>
             {/* Services List */}
             <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pl-8 pr-6 pb-8 pt-6">
-              <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-4 sticky top-0 bg-card py-2 z-10">Servicios Terminados</h4>
+              <h4 className={cn("text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-4 sticky top-0 py-2 z-10", isLight ? "bg-white" : "bg-card")}>Servicios Terminados</h4>
               <div className="space-y-3">
                 {completedAppts.length === 0 ? (
                   <div className="py-10 text-center space-y-2">
@@ -290,9 +300,9 @@ export function StaffSummaryDialog({ barber, appointments, onClose, theme = "dar
                   </div>
                 ) : (
                   completedAppts.map((appt) => (
-                    <div key={appt.id} className="p-4 bg-secondary/20 border border-border rounded-2xl flex items-center justify-between group hover:border-border/80 transition-all">
+                    <div key={appt.id} className={cn("p-4 border rounded-2xl flex items-center justify-between group transition-all", isLight ? "bg-blue-50/80 border-blue-200 hover:border-blue-300" : "bg-secondary/20 border-border hover:border-border/80")}>
                       <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-secondary border border-border flex items-center justify-center">
+                        <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center border", isLight ? "bg-blue-100 border-blue-200" : "bg-secondary border-border")}>
                           <Scissors className="w-4 h-4 text-muted-foreground" />
                         </div>
                         <div>
@@ -322,7 +332,7 @@ export function StaffSummaryDialog({ barber, appointments, onClose, theme = "dar
             </div>
 
             {/* Footer */}
-            <div className="p-6 bg-muted/30 border-t border-border text-center shrink-0">
+            <div className={cn("p-6 border-t text-center shrink-0", isLight ? "bg-blue-50/80 border-blue-100" : "bg-muted/30 border-border")}>
               <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest">
                 {completedAppts.length} servicios totales hoy · Comisión específica por días aplicada
               </p>
@@ -342,7 +352,7 @@ export function StaffSummaryDialog({ barber, appointments, onClose, theme = "dar
               <>
                 {/* Summary Grid */}
                 <div className="grid grid-cols-2 gap-3 shrink-0">
-                  <div className="p-4 rounded-2xl bg-secondary/30 border border-border space-y-0.5">
+                  <div className={cn("p-4 rounded-2xl space-y-0.5 border", isLight ? "bg-blue-50 border-blue-200" : "bg-secondary/30 border-border")}>
                     <p className="text-[9px] text-muted-foreground uppercase tracking-widest font-black">Saldo Pendiente</p>
                     <p className={cn(
                       "text-base font-black",
@@ -351,22 +361,22 @@ export function StaffSummaryDialog({ barber, appointments, onClose, theme = "dar
                       {formatter.format(totals.pendingBalance)}
                     </p>
                   </div>
-                  <div className="p-4 rounded-2xl bg-secondary/30 border border-border space-y-0.5">
+                  <div className={cn("p-4 rounded-2xl space-y-0.5 border", isLight ? "bg-blue-50 border-blue-200" : "bg-secondary/30 border-border")}>
                     <p className="text-[9px] text-muted-foreground uppercase tracking-widest font-black">Total Vales</p>
                     <p className="text-base font-black text-foreground">{formatter.format(totals.totalAdvances)}</p>
                   </div>
-                  <div className="p-4 rounded-2xl bg-secondary/30 border border-border space-y-0.5">
+                  <div className={cn("p-4 rounded-2xl space-y-0.5 border", isLight ? "bg-blue-50 border-blue-200" : "bg-secondary/30 border-border")}>
                     <p className="text-[9px] text-muted-foreground uppercase tracking-widest font-black">Consignaciones</p>
                     <p className="text-base font-black text-foreground">{formatter.format(totals.totalConsignments)}</p>
                   </div>
-                  <div className="p-4 rounded-2xl bg-secondary/30 border border-border space-y-0.5">
+                  <div className={cn("p-4 rounded-2xl space-y-0.5 border", isLight ? "bg-blue-50 border-blue-200" : "bg-secondary/30 border-border")}>
                     <p className="text-[9px] text-muted-foreground uppercase tracking-widest font-black">Total Pagado</p>
                     <p className="text-base font-black text-emerald-500">{formatter.format(totals.totalPayments)}</p>
                   </div>
                 </div>
 
                 {/* Smart Register Form */}
-                <div className="p-5 rounded-[24px] bg-secondary/10 border border-border space-y-4">
+                <div className={cn("p-5 rounded-[24px] space-y-4 border", isLight ? "bg-blue-50/60 border-blue-200" : "bg-secondary/10 border-border")}>
                   <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1.5 leading-none">
                     <Plus className="w-3.5 h-3.5 text-primary" /> Registrar Vale, Consignación o Abono
                   </h4>
@@ -383,7 +393,7 @@ export function StaffSummaryDialog({ barber, appointments, onClose, theme = "dar
                           "py-2 rounded-xl text-[9px] font-black uppercase tracking-wider border transition-all text-center",
                           txType === 'advance' 
                             ? "bg-red-500/10 border-red-500/30 text-red-500" 
-                            : "bg-secondary border-border text-muted-foreground hover:text-foreground"
+                            : (isLight ? "bg-white border-blue-200 text-slate-500 hover:text-slate-900" : "bg-secondary border-border text-muted-foreground hover:text-foreground")
                         )}
                       >
                         Vale (Dinero)
@@ -395,7 +405,7 @@ export function StaffSummaryDialog({ barber, appointments, onClose, theme = "dar
                           "py-2 rounded-xl text-[9px] font-black uppercase tracking-wider border transition-all text-center",
                           txType === 'consignment' 
                             ? "bg-primary/10 border-primary/30 text-primary" 
-                            : "bg-secondary border-border text-muted-foreground hover:text-foreground"
+                            : (isLight ? "bg-white border-blue-200 text-slate-500 hover:text-slate-900" : "bg-secondary border-border text-muted-foreground hover:text-foreground")
                         )}
                       >
                         Fiar Producto
@@ -410,7 +420,7 @@ export function StaffSummaryDialog({ barber, appointments, onClose, theme = "dar
                           "py-2 rounded-xl text-[9px] font-black uppercase tracking-wider border transition-all text-center",
                           txType === 'payment' 
                             ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500" 
-                            : "bg-secondary border-border text-muted-foreground hover:text-foreground"
+                            : (isLight ? "bg-white border-blue-200 text-slate-500 hover:text-slate-900" : "bg-secondary border-border text-muted-foreground hover:text-foreground")
                         )}
                       >
                         Abono (Pago)
@@ -433,7 +443,7 @@ export function StaffSummaryDialog({ barber, appointments, onClose, theme = "dar
                               setTxDescription(`Consignación de ${selected.name}`);
                             }
                           }}
-                          className="w-full h-11 px-3 bg-secondary border border-border rounded-xl text-foreground outline-none focus:border-primary/50 text-xs font-bold"
+                          className={cn("w-full h-11 px-3 border rounded-xl text-foreground outline-none focus:border-primary/50 text-xs font-bold", isLight ? "bg-white border-blue-200" : "bg-secondary border-border")}
                         >
                           <option value="" disabled className="bg-card text-muted-foreground">Seleccionar producto...</option>
                           {products.map(p => (
@@ -457,7 +467,7 @@ export function StaffSummaryDialog({ barber, appointments, onClose, theme = "dar
                             onChange={(e) => setTxAmount(e.target.value.replace(/[^0-9]/g, ""))}
                             placeholder="Ej: 20000"
                             required
-                            className="w-full h-11 pl-7 pr-3 bg-secondary border border-border rounded-xl text-foreground outline-none focus:border-primary/50 text-xs font-bold"
+                            className={cn("w-full h-11 pl-7 pr-3 border rounded-xl text-foreground outline-none focus:border-primary/50 text-xs font-bold", isLight ? "bg-white border-blue-200" : "bg-secondary border-border")}
                           />
                         </div>
                       </div>
@@ -469,7 +479,7 @@ export function StaffSummaryDialog({ barber, appointments, onClose, theme = "dar
                           value={txDescription}
                           onChange={(e) => setTxDescription(e.target.value)}
                           placeholder="Ej: Adelanto transporte"
-                          className="w-full h-11 px-3 bg-secondary border border-border rounded-xl text-foreground outline-none focus:border-primary/50 text-xs font-semibold"
+                          className={cn("w-full h-11 px-3 border rounded-xl text-foreground outline-none focus:border-primary/50 text-xs font-semibold", isLight ? "bg-white border-blue-200" : "bg-secondary border-border")}
                         />
                       </div>
                     </div>
@@ -486,7 +496,7 @@ export function StaffSummaryDialog({ barber, appointments, onClose, theme = "dar
 
                 {/* Ledger Timeline List */}
                 <div className="space-y-3">
-                  <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground sticky top-0 bg-card py-2 z-10">Movimientos Financieros</h4>
+                  <h4 className={cn("text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground sticky top-0 py-2 z-10", isLight ? "bg-white" : "bg-card")}>Movimientos Financieros</h4>
                   <div className="space-y-2">
                     {history.length === 0 ? (
                       <div className="py-10 text-center space-y-2">
@@ -503,7 +513,7 @@ export function StaffSummaryDialog({ barber, appointments, onClose, theme = "dar
                         });
 
                         return (
-                          <div key={item.id} className="p-3 bg-secondary/10 border border-border rounded-2xl flex items-center justify-between group hover:border-border/60 transition-all">
+                          <div key={item.id} className={cn("p-3 border rounded-2xl flex items-center justify-between group transition-all", isLight ? "bg-blue-50/60 border-blue-200 hover:border-blue-300" : "bg-secondary/10 border-border hover:border-border/60")}>
                             <div className="flex items-center gap-3">
                               <div className={cn(
                                 "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border",

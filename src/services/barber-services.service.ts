@@ -10,7 +10,7 @@ export async function getBarberServices() {
     .from("services")
     .select("*")
     .eq("tenant_id", tenantId)
-    .order("name", { ascending: true });
+    .order("price", { ascending: false });
 
   if (error) {
     console.error("Error fetching services:", error);

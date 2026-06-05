@@ -44,7 +44,9 @@ export default async function PublicBookingPage({
       avatar: s.profiles?.avatar_url ?? s.avatar_url ?? null
     }));
 
-  const activeServices = (tenant.services ?? []).filter((s: any) => s.is_active);
+  const activeServices = (tenant.services ?? [])
+    .filter((s: any) => s.is_active)
+    .sort((a: any, b: any) => (b.price ?? 0) - (a.price ?? 0));
   const theme = tenant.settings?.theme || "dark";
 
   return (
