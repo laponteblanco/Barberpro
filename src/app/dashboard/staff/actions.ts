@@ -2,7 +2,7 @@
 
 import { getSession } from "@/lib/supabase/session";
 import { createAdminClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 export async function addStaffAction(formData: FormData) {
   const { tenantId, user: currentUser, staff } = await getSession();
@@ -138,6 +138,7 @@ export async function addStaffAction(formData: FormData) {
   }
 
   revalidatePath("/dashboard/staff");
+  revalidateTag("tenant-data", "default");
   return { success: true, pin: access_pin };
 }
 
@@ -268,6 +269,7 @@ export async function editStaffAction(formData: FormData) {
   }
 
   revalidatePath("/dashboard/staff");
+  revalidateTag("tenant-data", "default");
   return { success: true };
 }
 
@@ -310,6 +312,7 @@ export async function deleteStaffAction(staffId: string) {
   }
 
   revalidatePath("/dashboard/staff");
+  revalidateTag("tenant-data", "default");
   return { success: true };
 }
 
@@ -483,6 +486,7 @@ export async function addLedgerTransactionAction(formData: FormData) {
 
     revalidatePath("/dashboard/appointments");
     revalidatePath("/dashboard/staff");
+  revalidateTag("tenant-data", "default");
     return { success: true };
   } catch (err: any) {
     console.error("addLedgerTransactionAction error:", err);

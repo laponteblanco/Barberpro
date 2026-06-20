@@ -2,7 +2,7 @@
 
 import { getSession } from "@/lib/supabase/session";
 import { createAdminClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 
 const dayHoursSchema = z.object({
@@ -91,6 +91,7 @@ export async function updateTenantProfile(data: ProfileFormData) {
 
   // Forzar revalidación de todo el dashboard para actualizar sidebar
   revalidatePath("/dashboard", "layout");
+  revalidateTag("tenant-data", "default");
   
   return { success: true };
 }

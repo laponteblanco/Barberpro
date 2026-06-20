@@ -8,6 +8,7 @@ import { notFound } from "next/navigation";
 import { BookingPortal } from "@/components/booking/BookingPortal";
 import { Suspense } from "react";
 import BookingLoading from "./loading";
+import { getCachedTenantData } from "@/lib/cache/tenant";
 
 export default async function PublicBookingPage({ 
   params 
@@ -24,24 +25,13 @@ export default async function PublicBookingPage({
 }
 
 async function BookingContent({ slug }: { slug: string }) {
-  let adminSupabase;
-  try {
-    adminSupabase = await createAdminClient();
-  } catch (err) {
-    console.error("[PublicBookingPage] Failed to create admin client:", err);
-    notFound();
-  }
+  // adminSupabase client creation is now handled inside getCachedTenantData
 
-  // Fetch tenant info
-  const { data: tenant, error } = await (adminSupabase as any)
-    .from("tenants")
-    .select("*, services(*), tenant_staff(*, profiles(*))")
-    .eq("slug", slug)
-    .eq("is_active", true)
-    .single();
+  // Fetch tenant info using cache
+  const tenant = await getCachedTenantData(slug);
 
-  if (error || !tenant) {
-    console.error("[PublicBookingPage] Error fetching tenant for slug:", slug, error);
+  if (!tenant) {
+    console.error("[PublicBookingPage] Tenant not found for slug:", slug);
     notFound();
   }
 

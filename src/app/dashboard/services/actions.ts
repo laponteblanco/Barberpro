@@ -2,7 +2,7 @@
 
 import { getSession } from "@/lib/supabase/session";
 import { createAdminClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 export async function createServiceAction(formData: FormData) {
   const { tenantId } = await getSession();
@@ -60,6 +60,7 @@ export async function createServiceAction(formData: FormData) {
 
   revalidatePath("/dashboard/services");
   revalidatePath("/dashboard/appointments");
+  revalidateTag("tenant-data", "default");
   return { success: true, service: newService };
 }
 
@@ -118,6 +119,7 @@ export async function updateServiceAction(serviceId: string, formData: FormData)
 
   revalidatePath("/dashboard/services");
   revalidatePath("/dashboard/appointments");
+  revalidateTag("tenant-data", "default");
   return { success: true };
 }
 
@@ -143,5 +145,6 @@ export async function deleteServiceAction(serviceId: string) {
 
   revalidatePath("/dashboard/services");
   revalidatePath("/dashboard/appointments");
+  revalidateTag("tenant-data", "default");
   return { success: true };
 }
