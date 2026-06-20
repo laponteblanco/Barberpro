@@ -33,13 +33,13 @@ export const getSession = cache(async () => {
   const [staffRes, fallbackRes] = await Promise.all([
     adminSupabase
       .from("tenant_staff" as any)
-      .select("*, tenant:tenants(id, name, slug, logo_url)" as any)
+      .select("*, tenant:tenants(id, name, slug, logo_url, settings)" as any)
       .eq("user_id", user.id)
       .eq("is_active", true)
       .order("created_at", { ascending: false }),
     adminSupabase
       .from("tenants")
-      .select("id, name, slug, logo_url")
+      .select("id, name, slug, logo_url, settings")
       .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle()
@@ -66,7 +66,7 @@ export const getSession = cache(async () => {
     if (isOwnerUser && impersonatedStaffId) {
       const { data: impersonatedData } = await adminSupabase
         .from("tenant_staff" as any)
-        .select("*, tenant:tenants(id, name, slug, logo_url)" as any)
+        .select("*, tenant:tenants(id, name, slug, logo_url, settings)" as any)
         .eq("id", impersonatedStaffId)
         .eq("tenant_id", staffData.tenant_id)
         .eq("is_active", true)
@@ -132,7 +132,7 @@ export const getSession = cache(async () => {
             role: 'admin',
             is_active: true
           } as any)
-          .select("*, tenant:tenants(id, name, slug, logo_url)")
+          .select("*, tenant:tenants(id, name, slug, logo_url, settings)")
           .single();
 
         if (newStaff) {

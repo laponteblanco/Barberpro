@@ -1,14 +1,29 @@
+export const unstable_instant = {
+  prefetch: 'static',
+  unstable_disableValidation: true
+};
+
 import { createAdminClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import { BookingPortal } from "@/components/booking/BookingPortal";
+import { Suspense } from "react";
+import BookingLoading from "./loading";
 
 export default async function PublicBookingPage({ 
   params 
 }: { 
   params: Promise<{ slug: string }> 
 }) {
-  const { slug } = await params;
-  
+  return (
+    <Suspense fallback={<BookingLoading />}>
+      {params.then(({ slug }) => (
+        <BookingContent slug={slug} />
+      ))}
+    </Suspense>
+  );
+}
+
+async function BookingContent({ slug }: { slug: string }) {
   let adminSupabase;
   try {
     adminSupabase = await createAdminClient();
@@ -25,13 +40,8 @@ export default async function PublicBookingPage({
     .eq("is_active", true)
     .single();
 
-  if (error) {
+  if (error || !tenant) {
     console.error("[PublicBookingPage] Error fetching tenant for slug:", slug, error);
-    notFound();
-  }
-
-  if (!tenant) {
-    console.error("[PublicBookingPage] No tenant found for slug:", slug);
     notFound();
   }
 

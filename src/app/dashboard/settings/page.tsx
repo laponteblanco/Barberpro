@@ -3,8 +3,6 @@ import { promoteToAdminAction } from "./rescue";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-export const dynamic = "force-dynamic";
-
 export default function SettingsPage() {
   const sections = [
     { 

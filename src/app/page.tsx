@@ -10,9 +10,6 @@ import { AuthModals } from "@/components/home/AuthModals";
 import { TenantDirectory } from "@/components/home/TenantDirectory";
 import { cn } from "@/lib/utils";
 
-// Activar ISR en Netlify (Revalidar la página cada 60 segundos)
-export const revalidate = 60;
-
 export default async function HomePage() {
   // Fetch active tenants from Supabase en el servidor (Sin cookies para permitir renderizado estático real)
   const supabase = createSupabaseClient(

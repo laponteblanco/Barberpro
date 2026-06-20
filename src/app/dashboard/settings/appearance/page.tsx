@@ -3,8 +3,6 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import AppearanceClientPage from "./AppearanceClientPage";
 
-export const dynamic = "force-dynamic";
-
 export default async function AppearancePage() {
   const { tenantId, user } = await getSession();
   if (!tenantId || !user) redirect("/");

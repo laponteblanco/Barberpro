@@ -7,6 +7,8 @@ import { createAdminClient } from "@/lib/supabase/server";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { AdminSelectorModal } from "@/components/layout/AdminSelectorModal";
 
+export const unstable_instant = false;
+
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, staff, activeRole } = await getSession();
   
@@ -79,10 +81,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const tenantName = staff?.tenant?.name ?? "Mi Barbería";
   const tenantLogoUrl = staff?.tenant?.logo_url;
   
-  // Fetch tenant settings for theme
-  const adminSupabase = await createAdminClient();
-  const { data: tenantData } = await (adminSupabase as any).from("tenants").select("settings").eq("id", staff?.tenant?.id || user.user_metadata?.tenant_id).single();
-  const theme = tenantData?.settings?.theme || "dark";
+  // Get tenant settings from session for theme
+  const theme = staff?.tenant?.settings?.theme || "dark";
 
   const userName: string =
     staff?.display_name ||

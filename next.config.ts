@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Enable cache components for instant navigation features
+  cacheComponents: true,
+
   // Enable React strict mode for catching bugs early
   reactStrictMode: true,
 

@@ -37,6 +37,15 @@ export async function POST(
   { params }: { params: Promise<{ tenantId: string }> }
 ) {
   const { tenantId } = await params;
+  const session = await getSession();
+
+  // SEGURIDAD: Verificar acceso al tenant
+  if (!session.user || session.tenantId !== tenantId) {
+    return NextResponse.json(
+      { error: { code: "FORBIDDEN", message: "Acceso no autorizado." } },
+      { status: 403 }
+    );
+  }
 
   let body: unknown;
   try {

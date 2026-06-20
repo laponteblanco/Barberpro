@@ -3,6 +3,22 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/types/database";
 
 export async function updateSession(request: NextRequest) {
+  const url = request.nextUrl.clone();
+  const isAuthPage = url.pathname.startsWith("/auth");
+  const isDashboardPage = url.pathname.startsWith("/dashboard");
+
+  // Check if there are any active Supabase auth cookies
+  const allCookies = request.cookies.getAll();
+  const hasAuthCookie = allCookies.some(cookie => 
+    cookie.name.startsWith("sb-") || 
+    cookie.name.includes("auth-token")
+  );
+
+  // If there are no auth cookies, and it's not a dashboard route, we can skip auth check
+  if (!hasAuthCookie && !isDashboardPage) {
+    return NextResponse.next({ request });
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient<Database>(
@@ -36,10 +52,6 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getSession();
 
   const user = session?.user || null;
-
-  const url = request.nextUrl.clone();
-  const isAuthPage = url.pathname.startsWith("/auth");
-  const isDashboardPage = url.pathname.startsWith("/dashboard");
 
   // Protect dashboard routes — require authentication
   if (!user && isDashboardPage) {

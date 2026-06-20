@@ -1,17 +1,61 @@
+export const unstable_instant = {
+  prefetch: 'static',
+  unstable_disableValidation: true
+};
+
 import Link from "next/link";
-import { Clock, LayoutList, ChevronLeft, ChevronRight } from "lucide-react";
+import { Clock, LayoutList, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { NewAppointmentDialog } from "@/components/appointments/NewAppointmentDialog";
 import { getSession } from "@/lib/supabase/session";
 import { createAdminClient } from "@/lib/supabase/server";
 import { CalendarView } from "@/components/appointments/CalendarView";
+import { Suspense } from "react";
 
 export default async function AppointmentsPage({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
   const { tenantId, staff: sessionStaff, user, activeRole } = await getSession();
   if (!tenantId) return <div>No se encontró la barbería. Por favor, inicia sesión.</div>;
 
-  const { date: dateParam } = await searchParams;
-  
+  return (
+    <Suspense fallback={
+      <div className="flex-1 flex flex-col items-center justify-center min-h-[50vh] bg-background text-foreground animate-in fade-in duration-500">
+        <div className="relative">
+          <div className="w-12 h-12 rounded-2xl border-4 border-indigo-500/10 border-t-indigo-500 animate-spin" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Loader2 className="w-4 h-4 text-indigo-500 animate-pulse" />
+          </div>
+        </div>
+        <p className="mt-4 text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 animate-pulse">
+          Cargando Agenda...
+        </p>
+      </div>
+    }>
+      {searchParams.then(({ date }) => (
+        <AppointmentsContent 
+          dateParam={date} 
+          tenantId={tenantId}
+          sessionStaff={sessionStaff}
+          user={user}
+          activeRole={activeRole}
+        />
+      ))}
+    </Suspense>
+  );
+}
+
+async function AppointmentsContent({
+  dateParam,
+  tenantId,
+  sessionStaff,
+  user,
+  activeRole
+}: {
+  dateParam?: string;
+  tenantId: string;
+  sessionStaff: any;
+  user: any;
+  activeRole: string | null;
+}) {
   // Use Bogota time (UTC-5) for the default date if not provided
   const now = new Date();
   const bogotaTime = new Date(now.getTime() - (5 * 3600000));
@@ -60,7 +104,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
     fetchEnd.setHours(fetchEnd.getHours() + 36);
   }
 
-  const [ {data: appointmentsRaw}, {data: clients}, {data: staffRaw}, {data: services}, {data: tenant}, {data: blocksRaw} ] = await Promise.all([
+  const [ {data: appointmentsRaw}, {data: clients}, {data: staffRaw}, {data: services}, {data: blocksRaw} ] = await Promise.all([
     adminSupabase
       .from("appointments")
       .select("*, client:clients(*), staff:tenant_staff(*, profiles(*)), appointment_services(services(*))")
@@ -80,7 +124,6 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
       // Barber: fetch only themselves
       .match(isBarber ? { id: sessionStaff.id } : {}),
     adminSupabase.from("services").select("id, name, price, duration_minutes").eq("tenant_id", tenantId).eq("is_active", true).order("price", { ascending: false }),
-    (adminSupabase as any).from("tenants").select("settings").eq("id", tenantId).single(),
     (adminSupabase as any)
       .from("agenda_blocks")
       .select("*")
@@ -141,7 +184,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
     }
   });
 
-  const settings = (tenant as any)?.settings || {};
+  const settings = sessionStaff?.tenant?.settings || {};
   const selectedDayIndex = new Date(selectedDate + "T12:00:00Z").getDay(); // 0=Sun…6=Sat
   const byDay: Array<{open: boolean; start: number; end: number}> | undefined =
     settings?.business_hours_by_day;
@@ -217,7 +260,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
             appointments={appointments}
             startHour={startHour}
             endHour={endHour}
-            theme={tenant?.settings?.theme || "dark"}
+            theme={settings?.theme || "dark"}
             tenantId={tenantId}
           />
         </div>
@@ -234,7 +277,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
           services={services || []}
           selectedDate={selectedDate}
           viewMode={isBarber ? "days" : "staff"}
-          theme={tenant?.settings?.theme || "dark"}
+          theme={settings?.theme || "dark"}
           tenantId={tenantId}
         />
       </div>

@@ -356,7 +356,7 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
                                   ...prev,
                                   service_ids: e.target.checked 
                                     ? [...prev.service_ids, s.id]
-                                    : prev.service_ids.filter(id => id !== s.id)
+                                    : prev.service_ids.filter((id: string) => id !== s.id)
                                 }));
                               }}
                             />
