@@ -1,7 +1,8 @@
+import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 
-const url = 'https://vsslcbsdvxbsfivcfxfd.supabase.co';
-const serviceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZzc2xjYnNkdnhic2ZpdmNmeGZkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTU5MTA1OCwiZXhwIjoyMDk1MTY3MDU4fQ.i1lG7x3dhAaGBvVgz6toa_PMrAALlYULgSvSDRk0JSk';
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(url, serviceKey);
 
 const tenantId = 'c6469c0a-054d-4d84-bdff-839498dac32c'; // MOON CITY BARBER

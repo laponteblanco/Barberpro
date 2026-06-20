@@ -1,11 +1,12 @@
+import 'dotenv/config';
 // One-time migration script to fix FK constraint
 // Run with: node run_migration.mjs
 
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
-  'https://vsslcbsdvxbsfivcfxfd.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZzc2xjYnNkdnhic2ZpdmNmeGZkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTU5MTA1OCwiZXhwIjoyMDk1MTY3MDU4fQ.i1lG7x3dhAaGBvVgz6toa_PMrAALlYULgSvSDRk0JSk'
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 const sql = `
