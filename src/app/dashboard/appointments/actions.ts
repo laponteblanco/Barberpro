@@ -3,6 +3,7 @@
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { getSession } from "@/lib/supabase/session";
 import { revalidatePath } from "next/cache";
+import { runInBackground } from "@/lib/background-tasks";
 
 interface ServiceRecord {
   duration_minutes: number;
@@ -138,6 +139,13 @@ export async function createAppointmentAction(formData: FormData) {
   }
 
   revalidatePath("/dashboard/appointments");
+
+  runInBackground("Send WhatsApp Confirmation", async () => {
+    // Aquí iría la lógica pesada: consultar API de WhatsApp, esperar respuesta, guardar log
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    console.log(`[WhatsApp] Confirmación de cita enviada asincrónicamente para la cita ${appt.id}`);
+  });
+
   return { success: true };
 }
 
@@ -237,6 +245,15 @@ export async function updateAppointmentStatusAction(appointmentId: string, statu
   }
   
   revalidatePath("/dashboard/appointments");
+
+  if (status === "confirmed" || status === "completed") {
+    runInBackground("Send WhatsApp Status Update", async () => {
+      // Simular tarea pesada o envío real
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.log(`[WhatsApp] Actualización de estado (${status}) enviada asincrónicamente para la cita ${appointmentId}`);
+    });
+  }
+
   return { success: true };
 }
 
