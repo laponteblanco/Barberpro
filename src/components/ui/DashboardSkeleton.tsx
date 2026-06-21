@@ -27,7 +27,7 @@ export default function DashboardSkeleton() {
             </div>
           </div>
           <p className="text-xs font-black uppercase tracking-[0.3em] text-zinc-500 animate-pulse">
-            Cargando Interfaz...
+            Preparando Módulo...
           </p>
         </div>
       </div>

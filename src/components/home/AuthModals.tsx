@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { 
   Lock, 
   Loader2, 
@@ -22,6 +23,7 @@ import { createClient } from "@/lib/supabase/client";
 type UserRole = "superadmin" | "admin" | "barber";
 
 export function AuthModals() {
+  const router = useRouter();
   const [activeModal, setActiveModal] = useState<UserRole | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -79,7 +81,8 @@ export function AuthModals() {
         // Guardar el rol activo en cookies antes de redirigir como Barbero
         document.cookie = "active_role=barber; path=/; max-age=31536000; SameSite=Lax; Secure";
 
-        window.location.href = '/dashboard/appointments';
+        router.refresh();
+        router.push('/dashboard/appointments');
         return;
       }
 
@@ -109,10 +112,11 @@ export function AuthModals() {
       const activeRole = data.user?.user_metadata?.role || "admin";
       document.cookie = `active_role=${activeRole}; path=/; max-age=31536000; SameSite=Lax; Secure`;
 
+      router.refresh(); // Refresh para asegurar que las cookies se envían
       if (data.user?.user_metadata?.require_password_change) {
-        window.location.href = '/auth/reset-password';
+        router.push('/auth/reset-password');
       } else {
-        window.location.href = '/dashboard/appointments';
+        router.push('/dashboard/appointments');
       }
     } catch (err: any) {
       console.error("Client Error:", err);
