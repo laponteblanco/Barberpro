@@ -34,11 +34,9 @@ export const getSession = cache(async () => {
 
   const adminSupabase = await createAdminClient();
   
-  // Try to find staff/tenant link and the first tenant
-  let staffRes: any = { data: null };
-  try {
-    console.log("-> Starting staff query...");
-    staffRes = await withTimeout(
+  // Run both queries in parallel to avoid sequential timeouts
+  const [staffSettled, fallbackSettled] = await Promise.allSettled([
+    withTimeout(
       adminSupabase
         .from("tenant_staff" as any)
         .select("*, tenant:tenants(id, name, slug, logo_url, settings)" as any)
@@ -47,15 +45,8 @@ export const getSession = cache(async () => {
         .order("created_at", { ascending: false }),
       10000,
       "Fetch Tenant Staff"
-    );
-  } catch (error) {
-    console.error("Timeout/Error fetching staff:", error);
-  }
-  
-  let fallbackRes: any = { data: null };
-  try {
-    console.log("-> Starting tenant query...");
-    fallbackRes = await withTimeout(
+    ),
+    withTimeout(
       adminSupabase
         .from("tenants")
         .select("id, name, slug, logo_url, settings")
@@ -64,19 +55,39 @@ export const getSession = cache(async () => {
         .maybeSingle(),
       10000,
       "Fetch Tenants Fallback"
-    );
-  } catch (error) {
-    console.error("Timeout/Error fetching fallback tenant:", error);
-  }
-  
-  console.log("-> Both queries finished!");
+    )
+  ]);
+
+  const staffRes: any = staffSettled.status === "fulfilled" ? staffSettled.value : { data: null };
+  const fallbackRes: any = fallbackSettled.status === "fulfilled" ? fallbackSettled.value : { data: null };
+
+  if (staffSettled.status === "rejected") console.error("Error fetching staff:", staffSettled.reason);
+  if (fallbackSettled.status === "rejected") console.error("Error fetching fallback tenant:", fallbackSettled.reason);
 
   if (staffRes.data && staffRes.data.length > 0) {
     const allStaff = staffRes.data as any[];
-    // Si el usuario tiene múltiples perfiles (ej. admin y barbero), usar el que coincida con activeRole
+    
+    // Leer la cookie x-active-tenant para priorizar la barbería actual
+    let activeTenantId: string | null = null;
+    try {
+      const cookieStore = await cookies();
+      activeTenantId = cookieStore.get("x-active-tenant")?.value || null;
+    } catch (e) {
+      // Ignorar
+    }
+
+    // Si hay un tenant activo, filtramos para que solo considere roles en ese tenant
+    const candidateStaff = activeTenantId 
+      ? allStaff.filter(s => s.tenant_id === activeTenantId)
+      : allStaff;
+      
+    // Si candidateStaff está vacío (cookie inválida o revocada), volvemos a allStaff
+    const validStaffArray = candidateStaff.length > 0 ? candidateStaff : allStaff;
+
+    // Si el usuario tiene múltiples perfiles (ej. admin y barbero en la MISMA barbería), usar el que coincida con activeRole
     let staffData = activeRole 
-      ? allStaff.find(s => s.role === activeRole) || allStaff[0]
-      : allStaff[0];
+      ? validStaffArray.find(s => s.role === activeRole) || validStaffArray[0]
+      : validStaffArray[0];
 
     // Impersonación para Dueño (Owner)
     let impersonatedStaffId: string | null = null;

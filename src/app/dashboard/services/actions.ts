@@ -5,10 +5,9 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath, revalidateTag } from "next/cache";
 
 export async function createServiceAction(formData: FormData) {
-  const { tenantId } = await getSession();
-  if (!tenantId) return { error: "No session" };
-
-  const adminSupabase = await createAdminClient();
+  const { tenantId, supabase, staff, user: currentUser } = await getSession();
+  const isAuthorized = staff?.role === "owner" || (staff?.role === "admin" && staff.permissions?.manage_services === true) || currentUser?.user_metadata?.role === "superadmin";
+  if (!tenantId || !supabase || !isAuthorized) return { error: "No autorizado para crear servicios" };
 
   const name = formData.get("name")?.toString();
   const description = formData.get("description")?.toString();
@@ -26,19 +25,19 @@ export async function createServiceAction(formData: FormData) {
     const fileName = `${tenantId}_${Date.now()}.${fileExt}`;
     const filePath = `services/${fileName}`;
 
-    const { error: uploadError } = await adminSupabase.storage
+    const { error: uploadError } = await supabase.storage
       .from("avatars") // Using avatars bucket as it already exists and is public
       .upload(filePath, imageFile);
 
     if (!uploadError) {
-      const { data: { publicUrl } } = adminSupabase.storage
+      const { data: { publicUrl } } = supabase.storage
         .from("avatars")
         .getPublicUrl(filePath);
       imageUrl = publicUrl;
     }
   }
 
-  const { data: newService, error } = await (adminSupabase as any)
+  const { data: newService, error } = await (supabase as any)
     .from("services")
     .insert([{ 
       name,
@@ -65,10 +64,9 @@ export async function createServiceAction(formData: FormData) {
 }
 
 export async function updateServiceAction(serviceId: string, formData: FormData) {
-  const { tenantId } = await getSession();
-  if (!tenantId) return { error: "No session" };
-
-  const adminSupabase = await createAdminClient();
+  const { tenantId, supabase, staff, user: currentUser } = await getSession();
+  const isAuthorized = staff?.role === "owner" || (staff?.role === "admin" && staff.permissions?.manage_services === true) || currentUser?.user_metadata?.role === "superadmin";
+  if (!tenantId || !supabase || !isAuthorized) return { error: "No autorizado para editar servicios" };
 
   const name = formData.get("name")?.toString();
   const description = formData.get("description")?.toString();
@@ -86,19 +84,19 @@ export async function updateServiceAction(serviceId: string, formData: FormData)
     const fileName = `${tenantId}_${Date.now()}.${fileExt}`;
     const filePath = `services/${fileName}`;
 
-    const { error: uploadError } = await adminSupabase.storage
+    const { error: uploadError } = await supabase.storage
       .from("avatars")
       .upload(filePath, imageFile);
 
     if (!uploadError) {
-      const { data: { publicUrl } } = adminSupabase.storage
+      const { data: { publicUrl } } = supabase.storage
         .from("avatars")
         .getPublicUrl(filePath);
       imageUrl = publicUrl;
     }
   }
 
-  const { error } = await (adminSupabase as any)
+  const { error } = await (supabase as any)
     .from("services")
     .update({
       name,
@@ -124,12 +122,11 @@ export async function updateServiceAction(serviceId: string, formData: FormData)
 }
 
 export async function deleteServiceAction(serviceId: string) {
-  const { tenantId } = await getSession();
-  if (!tenantId) return { error: "No session" };
+  const { tenantId, supabase, staff, user: currentUser } = await getSession();
+  const isAuthorized = staff?.role === "owner" || (staff?.role === "admin" && staff.permissions?.manage_services === true) || currentUser?.user_metadata?.role === "superadmin";
+  if (!tenantId || !supabase || !isAuthorized) return { error: "No autorizado para eliminar servicios" };
 
-  const adminSupabase = await createAdminClient();
-
-  const { error } = await (adminSupabase as any)
+  const { error } = await (supabase as any)
     .from("services")
     .delete()
     .eq("id", serviceId)

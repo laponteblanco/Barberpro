@@ -8,6 +8,13 @@ export async function createClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const cookieStore = await cookies();
+  
+  // Read active tenant to pass to PostgREST
+  const activeTenant = cookieStore.get("x-active-tenant")?.value;
+  const headers: Record<string, string> = {};
+  if (activeTenant) {
+    headers["x-active-tenant"] = activeTenant;
+  }
 
   return createServerClient<Database>(
     supabaseUrl || 'https://tufallback.supabase.co',
@@ -27,6 +34,9 @@ export async function createClient() {
           }
         },
       },
+      global: {
+        headers
+      }
     }
   );
 }
@@ -46,6 +56,9 @@ export async function createAdminClient() {
       auth: {
         autoRefreshToken: false,
         persistSession: false
+      },
+      global: {
+        fetch: fetch
       }
     }
   );

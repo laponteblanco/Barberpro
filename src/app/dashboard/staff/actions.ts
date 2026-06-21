@@ -8,7 +8,7 @@ export async function addStaffAction(formData: FormData) {
   const { tenantId, user: currentUser, staff } = await getSession();
 
   // SEGURIDAD: Solo admins o dueños pueden gestionar el staff
-  const isAuthorized = staff?.role === "admin" || staff?.role === "owner" || currentUser?.user_metadata?.role === "admin" || currentUser?.user_metadata?.role === "superadmin";
+  const isAuthorized = staff?.role === "owner" || (staff?.role === "admin" && staff.permissions?.manage_staff === true) || currentUser?.user_metadata?.role === "superadmin";
   if (!tenantId || !currentUser || !isAuthorized) {
     throw new Error("No autorizado para gestionar el personal.");
   }
@@ -146,7 +146,7 @@ export async function editStaffAction(formData: FormData) {
   const { tenantId, user: currentUser, staff } = await getSession();
 
   // SEGURIDAD: Solo admins o dueños pueden gestionar el staff
-  const isAuthorized = staff?.role === "admin" || staff?.role === "owner" || currentUser?.user_metadata?.role === "admin" || currentUser?.user_metadata?.role === "superadmin";
+  const isAuthorized = staff?.role === "owner" || (staff?.role === "admin" && staff.permissions?.manage_staff === true) || currentUser?.user_metadata?.role === "superadmin";
   if (!tenantId || !currentUser || !isAuthorized) {
     throw new Error("No autorizado para gestionar el personal.");
   }
@@ -274,18 +274,16 @@ export async function editStaffAction(formData: FormData) {
 }
 
 export async function deleteStaffAction(staffId: string) {
-  const { tenantId, user: currentUser, staff } = await getSession();
+  const { tenantId, user: currentUser, staff, supabase } = await getSession();
 
   // SEGURIDAD: Solo admins o dueños pueden gestionar el staff
-  const isAuthorized = staff?.role === "admin" || staff?.role === "owner" || currentUser?.user_metadata?.role === "admin" || currentUser?.user_metadata?.role === "superadmin";
-  if (!tenantId || !currentUser || !isAuthorized) {
+  const isAuthorized = staff?.role === "owner" || (staff?.role === "admin" && staff.permissions?.manage_staff === true) || currentUser?.user_metadata?.role === "superadmin";
+  if (!tenantId || !currentUser || !isAuthorized || !supabase) {
     throw new Error("No autorizado para eliminar personal.");
   }
 
-  const adminSupabase = await createAdminClient();
-
   // PREVENCIÓN: El dueño nunca se puede eliminar
-  const { data: memberToDelete, error: fetchError } = await (adminSupabase as any)
+  const { data: memberToDelete, error: fetchError } = await (supabase as any)
     .from("tenant_staff")
     .select("role")
     .eq("id", staffId)
@@ -300,7 +298,7 @@ export async function deleteStaffAction(staffId: string) {
   }
 
   // Cambiamos DELETE por UPDATE para no romper la integridad de las citas (Soft Delete)
-  const { error } = await (adminSupabase as any)
+  const { error } = await (supabase as any)
     .from("tenant_staff")
     .update({ is_active: false })
     .eq("id", staffId)
@@ -318,15 +316,13 @@ export async function deleteStaffAction(staffId: string) {
 
 export async function getLedgerDataAction(staffId: string) {
   try {
-    const { tenantId, user: currentUser } = await getSession();
-    if (!tenantId || !currentUser) {
+    const { tenantId, user: currentUser, supabase } = await getSession();
+    if (!tenantId || !currentUser || !supabase) {
       return { error: "No autorizado" };
     }
 
-    const adminSupabase = await createAdminClient();
-
     // Query ledger history with products join
-    const { data: history, error } = await (adminSupabase as any)
+    const { data: history, error } = await (supabase as any)
       .from("staff_ledger")
       .select("*, products(name, retail_price)")
       .eq("staff_id", staffId)
@@ -373,13 +369,11 @@ export async function getLedgerDataAction(staffId: string) {
 
 export async function getTenantProductsAction() {
   try {
-    const { tenantId } = await getSession();
-    if (!tenantId) return { error: "No autorizado" };
-
-    const adminSupabase = await createAdminClient();
+    const { tenantId, supabase } = await getSession();
+    if (!tenantId || !supabase) return { error: "No autorizado" };
 
     // Fetch active products with stock > 0
-    const { data: products, error } = await (adminSupabase as any)
+    const { data: products, error } = await (supabase as any)
       .from("products")
       .select("id, name, retail_price, stock")
       .eq("tenant_id", tenantId)
@@ -401,15 +395,13 @@ export async function getTenantProductsAction() {
 
 export async function addLedgerTransactionAction(formData: FormData) {
   try {
-    const { tenantId, user: currentUser, staff } = await getSession();
+    const { tenantId, user: currentUser, staff, supabase } = await getSession();
 
     // Only owners or admins can manage transactions
-    const isAuthorized = staff?.role === "admin" || staff?.role === "owner" || currentUser?.user_metadata?.role === "admin" || currentUser?.user_metadata?.role === "superadmin";
-    if (!tenantId || !currentUser || !isAuthorized) {
+    const isAuthorized = staff?.role === "owner" || (staff?.role === "admin" && staff.permissions?.manage_finances === true) || currentUser?.user_metadata?.role === "superadmin";
+    if (!tenantId || !currentUser || !isAuthorized || !supabase) {
       return { error: "No autorizado para registrar movimientos financieros." };
     }
-
-    const adminSupabase = await createAdminClient();
 
     const staffId = formData.get("staff_id")?.toString();
     const type = formData.get("type")?.toString(); // 'advance' | 'consignment' | 'payment'
@@ -426,7 +418,7 @@ export async function addLedgerTransactionAction(formData: FormData) {
     let productQty = null;
     if (type === "consignment" && productId) {
       // Fetch product to verify stock
-      const { data: product, error: prodError } = await (adminSupabase as any)
+      const { data: product, error: prodError } = await (supabase as any)
         .from("products")
         .select("stock, name")
         .eq("id", productId)
@@ -442,7 +434,7 @@ export async function addLedgerTransactionAction(formData: FormData) {
       }
 
       // Deduct stock by 1
-      const { error: updateStockError } = await (adminSupabase as any)
+      const { error: updateStockError } = await (supabase as any)
         .from("products")
         .update({ stock: product.stock - 1 })
         .eq("id", productId);
@@ -496,18 +488,16 @@ export async function addLedgerTransactionAction(formData: FormData) {
 
 export async function deleteLedgerTransactionAction(transactionId: string) {
   try {
-    const { tenantId, user: currentUser, staff } = await getSession();
+    const { tenantId, user: currentUser, staff, supabase } = await getSession();
 
     // Only owners or admins can manage transactions
-    const isAuthorized = staff?.role === "admin" || staff?.role === "owner" || currentUser?.user_metadata?.role === "admin" || currentUser?.user_metadata?.role === "superadmin";
-    if (!tenantId || !currentUser || !isAuthorized) {
+    const isAuthorized = staff?.role === "owner" || (staff?.role === "admin" && staff.permissions?.manage_finances === true) || currentUser?.user_metadata?.role === "superadmin";
+    if (!tenantId || !currentUser || !isAuthorized || !supabase) {
       return { error: "No autorizado para eliminar movimientos financieros." };
     }
 
-    const adminSupabase = await createAdminClient();
-
     // 1. Fetch transaction details to see if stock needs to be restored
-    const { data: transaction, error: fetchError } = await (adminSupabase as any)
+    const { data: transaction, error: fetchError } = await (supabase as any)
       .from("staff_ledger")
       .select("*")
       .eq("id", transactionId)
@@ -520,14 +510,14 @@ export async function deleteLedgerTransactionAction(transactionId: string) {
 
     // 2. Restore stock if it was a product consignment
     if (transaction.type === "consignment" && transaction.product_id && transaction.product_quantity) {
-      const { data: product } = await (adminSupabase as any)
+      const { data: product } = await (supabase as any)
         .from("products")
         .select("stock")
         .eq("id", transaction.product_id)
         .single();
       
       if (product) {
-        await (adminSupabase as any)
+        await (supabase as any)
           .from("products")
           .update({ stock: product.stock + transaction.product_quantity })
           .eq("id", transaction.product_id);
@@ -535,7 +525,7 @@ export async function deleteLedgerTransactionAction(transactionId: string) {
     }
 
     // 3. Delete from ledger
-    const { error: deleteError } = await (adminSupabase as any)
+    const { error: deleteError } = await (supabase as any)
       .from("staff_ledger")
       .delete()
       .eq("id", transactionId);

@@ -96,6 +96,7 @@ export interface Database {
           commission_rate: number | null;
           specialties: string[];
           working_hours: Json;
+          permissions: Record<string, boolean> | null;
           created_at: string;
           updated_at: string;
         };

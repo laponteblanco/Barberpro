@@ -10,22 +10,35 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { AuthModals } from "@/components/home/AuthModals";
 import { TenantDirectory } from "@/components/home/TenantDirectory";
 import { cn } from "@/lib/utils";
+import { withTimeout } from "@/lib/performance";
 
 export default async function HomePage() {
-  const supabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://tufallback.supabase.co',
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'tufallback-anon-key'
-  );
+  let initialTenants: any[] = [];
   
-  const { data: tenants, error } = await supabase
-    .from("tenants")
-    .select("*")
-    .eq("is_active", true)
-    .order("name", { ascending: true });
+  try {
+    const supabase = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://tufallback.supabase.co',
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'tufallback-anon-key',
+      {
+        auth: { persistSession: false },
+        global: { fetch: fetch }
+      }
+    );
     
-  if (error) console.error("Error fetching tenants:", error);
-
-  const initialTenants = tenants || [];
+    const { data: tenants, error } = await withTimeout(
+      supabase
+        .from("tenants")
+        .select("*")
+        .eq("is_active", true)
+        .order("name", { ascending: true }),
+      15000,
+      "Fetch Home Tenants"
+    );
+    if (error) console.warn("Error fetching tenants:", error);
+    initialTenants = tenants || [];
+  } catch (error) {
+    console.warn("Warning: Could not load tenants for home page:", error);
+  }
 
   return (
     <div className="min-h-screen bg-[#020617] text-slate-200 selection:bg-indigo-500/30 font-sans relative overflow-hidden">
