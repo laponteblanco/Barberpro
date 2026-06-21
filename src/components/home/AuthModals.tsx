@@ -114,7 +114,11 @@ export function AuthModals() {
       if (data.user?.user_metadata?.require_password_change) {
         window.location.href = '/auth/reset-password';
       } else {
-        window.location.href = '/dashboard/appointments';
+        if (activeRole === "superadmin") {
+          window.location.href = '/superadmin';
+        } else {
+          window.location.href = '/dashboard/appointments';
+        }
       }
     } catch (err: any) {
       console.error("Client Error:", err);
