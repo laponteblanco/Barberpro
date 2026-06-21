@@ -35,29 +35,39 @@ export const getSession = cache(async () => {
   const adminSupabase = await createAdminClient();
   
   // Try to find staff/tenant link and the first tenant
-  console.log("-> Starting staff query...");
-  const staffRes = await withTimeout(
-    adminSupabase
-      .from("tenant_staff" as any)
-      .select("*, tenant:tenants(id, name, slug, logo_url, settings)" as any)
-      .eq("user_id", user.id)
-      .eq("is_active", true)
-      .order("created_at", { ascending: false }),
-    4000,
-    "Fetch Tenant Staff"
-  );
+  let staffRes: any = { data: null };
+  try {
+    console.log("-> Starting staff query...");
+    staffRes = await withTimeout(
+      adminSupabase
+        .from("tenant_staff" as any)
+        .select("*, tenant:tenants(id, name, slug, logo_url, settings)" as any)
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false }),
+      10000,
+      "Fetch Tenant Staff"
+    );
+  } catch (error) {
+    console.error("Timeout/Error fetching staff:", error);
+  }
   
-  console.log("-> Starting tenant query...");
-  const fallbackRes = await withTimeout(
-    adminSupabase
-      .from("tenants")
-      .select("id, name, slug, logo_url, settings")
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle(),
-    4000,
-    "Fetch Tenants Fallback"
-  );
+  let fallbackRes: any = { data: null };
+  try {
+    console.log("-> Starting tenant query...");
+    fallbackRes = await withTimeout(
+      adminSupabase
+        .from("tenants")
+        .select("id, name, slug, logo_url, settings")
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle(),
+      10000,
+      "Fetch Tenants Fallback"
+    );
+  } catch (error) {
+    console.error("Timeout/Error fetching fallback tenant:", error);
+  }
   
   console.log("-> Both queries finished!");
 

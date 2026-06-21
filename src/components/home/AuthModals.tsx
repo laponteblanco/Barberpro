@@ -124,11 +124,11 @@ export function AuthModals() {
   return (
     <>
       {activeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-zinc-950 border border-white/10 w-full max-w-md rounded-[32px] p-8 shadow-2xl relative animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#020617]/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-slate-900/60 backdrop-blur-2xl border border-slate-700/50 w-full max-w-md rounded-[32px] p-8 shadow-[0_0_50px_rgba(99,102,241,0.1)] relative animate-in zoom-in-95 duration-200">
             <button 
               onClick={() => setActiveModal(null)}
-              className="absolute top-6 right-6 text-zinc-500 hover:text-white transition-colors"
+              className="absolute top-6 right-6 text-slate-500 hover:text-white transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -149,7 +149,7 @@ export function AuthModals() {
                 {activeModal === 'admin' && 'Dueño de Barbería'}
                 {activeModal === 'barber' && 'Acceso Barbero'}
               </h2>
-              <p className="text-zinc-400 text-sm mt-1">
+              <p className="text-slate-400 text-sm mt-1">
                 {activeModal === 'superadmin' && 'Ingresa al panel maestro del SaaS.'}
                 {activeModal === 'admin' && 'Gestiona tu barbería, citas y reportes.'}
                 {activeModal === 'barber' && 'Revisa tu agenda y comisiones.'}
@@ -184,7 +184,7 @@ export function AuthModals() {
                         placeholder="Ej: 12345678"
                         required
                         disabled={loading}
-                        className="w-full h-12 pl-11 pr-4 bg-black/40 border border-white/10 rounded-2xl text-white placeholder:text-zinc-700 outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/5 transition-all text-sm font-medium"
+                        className="w-full h-12 pl-11 pr-4 bg-black/20 border border-slate-700/50 rounded-2xl text-white placeholder:text-slate-500 outline-none focus:border-indigo-500/50 focus:ring-4 focus:ring-indigo-500/10 transition-all text-sm font-medium"
                       />
                     </div>
                   </div>
@@ -205,7 +205,7 @@ export function AuthModals() {
                         placeholder="••••••••"
                         required
                         disabled={loading}
-                        className="w-full h-12 pl-11 pr-12 bg-black/40 border border-white/10 rounded-2xl text-white placeholder:text-zinc-700 outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/5 transition-all text-sm"
+                        className="w-full h-12 pl-11 pr-12 bg-black/20 border border-slate-700/50 rounded-2xl text-white placeholder:text-slate-500 outline-none focus:border-indigo-500/50 focus:ring-4 focus:ring-indigo-500/10 transition-all text-sm"
                       />
                       <button
                         type="button"
@@ -237,7 +237,7 @@ export function AuthModals() {
                         placeholder="Ej: LUIS-AP"
                         required
                         disabled={loading}
-                        className="w-full h-12 pl-11 pr-4 bg-black/40 border border-white/10 rounded-2xl text-white placeholder:text-zinc-700 outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/5 transition-all text-sm font-medium uppercase"
+                        className="w-full h-12 pl-11 pr-4 bg-black/20 border border-slate-700/50 rounded-2xl text-white placeholder:text-slate-500 outline-none focus:border-indigo-500/50 focus:ring-4 focus:ring-indigo-500/10 transition-all text-sm font-medium uppercase"
                       />
                     </div>
                   </div>
@@ -259,7 +259,7 @@ export function AuthModals() {
                         required
                         disabled={loading}
                         maxLength={6}
-                        className="w-full h-12 pl-11 pr-12 bg-black/40 border border-white/10 rounded-2xl text-white placeholder:text-zinc-700 outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/5 transition-all text-sm tracking-wider"
+                        className="w-full h-12 pl-11 pr-12 bg-black/20 border border-slate-700/50 rounded-2xl text-white placeholder:text-slate-500 outline-none focus:border-indigo-500/50 focus:ring-4 focus:ring-indigo-500/10 transition-all text-sm tracking-wider"
                       />
                       <button
                         type="button"
@@ -276,7 +276,12 @@ export function AuthModals() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full h-12 mt-4 bg-primary text-black font-black rounded-2xl shadow-xl shadow-primary/20 hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2 disabled:opacity-70 text-sm uppercase tracking-wider"
+                className={cn(
+                  "w-full h-12 mt-4 font-black rounded-2xl shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-70 text-sm uppercase tracking-wider",
+                  activeModal === 'superadmin' ? "bg-purple-500 text-white shadow-purple-500/20 hover:shadow-purple-500/40" :
+                  activeModal === 'admin' ? "bg-amber-500 text-black shadow-amber-500/20 hover:shadow-amber-500/40" :
+                  "bg-indigo-500 text-white shadow-indigo-500/20 hover:shadow-indigo-500/40"
+                )}
               >
                 {loading ? (
                   <>
