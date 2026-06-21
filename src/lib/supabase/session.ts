@@ -2,6 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { createClient, createAdminClient } from "./server";
 import { cookies } from "next/headers";
+import { withTimeout } from "../performance";
 
 /**
  * Cached session helper — deduplicates auth + tenant lookups
@@ -12,7 +13,11 @@ export const getSession = cache(async () => {
 
   const {
     data: { session },
-  } = await supabase.auth.getSession();
+  } = await withTimeout(
+    supabase.auth.getSession(),
+    5000,
+    "Supabase Auth GetSession"
+  );
 
   const user = session?.user;
 
@@ -29,21 +34,32 @@ export const getSession = cache(async () => {
 
   const adminSupabase = await createAdminClient();
   
-  // Try to find staff/tenant link and the first tenant in parallel
-  const [staffRes, fallbackRes] = await Promise.all([
+  // Try to find staff/tenant link and the first tenant
+  console.log("-> Starting staff query...");
+  const staffRes = await withTimeout(
     adminSupabase
       .from("tenant_staff" as any)
       .select("*, tenant:tenants(id, name, slug, logo_url, settings)" as any)
       .eq("user_id", user.id)
       .eq("is_active", true)
       .order("created_at", { ascending: false }),
+    4000,
+    "Fetch Tenant Staff"
+  );
+  
+  console.log("-> Starting tenant query...");
+  const fallbackRes = await withTimeout(
     adminSupabase
       .from("tenants")
       .select("id, name, slug, logo_url, settings")
       .order("created_at", { ascending: true })
       .limit(1)
-      .maybeSingle()
-  ]);
+      .maybeSingle(),
+    4000,
+    "Fetch Tenants Fallback"
+  );
+  
+  console.log("-> Both queries finished!");
 
   if (staffRes.data && staffRes.data.length > 0) {
     const allStaff = staffRes.data as any[];

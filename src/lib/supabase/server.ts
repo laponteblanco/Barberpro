@@ -4,14 +4,9 @@ import "server-only";
 import { cookies } from "next/headers";
 import type { Database } from "@/types/database";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('⚠️ Variables de Supabase no detectadas en el servidor de Netlify.');
-}
-
 export async function createClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const cookieStore = await cookies();
 
   return createServerClient<Database>(
@@ -36,11 +31,17 @@ export async function createClient() {
   );
 }
 
-/** Admin client that bypasses RLS — use ONLY in trusted server contexts */
 export async function createAdminClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  
+  if (!url || !key) {
+    console.error("❌ CRITICAL: Supabase URL or Service Key is missing in createAdminClient!");
+  }
+
   return createSupabaseClient<Database>(
-    supabaseUrl || 'https://tufallback.supabase.co',
-    process.env.SUPABASE_SERVICE_ROLE_KEY || 'tufallback-service-key',
+    url || 'https://tufallback.supabase.co',
+    key || 'tufallback-service-key',
     {
       auth: {
         autoRefreshToken: false,

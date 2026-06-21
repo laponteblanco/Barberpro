@@ -11,6 +11,7 @@ import { getSession } from "@/lib/supabase/session";
 import { createAdminClient } from "@/lib/supabase/server";
 import { CalendarView } from "@/components/appointments/CalendarView";
 import { Suspense } from "react";
+import { withTimeout } from "@/lib/performance";
 
 export default async function AppointmentsPage({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
   const { tenantId, staff: sessionStaff, user, activeRole } = await getSession();
@@ -104,34 +105,38 @@ async function AppointmentsContent({
     fetchEnd.setHours(fetchEnd.getHours() + 36);
   }
 
-  const [ {data: appointmentsRaw}, {data: clients}, {data: staffRaw}, {data: services}, {data: blocksRaw} ] = await Promise.all([
-    adminSupabase
-      .from("appointments")
-      .select("*, client:clients(*), staff:tenant_staff(*, profiles(*)), appointment_services(services(*))")
-      .eq("tenant_id", tenantId)
-      .match(isBarber ? { staff_id: sessionStaff.id } : {})
-      .gte("start_time", fetchStart.toISOString())
-      .lte("start_time", fetchEnd.toISOString())
-      .neq("status", "cancelled"),
-    adminSupabase.from("clients").select("id, full_name, id_number").eq("tenant_id", tenantId).order("full_name"),
-    adminSupabase
-      .from("tenant_staff")
-      .select("id, role, commission_rate, daily_commission_rates, compensation_type, rent_amount, working_hours, profile:profiles(full_name, avatar_url)")
-      .eq("tenant_id", tenantId)
-      .eq("is_active", true)
-      .eq("role", "barber")
-      // Admin: fetch ALL active barbers
-      // Barber: fetch only themselves
-      .match(isBarber ? { id: sessionStaff.id } : {}),
-    adminSupabase.from("services").select("id, name, price, duration_minutes").eq("tenant_id", tenantId).eq("is_active", true).order("price", { ascending: false }),
-    (adminSupabase as any)
-      .from("agenda_blocks")
-      .select("*")
-      .eq("tenant_id", tenantId)
-      .match(isBarber ? { staff_id: sessionStaff.id } : {})
-      .gte("start_time", fetchStart.toISOString())
-      .lte("start_time", fetchEnd.toISOString())
-  ]);
+  const [ {data: appointmentsRaw}, {data: clients}, {data: staffRaw}, {data: services}, {data: blocksRaw} ] = await withTimeout(
+    Promise.all([
+      adminSupabase
+        .from("appointments")
+        .select("*, client:clients(*), staff:tenant_staff(*, profiles(*)), appointment_services(services(*))")
+        .eq("tenant_id", tenantId)
+        .match(isBarber ? { staff_id: sessionStaff.id } : {})
+        .gte("start_time", fetchStart.toISOString())
+        .lte("start_time", fetchEnd.toISOString())
+        .neq("status", "cancelled"),
+      adminSupabase.from("clients").select("id, full_name, id_number").eq("tenant_id", tenantId).order("full_name"),
+      adminSupabase
+        .from("tenant_staff")
+        .select("id, role, commission_rate, daily_commission_rates, compensation_type, rent_amount, working_hours, profile:profiles(full_name, avatar_url)")
+        .eq("tenant_id", tenantId)
+        .eq("is_active", true)
+        .eq("role", "barber")
+        // Admin: fetch ALL active barbers
+        // Barber: fetch only themselves
+        .match(isBarber ? { id: sessionStaff.id } : {}),
+      adminSupabase.from("services").select("id, name, price, duration_minutes").eq("tenant_id", tenantId).eq("is_active", true).order("price", { ascending: false }),
+      (adminSupabase as any)
+        .from("agenda_blocks")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .match(isBarber ? { staff_id: sessionStaff.id } : {})
+        .gte("start_time", fetchStart.toISOString())
+        .lte("start_time", fetchEnd.toISOString())
+    ]),
+    8000,
+    "Fetch Dashboard Main Data (Appointments/Staff)"
+  );
 
   const appointments = ((appointmentsRaw as any[]) || []).map(appt => ({
     ...appt,
