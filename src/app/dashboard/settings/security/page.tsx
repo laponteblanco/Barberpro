@@ -25,12 +25,14 @@ export default async function SecurityPage() {
   }
 
   // Fetch all admins for this tenant
-  const { data: admins } = await supabase
+  const { data: adminsData } = await supabase
     .from("tenant_staff")
     .select("*")
     .eq("tenant_id", tenantId)
     .in("role", ["admin", "owner"])
     .order("role", { ascending: false }); // owner first
+  
+  const admins = adminsData as any[];
 
   return (
     <div className="space-y-8 animate-fade-up max-w-4xl">
