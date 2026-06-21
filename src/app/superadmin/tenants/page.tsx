@@ -43,21 +43,21 @@ export default async function SuperAdminTenantsPage() {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-2">
                       <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-                        tenant.subscription.plan === 'pro' ? 'bg-indigo-500/10 text-indigo-400' :
-                        tenant.subscription.plan === 'premium' ? 'bg-violet-500/10 text-violet-400' :
+                        tenant.subscription?.plan === 'pro' ? 'bg-indigo-500/10 text-indigo-400' :
+                        tenant.subscription?.plan === 'premium' ? 'bg-violet-500/10 text-violet-400' :
                         'bg-slate-500/10 text-slate-400'
                       }`}>
-                        {tenant.subscription.plan}
+                        {tenant.subscription?.plan || 'Básico'}
                       </span>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-                      tenant.subscription.status === 'active' ? 'bg-emerald-500/10 text-emerald-400' :
-                      tenant.subscription.status === 'trialing' ? 'bg-blue-500/10 text-blue-400' :
+                      tenant.subscription?.status === 'active' ? 'bg-emerald-500/10 text-emerald-400' :
+                      tenant.subscription?.status === 'trialing' ? 'bg-blue-500/10 text-blue-400' :
                       'bg-red-500/10 text-red-400'
                     }`}>
-                      {tenant.subscription.status}
+                      {tenant.subscription?.status || 'Inactiva'}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right">
