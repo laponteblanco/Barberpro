@@ -92,8 +92,9 @@ export function Sidebar({
     document.cookie = "active_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax; Secure";
     document.cookie = "impersonated_staff_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax; Secure";
     document.cookie = "skip_admin_selector=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax; Secure";
+    document.cookie = "x-active-tenant=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax; Secure";
     await supabase.auth.signOut();
-    router.push("/");
+    window.location.href = "/";
   };
 
   return (

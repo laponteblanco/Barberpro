@@ -81,8 +81,7 @@ export function AuthModals() {
         // Guardar el rol activo en cookies antes de redirigir como Barbero
         document.cookie = "active_role=barber; path=/; max-age=31536000; SameSite=Lax; Secure";
 
-        router.refresh();
-        router.push('/dashboard/appointments');
+        window.location.href = '/dashboard/appointments';
         return;
       }
 
@@ -112,11 +111,10 @@ export function AuthModals() {
       const activeRole = data.user?.user_metadata?.role || "admin";
       document.cookie = `active_role=${activeRole}; path=/; max-age=31536000; SameSite=Lax; Secure`;
 
-      router.refresh(); // Refresh para asegurar que las cookies se envían
       if (data.user?.user_metadata?.require_password_change) {
-        router.push('/auth/reset-password');
+        window.location.href = '/auth/reset-password';
       } else {
-        router.push('/dashboard/appointments');
+        window.location.href = '/dashboard/appointments';
       }
     } catch (err: any) {
       console.error("Client Error:", err);
