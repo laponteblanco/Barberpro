@@ -177,6 +177,7 @@ export interface TenantListItem {
   id: string;
   name: string;
   slug: string;
+  logo_url: string | null;
   city: string | null;
   is_active: boolean;
   created_at: string;
@@ -188,6 +189,7 @@ export interface TenantListItem {
     price_paid: number;
   } | null;
   staff_count: number;
+  services_count: number;
 }
 
 export interface TenantListResult {
@@ -210,7 +212,7 @@ export async function listTenants(filters: TenantListFilters = {}): Promise<Tena
   // Build query
   let query = db
     .from("tenants")
-    .select("id, name, slug, city, is_active, created_at", { count: "exact" })
+    .select("id, name, slug, logo_url, city, is_active, created_at", { count: "exact" })
     .order("created_at", { ascending: false })
     .range(offset, offset + pageSize - 1);
 
@@ -225,12 +227,15 @@ export async function listTenants(filters: TenantListFilters = {}): Promise<Tena
   // Fetch subscriptions and staff counts for these tenants
   const tenantIds = tenantList.map((t: any) => t.id);
 
-  const [subsRes, staffRes] = await Promise.all([
+  const [subsRes, staffRes, servicesRes] = await Promise.all([
     tenantIds.length > 0
       ? db.from("subscriptions").select("*").in("tenant_id", tenantIds).order("created_at", { ascending: false })
       : Promise.resolve({ data: [] }),
     tenantIds.length > 0
       ? db.from("tenant_staff").select("tenant_id").in("tenant_id", tenantIds).eq("is_active", true)
+      : Promise.resolve({ data: [] }),
+    tenantIds.length > 0
+      ? db.from("services").select("tenant_id").in("tenant_id", tenantIds)
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -246,6 +251,11 @@ export async function listTenants(filters: TenantListFilters = {}): Promise<Tena
     staffCounts.set(s.tenant_id, (staffCounts.get(s.tenant_id) || 0) + 1);
   }
 
+  const servicesCounts = new Map<string, number>();
+  for (const s of (servicesRes.data ?? [])) {
+    servicesCounts.set(s.tenant_id, (servicesCounts.get(s.tenant_id) || 0) + 1);
+  }
+
   // Apply filters on subscription data
   let result: TenantListItem[] = tenantList.map((t: any) => {
     const sub = subsMap.get(t.id);
@@ -253,6 +263,7 @@ export async function listTenants(filters: TenantListFilters = {}): Promise<Tena
       id: t.id,
       name: t.name,
       slug: t.slug,
+      logo_url: t.logo_url,
       city: t.city,
       is_active: t.is_active,
       created_at: t.created_at,
@@ -266,6 +277,7 @@ export async function listTenants(filters: TenantListFilters = {}): Promise<Tena
           }
         : null,
       staff_count: staffCounts.get(t.id) ?? 0,
+      services_count: servicesCounts.get(t.id) ?? 0,
     };
   });
 
