@@ -448,7 +448,7 @@ export async function addLedgerTransactionAction(formData: FormData) {
     }
 
     // 2. Insert into ledger
-    const { error: insertError } = await (adminSupabase as any)
+    const { error: insertError } = await (supabase as any)
       .from("staff_ledger")
       .insert({
         tenant_id: tenantId,
@@ -464,13 +464,13 @@ export async function addLedgerTransactionAction(formData: FormData) {
       console.error("Ledger insert error:", insertError);
       // Rollback stock deduction if it was a consignment
       if (type === "consignment" && productId) {
-        const { data: product } = await (adminSupabase as any)
+        const { data: product } = await (supabase as any)
           .from("products")
           .select("stock")
           .eq("id", productId)
           .single();
         if (product) {
-          await (adminSupabase as any).from("products").update({ stock: product.stock + 1 }).eq("id", productId);
+          await (supabase as any).from("products").update({ stock: product.stock + 1 }).eq("id", productId);
         }
       }
       return { error: `Error al registrar en el historial: ${insertError.message}` };
