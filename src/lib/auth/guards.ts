@@ -24,6 +24,7 @@ export async function requireTenantAccess(tenantId: string): Promise<TenantStaff
       commission_rate: 0,
       specialties: [],
       working_hours: {},
+      permissions: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     } as TenantStaff;
