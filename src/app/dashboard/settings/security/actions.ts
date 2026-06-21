@@ -72,7 +72,7 @@ export async function createAdminUserAction(formData: FormData) {
 
   revalidatePath("/dashboard/settings/security");
   revalidatePath("/dashboard/staff");
-  revalidateTag("tenant-data");
+  revalidateTag("tenant-data", "default");
   return { success: true };
 }
 
