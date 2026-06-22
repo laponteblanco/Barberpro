@@ -86,14 +86,14 @@ export async function signUpAction(data: any) {
 
       const tenantData = tenant as any;
 
-      // 2.3 Asignar al usuario como Administrador del nuevo Tenant
+      // 2.3 Asignar al usuario como Dueño del nuevo Tenant
       const { error: staffError } = await adminSupabase
         .from('tenant_staff')
         .insert({
           tenant_id: tenantData.id,
           user_id: newUser.id,
           display_name: name,
-          role: 'admin',
+          role: 'owner',
           is_active: true
         } as any);
 
