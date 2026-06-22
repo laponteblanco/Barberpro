@@ -10,7 +10,7 @@ export async function addStaffAction(formData: FormData) {
   // SEGURIDAD: Solo admins o dueños pueden gestionar el staff
   const isAuthorized = staff?.role === "owner" || staff?.role === "admin" || currentUser?.user_metadata?.role === "superadmin";
   if (!tenantId || !currentUser || !isAuthorized) {
-    throw new Error("No autorizado para gestionar el personal.");
+    return { error: "No autorizado para gestionar el personal." };
   }
 
   const adminSupabase = await createAdminClient();
@@ -24,7 +24,7 @@ export async function addStaffAction(formData: FormData) {
   const commission_rate = parseFloat(formData.get("commission_rate")?.toString() || "0");
   const rent_amount = parseFloat(formData.get("rent_amount")?.toString() || "0");
 
-  if (!display_name || !id_number) throw new Error("Faltan campos obligatorios");
+  if (!display_name || !id_number) return { error: "Faltan campos obligatorios" };
 
   let avatarUrl = "";
   if (avatarFile && avatarFile.size > 0) {
@@ -148,7 +148,7 @@ export async function editStaffAction(formData: FormData) {
   // SEGURIDAD: Solo admins o dueños pueden gestionar el staff
   const isAuthorized = staff?.role === "owner" || staff?.role === "admin" || currentUser?.user_metadata?.role === "superadmin";
   if (!tenantId || !currentUser || !isAuthorized) {
-    throw new Error("No autorizado para gestionar el personal.");
+    return { error: "No autorizado para gestionar el personal." };
   }
 
   const adminSupabase = await createAdminClient();
@@ -165,7 +165,7 @@ export async function editStaffAction(formData: FormData) {
   const commission_rate = parseFloat(formData.get("commission_rate")?.toString() || "0");
   const rent_amount = parseFloat(formData.get("rent_amount")?.toString() || "0");
 
-  if (!staff_id || !user_id || !display_name || !id_number) throw new Error("Faltan campos obligatorios");
+  if (!staff_id || !user_id || !display_name || !id_number) return { error: "Faltan campos obligatorios" };
 
   let avatarUrl = formData.get("current_avatar")?.toString() || "";
   if (avatarFile && avatarFile.size > 0) {
@@ -279,7 +279,7 @@ export async function deleteStaffAction(staffId: string) {
   // SEGURIDAD: Solo admins o dueños pueden gestionar el staff
   const isAuthorized = staff?.role === "owner" || staff?.role === "admin" || currentUser?.user_metadata?.role === "superadmin";
   if (!tenantId || !currentUser || !isAuthorized || !supabase) {
-    throw new Error("No autorizado para eliminar personal.");
+    return { error: "No autorizado para eliminar personal." };
   }
 
   // PREVENCIÓN: El dueño nunca se puede eliminar
