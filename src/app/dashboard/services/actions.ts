@@ -6,7 +6,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 
 export async function createServiceAction(formData: FormData) {
   const { tenantId, supabase, staff, user: currentUser } = await getSession();
-  const isAuthorized = staff?.role === "owner" || (staff?.role === "admin" && staff.permissions?.manage_services === true) || currentUser?.user_metadata?.role === "superadmin";
+  const isAuthorized = staff?.role === "owner" || staff?.role === "admin" || currentUser?.user_metadata?.role === "superadmin";
   if (!tenantId || !supabase || !isAuthorized) return { error: "No autorizado para crear servicios" };
 
   const name = formData.get("name")?.toString();
@@ -65,7 +65,7 @@ export async function createServiceAction(formData: FormData) {
 
 export async function updateServiceAction(serviceId: string, formData: FormData) {
   const { tenantId, supabase, staff, user: currentUser } = await getSession();
-  const isAuthorized = staff?.role === "owner" || (staff?.role === "admin" && staff.permissions?.manage_services === true) || currentUser?.user_metadata?.role === "superadmin";
+  const isAuthorized = staff?.role === "owner" || staff?.role === "admin" || currentUser?.user_metadata?.role === "superadmin";
   if (!tenantId || !supabase || !isAuthorized) return { error: "No autorizado para editar servicios" };
 
   const name = formData.get("name")?.toString();
@@ -123,7 +123,7 @@ export async function updateServiceAction(serviceId: string, formData: FormData)
 
 export async function deleteServiceAction(serviceId: string) {
   const { tenantId, supabase, staff, user: currentUser } = await getSession();
-  const isAuthorized = staff?.role === "owner" || (staff?.role === "admin" && staff.permissions?.manage_services === true) || currentUser?.user_metadata?.role === "superadmin";
+  const isAuthorized = staff?.role === "owner" || staff?.role === "admin" || currentUser?.user_metadata?.role === "superadmin";
   if (!tenantId || !supabase || !isAuthorized) return { error: "No autorizado para eliminar servicios" };
 
   const { error } = await (supabase as any)

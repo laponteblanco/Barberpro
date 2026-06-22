@@ -8,7 +8,7 @@ export async function addStaffAction(formData: FormData) {
   const { tenantId, user: currentUser, staff } = await getSession();
 
   // SEGURIDAD: Solo admins o dueños pueden gestionar el staff
-  const isAuthorized = staff?.role === "owner" || (staff?.role === "admin" && staff.permissions?.manage_staff === true) || currentUser?.user_metadata?.role === "superadmin";
+  const isAuthorized = staff?.role === "owner" || staff?.role === "admin" || currentUser?.user_metadata?.role === "superadmin";
   if (!tenantId || !currentUser || !isAuthorized) {
     throw new Error("No autorizado para gestionar el personal.");
   }
@@ -146,7 +146,7 @@ export async function editStaffAction(formData: FormData) {
   const { tenantId, user: currentUser, staff } = await getSession();
 
   // SEGURIDAD: Solo admins o dueños pueden gestionar el staff
-  const isAuthorized = staff?.role === "owner" || (staff?.role === "admin" && staff.permissions?.manage_staff === true) || currentUser?.user_metadata?.role === "superadmin";
+  const isAuthorized = staff?.role === "owner" || staff?.role === "admin" || currentUser?.user_metadata?.role === "superadmin";
   if (!tenantId || !currentUser || !isAuthorized) {
     throw new Error("No autorizado para gestionar el personal.");
   }
@@ -277,7 +277,7 @@ export async function deleteStaffAction(staffId: string) {
   const { tenantId, user: currentUser, staff, supabase } = await getSession();
 
   // SEGURIDAD: Solo admins o dueños pueden gestionar el staff
-  const isAuthorized = staff?.role === "owner" || (staff?.role === "admin" && staff.permissions?.manage_staff === true) || currentUser?.user_metadata?.role === "superadmin";
+  const isAuthorized = staff?.role === "owner" || staff?.role === "admin" || currentUser?.user_metadata?.role === "superadmin";
   if (!tenantId || !currentUser || !isAuthorized || !supabase) {
     throw new Error("No autorizado para eliminar personal.");
   }
@@ -398,7 +398,7 @@ export async function addLedgerTransactionAction(formData: FormData) {
     const { tenantId, user: currentUser, staff, supabase } = await getSession();
 
     // Only owners or admins can manage transactions
-    const isAuthorized = staff?.role === "owner" || (staff?.role === "admin" && staff.permissions?.manage_finances === true) || currentUser?.user_metadata?.role === "superadmin";
+    const isAuthorized = staff?.role === "owner" || staff?.role === "admin" || currentUser?.user_metadata?.role === "superadmin";
     if (!tenantId || !currentUser || !isAuthorized || !supabase) {
       return { error: "No autorizado para registrar movimientos financieros." };
     }
@@ -491,7 +491,7 @@ export async function deleteLedgerTransactionAction(transactionId: string) {
     const { tenantId, user: currentUser, staff, supabase } = await getSession();
 
     // Only owners or admins can manage transactions
-    const isAuthorized = staff?.role === "owner" || (staff?.role === "admin" && staff.permissions?.manage_finances === true) || currentUser?.user_metadata?.role === "superadmin";
+    const isAuthorized = staff?.role === "owner" || staff?.role === "admin" || currentUser?.user_metadata?.role === "superadmin";
     if (!tenantId || !currentUser || !isAuthorized || !supabase) {
       return { error: "No autorizado para eliminar movimientos financieros." };
     }
