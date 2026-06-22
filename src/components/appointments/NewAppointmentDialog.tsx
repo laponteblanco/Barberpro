@@ -155,11 +155,18 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
     fd.append("service_ids", JSON.stringify(formData.service_ids));
 
     try {
+      let res;
       if (editApptId) {
-        await updateAppointmentDetailsAction(editApptId, fd);
+        res = await updateAppointmentDetailsAction(editApptId, fd);
       } else {
-        await createAppointmentAction(fd);
+        res = await createAppointmentAction(fd);
       }
+      
+      if (res?.error) {
+        alert(res.error);
+        return;
+      }
+      
       handleClose();
       router.refresh();
     } catch (err: any) {

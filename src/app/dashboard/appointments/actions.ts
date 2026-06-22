@@ -14,7 +14,7 @@ export async function createAppointmentAction(formData: FormData) {
   const { tenantId, user: currentUser } = await getSession();
   
   if (!currentUser || !tenantId) {
-    throw new Error("Sesión no válida o expirada");
+    return { error: "Sesión no válida o expirada" };
   }
 
   const adminSupabase = await createAdminClient();
@@ -30,7 +30,7 @@ export async function createAppointmentAction(formData: FormData) {
     const email = formData.get("new_client_email")?.toString() || null;
     const notes = formData.get("new_client_notes")?.toString() || null;
 
-    if (!name || !cedula || !phone) throw new Error("Nombre, Teléfono y Cédula son obligatorios para nuevos clientes");
+    if (!name || !cedula || !phone) return { error: "Nombre, Teléfono y Cédula son obligatorios para nuevos clientes" };
 
     // Create or check profile
     const { data: profile, error: profileError } = await (adminSupabase as any)
@@ -43,7 +43,7 @@ export async function createAppointmentAction(formData: FormData) {
       .select()
       .single();
 
-    if (profileError) throw new Error(`Error en perfil: ${profileError.message}`);
+    if (profileError) return { error: `Error en perfil: ${profileError.message}` };
     client_id = (profile as any).id;
 
     // Link to tenant as a client
@@ -65,12 +65,12 @@ export async function createAppointmentAction(formData: FormData) {
   const time = formData.get("time")?.toString();
 
   if (!client_id || !staff_id || !service_ids_str || !date || !time) {
-    throw new Error("Faltan campos requeridos");
+    return { error: "Faltan campos requeridos" };
   }
 
   const service_ids = JSON.parse(service_ids_str) as string[];
   if (!Array.isArray(service_ids) || service_ids.length === 0) {
-    throw new Error("Debe seleccionar al menos un servicio");
+    return { error: "Debe seleccionar al menos un servicio" };
   }
 
   // Get service details
@@ -79,7 +79,7 @@ export async function createAppointmentAction(formData: FormData) {
     .select("id, duration_minutes, price")
     .in("id", service_ids);
   
-  if (!servicesData || servicesData.length === 0) throw new Error("Servicios no encontrados");
+  if (!servicesData || servicesData.length === 0) return { error: "Servicios no encontrados" };
 
   const total_duration = servicesData.reduce((acc: number, s: any) => acc + (s.duration_minutes || 30), 0);
   const total_price = servicesData.reduce((acc: number, s: any) => acc + Number(s.price || 0), 0);
@@ -98,7 +98,7 @@ export async function createAppointmentAction(formData: FormData) {
     .maybeSingle();
 
   if (conflict) {
-    throw new Error("El barbero ya tiene una cita programada en este horario.");
+    return { error: "El barbero ya tiene una cita programada en este horario." };
   }
 
   // Use the first service_id as a fallback for the old column if it still exists
@@ -115,7 +115,7 @@ export async function createAppointmentAction(formData: FormData) {
 
   if (error) {
     console.error("Error inserting appointment:", error);
-    throw new Error(error.message);
+    return { error: error.message };
   }
 
   // Insert into appointment_services
@@ -135,7 +135,7 @@ export async function createAppointmentAction(formData: FormData) {
 
   if (error) {
     console.error("Error inserting appointment:", error);
-    throw new Error(error.message);
+    return { error: error.message };
   }
 
   revalidatePath("/dashboard/appointments");
@@ -151,7 +151,7 @@ export async function createAppointmentAction(formData: FormData) {
 
 export async function updateAppointmentTimeAction(appointmentId: string, newStartTime: string) {
   const { tenantId, user: currentUser } = await getSession();
-  if (!tenantId || !currentUser) throw new Error("No autorizado");
+  if (!tenantId || !currentUser) return { error: "No autorizado" };
 
   const adminSupabase = await createAdminClient();
   
@@ -162,7 +162,7 @@ export async function updateAppointmentTimeAction(appointmentId: string, newStar
     .eq("tenant_id", tenantId)
     .single();
 
-  if (!appt) throw new Error("Cita no encontrada");
+  if (!appt) return { error: "Cita no encontrada" };
 
   const start = new Date(newStartTime);
   const duration = (appt.service as any)?.duration_minutes || 30;
@@ -179,7 +179,7 @@ export async function updateAppointmentTimeAction(appointmentId: string, newStar
     .maybeSingle();
 
   if (conflict) {
-    throw new Error("El nuevo horario está ocupado por otra cita.");
+    return { error: "El nuevo horario está ocupado por otra cita." };
   }
 
   const { error } = await (adminSupabase as any)
@@ -191,7 +191,7 @@ export async function updateAppointmentTimeAction(appointmentId: string, newStar
     .eq("id", appointmentId)
     .eq("tenant_id", tenantId);
 
-  if (error) throw error;
+  if (error) return { error: error.message };
 
   revalidatePath("/dashboard/appointments");
   return { success: true };
@@ -199,7 +199,7 @@ export async function updateAppointmentTimeAction(appointmentId: string, newStar
 
 export async function updateAppointmentStatusAction(appointmentId: string, status: string, paymentMethod?: string) {
   const { tenantId } = await getSession();
-  if (!tenantId) throw new Error("No hay sesión activa");
+  if (!tenantId) return { error: "No hay sesión activa" };
 
   const adminSupabase = await createAdminClient();
 
@@ -223,7 +223,7 @@ export async function updateAppointmentStatusAction(appointmentId: string, statu
 
     if (error) {
       console.error(`[DELETE ERROR] ${error.message}`);
-      throw new Error(`Error al eliminar la cita: ${error.message}`);
+      return { error: `Error al eliminar la cita: ${error.message}` };
     }
     console.log(`[DELETE] Rows affected: ${count}`);
     console.log(`[DELETE] Successfully deleted appointment ${appointmentId}`);
@@ -240,7 +240,7 @@ export async function updateAppointmentStatusAction(appointmentId: string, statu
       .eq("tenant_id", tenantId);
 
     if (error) {
-      throw new Error(`Error al actualizar el estado: ${error.message}`);
+      return { error: `Error al actualizar el estado: ${error.message}` };
     }
   }
   
@@ -259,7 +259,7 @@ export async function updateAppointmentStatusAction(appointmentId: string, statu
 
 export async function updateAppointmentDetailsAction(appointmentId: string, formData: FormData) {
   const { tenantId } = await getSession();
-  if (!tenantId) throw new Error("No hay sesión activa");
+  if (!tenantId) return { error: "No hay sesión activa" };
 
   const adminSupabase = await createAdminClient();
 
@@ -277,7 +277,7 @@ export async function updateAppointmentDetailsAction(appointmentId: string, form
     serviceIds = [formData.get("service_id") as string].filter(Boolean);
   }
 
-  if (serviceIds.length === 0) throw new Error("Debe seleccionar al menos un servicio");
+  if (serviceIds.length === 0) return { error: "Debe seleccionar al menos un servicio" };
 
   // Retrieve service duration and price
   const { data: servicesData } = await (adminSupabase as any)
@@ -303,7 +303,7 @@ export async function updateAppointmentDetailsAction(appointmentId: string, form
     .maybeSingle();
 
   if (conflict) {
-    throw new Error("El horario seleccionado está ocupado por otra cita.");
+    return { error: "El horario seleccionado está ocupado por otra cita." };
   }
 
   const updates: any = {
@@ -325,7 +325,7 @@ export async function updateAppointmentDetailsAction(appointmentId: string, form
     .eq("tenant_id", tenantId);
 
   if (error) {
-    throw new Error(`Error al actualizar la cita: ${error.message}`);
+    return { error: `Error al actualizar la cita: ${error.message}` };
   }
 
   // Update appointment_services relation
@@ -342,7 +342,7 @@ export async function updateAppointmentDetailsAction(appointmentId: string, form
 
 export async function createAgendaBlockAction(staffId: string, startTime: string, durationMinutes: number, reason: string = "Bloqueo") {
   const { tenantId, user: currentUser } = await getSession();
-  if (!tenantId || !currentUser) throw new Error("No autorizado");
+  if (!tenantId || !currentUser) return { error: "No autorizado" };
 
   const adminSupabase = await createAdminClient();
   
@@ -360,7 +360,7 @@ export async function createAgendaBlockAction(staffId: string, startTime: string
     .maybeSingle();
 
   if (apptConflict) {
-    throw new Error("El horario seleccionado choca con una cita existente.");
+    return { error: "El horario seleccionado choca con una cita existente." };
   }
 
   // Check conflicts with other blocks
@@ -373,7 +373,7 @@ export async function createAgendaBlockAction(staffId: string, startTime: string
     .maybeSingle();
 
   if (blockConflict) {
-    throw new Error("El horario seleccionado ya está bloqueado.");
+    return { error: "El horario seleccionado ya está bloqueado." };
   }
 
   const { error } = await (adminSupabase as any).from("agenda_blocks").insert({
@@ -385,7 +385,7 @@ export async function createAgendaBlockAction(staffId: string, startTime: string
   });
 
   if (error) {
-    throw new Error(`Error al crear bloqueo: ${error.message}`);
+    return { error: `Error al crear bloqueo: ${error.message}` };
   }
 
   revalidatePath("/dashboard/appointments");
@@ -394,7 +394,7 @@ export async function createAgendaBlockAction(staffId: string, startTime: string
 
 export async function deleteAgendaBlockAction(blockId: string) {
   const { tenantId, user: currentUser } = await getSession();
-  if (!tenantId || !currentUser) throw new Error("No autorizado");
+  if (!tenantId || !currentUser) return { error: "No autorizado" };
 
   const adminSupabase = await createAdminClient();
   
@@ -405,7 +405,7 @@ export async function deleteAgendaBlockAction(blockId: string) {
     .eq("tenant_id", tenantId);
 
   if (error) {
-    throw new Error(`Error al eliminar bloqueo: ${error.message}`);
+    return { error: `Error al eliminar bloqueo: ${error.message}` };
   }
 
   revalidatePath("/dashboard/appointments");
