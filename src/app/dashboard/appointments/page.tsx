@@ -121,7 +121,7 @@ async function AppointmentsContent({
         .select("id, role, commission_rate, daily_commission_rates, compensation_type, rent_amount, working_hours, profile:profiles(full_name, avatar_url)")
         .eq("tenant_id", tenantId)
         .eq("is_active", true)
-        .eq("role", "barber")
+        .in("role", ["barber", "owner", "admin"])
         // Admin: fetch ALL active barbers
         // Barber: fetch only themselves
         .match(isBarber ? { id: sessionStaff.id } : {}),
