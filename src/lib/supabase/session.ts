@@ -35,34 +35,17 @@ export const getSession = cache(async () => {
   const adminSupabase = await createAdminClient();
   
   // Run both queries in parallel to avoid sequential timeouts
-  const [staffSettled, fallbackSettled] = await Promise.allSettled([
-    withTimeout(
-      adminSupabase
-        .from("tenant_staff" as any)
-        .select("*, tenant:tenants(id, name, slug, logo_url, settings)" as any)
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .order("created_at", { ascending: false }),
-      20000,
-      "Fetch Tenant Staff"
-    ),
-    withTimeout(
-      adminSupabase
-        .from("tenants")
-        .select("id, name, slug, logo_url, settings")
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle(),
-      20000,
-      "Fetch Tenants Fallback"
-    )
-  ]);
+  const staffRes = await withTimeout(
+    adminSupabase
+      .from("tenant_staff" as any)
+      .select("*, tenant:tenants(id, name, slug, logo_url, settings)" as any)
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false }),
+    20000,
+    "Fetch Tenant Staff"
+  );
 
-  const staffRes: any = staffSettled.status === "fulfilled" ? staffSettled.value : { data: null };
-  const fallbackRes: any = fallbackSettled.status === "fulfilled" ? fallbackSettled.value : { data: null };
-
-  if (staffSettled.status === "rejected") console.error("Error fetching staff:", staffSettled.reason);
-  if (fallbackSettled.status === "rejected") console.error("Error fetching fallback tenant:", fallbackSettled.reason);
+  if (!staffRes) console.error("Error fetching staff");
 
   if (staffRes.data && staffRes.data.length > 0) {
     const allStaff = staffRes.data as any[];
@@ -134,7 +117,7 @@ export const getSession = cache(async () => {
   const isAdmin = user.user_metadata?.role === "admin" || user.user_metadata?.role === "superadmin";
 
   if (isAdmin) {
-    let targetTenant = fallbackRes.data as any;
+    let targetTenant: any = null;
 
     // Si no existe ninguna barbería en la base de datos, creamos una por defecto
     if (!targetTenant) {
