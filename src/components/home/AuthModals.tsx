@@ -86,15 +86,15 @@ export function AuthModals() {
       }
 
       // Acceso tradicional para Administrador / Dueño
-      const cedulaForm = formData.get("cedula")?.toString();
+      const cedulaForm = formData.get("cedula")?.toString()?.trim();
       const pass = formData.get("password")?.toString();
       if (!cedulaForm || !pass) {
-        setError("Por favor, ingresa tu cédula y contraseña.");
+        setError("Por favor, ingresa tu credencial y contraseña.");
         setLoading(false);
         return;
       }
       
-      const loginEmail = `${cedulaForm}@barberos.app`;
+      const loginEmail = cedulaForm.includes("@") ? cedulaForm : `${cedulaForm}@barberos.app`;
       const supabase = createClient();
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email: loginEmail,
@@ -176,7 +176,7 @@ export function AuthModals() {
                 <>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
-                      Cédula
+                      Cédula o Correo
                     </label>
                     <div className="relative group">
                       <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -187,7 +187,7 @@ export function AuthModals() {
                         type="text"
                         value={cedula}
                         onChange={(e) => setCedula(e.target.value)}
-                        placeholder="Ej: 12345678"
+                        placeholder="Ej: 12345678 o admin@correo.com"
                         required
                         disabled={loading}
                         className="w-full h-12 pl-11 pr-4 bg-black/20 border border-slate-700/50 rounded-2xl text-white placeholder:text-slate-500 outline-none focus:border-indigo-500/50 focus:ring-4 focus:ring-indigo-500/10 transition-all text-sm font-medium"

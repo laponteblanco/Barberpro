@@ -31,6 +31,7 @@ const profileSchema = z.object({
   business_end: z.number().default(20),
   business_hours_by_day: z.array(dayHoursSchema).length(7).optional(),
   security_pin: z.string().optional().nullable(),
+  appointment_interval: z.number().default(15),
 });
 
 const DAY_NAMES = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -500,6 +501,23 @@ export function BarbershopProfileForm({ initialData }: Props) {
                 <p className="text-[10px] text-zinc-500 ml-1 italic">
                   Este horario define los límites de tu calendario de citas por día.
                 </p>
+              </div>
+
+              {/* Appointment Interval */}
+              <div className="space-y-2 sm:col-span-2">
+                <label className="text-sm font-bold text-zinc-400 ml-1 flex items-center gap-2">
+                  <Clock className="w-3.5 h-3.5" /> Intervalo de Agenda (minutos)
+                </label>
+                <select
+                  {...register("appointment_interval", { valueAsNumber: true })}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-5 py-4 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition-all appearance-none"
+                >
+                  <option value={15}>15 minutos</option>
+                  <option value={20}>20 minutos</option>
+                  <option value={30}>30 minutos</option>
+                  <option value={60}>60 minutos (1 hora)</option>
+                </select>
+                <p className="text-[10px] text-zinc-500 ml-2">Define el tamaño de los bloques de tiempo al agendar citas.</p>
               </div>
 
               {/* Security PIN */}

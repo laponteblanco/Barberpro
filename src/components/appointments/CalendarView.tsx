@@ -21,6 +21,7 @@ interface CalendarViewProps {
   viewMode?: "staff" | "days";
   theme?: string;
   tenantId?: string;
+  appointmentInterval?: number;
 }
 
 const BARBER_COLORS = [
@@ -77,7 +78,8 @@ export function CalendarView({
   selectedDate,
   viewMode = "staff",
   theme = "dark",
-  tenantId
+  tenantId,
+  appointmentInterval = 15
 }: CalendarViewProps) {
   const router = useRouter();
   const [movingId, setMovingId] = useState<string | null>(null);
@@ -170,7 +172,7 @@ export function CalendarView({
 
   // Height per 15-min slot — computed so ALL slots fit the measured slot area with NO internal scroll.
   // slotAreaRef points to the exact row-area div (excluding column headers).
-  const totalSlots = (effectiveEndHour - effectiveStartHour) * 4 + 1;
+  const totalSlots = (effectiveEndHour - effectiveStartHour) * (60 / appointmentInterval) + 1;
   const SLOT_HEIGHT = slotAreaHeight > 0
     ? Math.max(14, Math.floor(slotAreaHeight / totalSlots))
     : 22;
@@ -189,13 +191,13 @@ export function CalendarView({
     const min = currentTime.getUTCMinutes();
     if (hour < effectiveStartHour || hour >= effectiveEndHour) return null;
     const totalMinutesFromStart = (hour - effectiveStartHour) * 60 + min;
-    return (totalMinutesFromStart / 15) * SLOT_HEIGHT;
+    return (totalMinutesFromStart / appointmentInterval) * SLOT_HEIGHT;
   }, [currentTime, effectiveStartHour, effectiveEndHour, selectedDate, mounted]);
 
   const slots = useMemo(() => {
     const items = [];
     for (let hour = effectiveStartHour; hour < effectiveEndHour; hour++) {
-      for (let min of [0, 15, 30, 45]) {
+      for (let min = 0; min < 60; min += appointmentInterval) {
         items.push({ hour, min });
       }
     }
@@ -719,9 +721,9 @@ export function CalendarView({
                         const min = bogota.min;
                         if (hour < effectiveStartHour || hour >= effectiveEndHour) return null;
                         
-                        const top = ((hour - effectiveStartHour) * 60 + min) / 15 * SLOT_HEIGHT;
+                        const top = ((hour - effectiveStartHour) * 60 + min) / appointmentInterval * SLOT_HEIGHT;
                         const duration = appt.end_time && appt.start_time ? Math.round((new Date(appt.end_time).getTime() - new Date(appt.start_time).getTime()) / 60000) : (appt.service?.duration_minutes || 30);
-                        const height = (duration / 15) * SLOT_HEIGHT - 2;
+                        const height = (duration / appointmentInterval) * SLOT_HEIGHT - 2;
                         const isCompleted = appt.status === 'completed' || appt.status === 'confirmed';
                       
                         return (
@@ -772,8 +774,8 @@ export function CalendarView({
                       const endTotalMin = bogotaEnd.hour * 60 + bogotaEnd.min;
                       const durationMins = endTotalMin - startTotalMin;
                       
-                      const top = ((hour - effectiveStartHour) * 60 + min) / 15 * SLOT_HEIGHT;
-                      const height = (durationMins / 15) * SLOT_HEIGHT - 2;
+                      const top = ((hour - effectiveStartHour) * 60 + min) / appointmentInterval * SLOT_HEIGHT;
+                      const height = (durationMins / appointmentInterval) * SLOT_HEIGHT - 2;
                       
                       const isLunch = block.is_lunch_break;
                       return (

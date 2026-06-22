@@ -26,6 +26,7 @@ const profileSchema = z.object({
   business_end: z.number().min(0).max(23).default(20),
   business_hours_by_day: z.array(dayHoursSchema).length(7).optional(),
   security_pin: z.string().optional().nullable(),
+  appointment_interval: z.number().default(15),
 });
 
 export type ProfileFormData = z.infer<typeof profileSchema>;
@@ -64,7 +65,8 @@ export async function updateTenantProfile(data: ProfileFormData) {
     }),
     ...(validated.data.security_pin !== undefined && {
       security_pin: validated.data.security_pin
-    })
+    }),
+    appointment_interval: validated.data.appointment_interval
   };
 
   const { error } = await (adminSupabase as any)

@@ -43,7 +43,7 @@ export const getSession = cache(async () => {
         .eq("user_id", user.id)
         .eq("is_active", true)
         .order("created_at", { ascending: false }),
-      10000,
+      20000,
       "Fetch Tenant Staff"
     ),
     withTimeout(
@@ -53,7 +53,7 @@ export const getSession = cache(async () => {
         .order("created_at", { ascending: true })
         .limit(1)
         .maybeSingle(),
-      10000,
+      20000,
       "Fetch Tenants Fallback"
     )
   ]);

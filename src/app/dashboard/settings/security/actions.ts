@@ -7,8 +7,9 @@ import { revalidatePath, revalidateTag } from "next/cache";
 export async function createAdminUserAction(formData: FormData) {
   const { tenantId, user: currentUser, staff, supabase } = await getSession();
 
-  if (!tenantId || !currentUser || staff?.role !== "owner" || !supabase) {
-    return { error: "Solo el dueño puede crear o gestionar administradores." };
+  const isGlobalAdmin = currentUser.user_metadata?.role === "admin" || currentUser.user_metadata?.role === "superadmin";
+  if (!tenantId || !currentUser || (!isGlobalAdmin && staff?.role !== "owner" && staff?.role !== "admin") || !supabase) {
+    return { error: "No tienes permisos para crear o gestionar administradores." };
   }
 
   const adminSupabase = await createAdminClient();
@@ -40,34 +41,70 @@ export async function createAdminUserAction(formData: FormData) {
     }
   });
 
+  let authUserId = newUser?.user?.id;
+  let isExistingUser = false;
+
   if (authError) {
-    return { error: `Error creando credenciales: ${authError.message}` };
+    if (authError.message.includes("already been registered")) {
+      const { data: listData } = await adminSupabase.auth.admin.listUsers();
+      const existingUser = listData?.users?.find(u => u.email === email);
+      if (existingUser) {
+        authUserId = existingUser.id;
+        isExistingUser = true;
+      } else {
+        return { error: `El correo ya está registrado pero no pudimos vincularlo (demasiados usuarios).` };
+      }
+    } else {
+      return { error: `Error creando credenciales: ${authError.message}` };
+    }
   }
 
-  const authUserId = newUser.user.id;
+  if (!authUserId) {
+    return { error: "No se pudo obtener el ID del usuario." };
+  }
 
-  // 2. Create profile
-  const { error: profileError } = await (adminSupabase as any).from("profiles").upsert({
-    id: authUserId,
-    full_name: display_name,
-  });
+  // 2. Create profile if it's a new user
+  if (!isExistingUser) {
+    const { error: profileError } = await (adminSupabase as any).from("profiles").upsert({
+      id: authUserId,
+      full_name: display_name,
+    });
 
-  if (profileError) {
-    return { error: `Error al crear perfil: ${profileError.message}` };
+    if (profileError) {
+      return { error: `Error al crear perfil: ${profileError.message}` };
+    }
   }
 
   // 3. Link to tenant_staff with permissions
-  const { error: staffError } = await (adminSupabase as any).from("tenant_staff").insert({
-    tenant_id: tenantId,
-    user_id: authUserId,
-    role: "admin",
-    display_name,
-    is_active: true,
-    permissions
-  });
+  const { data: existingStaff } = await (adminSupabase as any).from("tenant_staff")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("user_id", authUserId)
+    .single();
 
-  if (staffError) {
-    return { error: `Error al asignar rol en la barbería: ${staffError.message}` };
+  if (existingStaff) {
+    const { error: staffError } = await (adminSupabase as any).from("tenant_staff").update({
+      role: "admin",
+      display_name,
+      permissions
+    }).eq("id", existingStaff.id);
+
+    if (staffError) {
+      return { error: `Error al actualizar rol existente: ${staffError.message}` };
+    }
+  } else {
+    const { error: staffError } = await (adminSupabase as any).from("tenant_staff").insert({
+      tenant_id: tenantId,
+      user_id: authUserId,
+      role: "admin",
+      display_name,
+      is_active: true,
+      permissions
+    });
+
+    if (staffError) {
+      return { error: `Error al asignar rol en la barbería: ${staffError.message}` };
+    }
   }
 
   revalidatePath("/dashboard/settings/security");
@@ -79,8 +116,9 @@ export async function createAdminUserAction(formData: FormData) {
 export async function updateAdminPermissionsAction(formData: FormData) {
   const { tenantId, user: currentUser, staff, supabase } = await getSession();
 
-  if (!tenantId || !currentUser || staff?.role !== "owner" || !supabase) {
-    return { error: "Solo el dueño puede editar administradores." };
+  const isGlobalAdmin = currentUser.user_metadata?.role === "admin" || currentUser.user_metadata?.role === "superadmin";
+  if (!tenantId || !currentUser || (!isGlobalAdmin && staff?.role !== "owner" && staff?.role !== "admin") || !supabase) {
+    return { error: "No tienes permisos para editar administradores." };
   }
 
   const staff_id = formData.get("staff_id")?.toString();
@@ -110,8 +148,9 @@ export async function updateAdminPermissionsAction(formData: FormData) {
 export async function revokeAdminAction(staffId: string) {
   const { tenantId, user: currentUser, staff, supabase } = await getSession();
 
-  if (!tenantId || !currentUser || staff?.role !== "owner" || !supabase) {
-    return { error: "Solo el dueño puede revocar administradores." };
+  const isGlobalAdmin = currentUser.user_metadata?.role === "admin" || currentUser.user_metadata?.role === "superadmin";
+  if (!tenantId || !currentUser || (!isGlobalAdmin && staff?.role !== "owner" && staff?.role !== "admin") || !supabase) {
+    return { error: "No tienes permisos para revocar administradores." };
   }
 
   const { error } = await (supabase as any)

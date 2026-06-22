@@ -284,6 +284,7 @@ async function AppointmentsContent({
           viewMode={isBarber ? "days" : "staff"}
           theme={settings?.theme || "dark"}
           tenantId={tenantId}
+          appointmentInterval={Number(settings?.appointment_interval) || 15}
         />
       </div>
     </div>

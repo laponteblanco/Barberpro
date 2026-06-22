@@ -42,6 +42,7 @@ export async function GET(
     ]);
 
     const settings = tenant?.settings || {};
+    const appointmentInterval = Number(settings?.appointment_interval) || 15;
 
     // Determine the day-of-week for the requested date (0=Sun … 6=Sat)
     const requestedDayIndex = new Date(`${date}T12:00:00Z`).getDay();
@@ -142,7 +143,7 @@ export async function GET(
     const isToday = date === todayBogota;
 
     for (let hour = startHour; hour < endHour; hour++) {
-      for (const min of [0, 15, 30, 45]) {
+      for (let min = 0; min < 60; min += appointmentInterval) {
         // Skip slots in the past when booking for today
         if (isToday && (hour < nowHour || (hour === nowHour && min <= nowMin))) {
           continue;
