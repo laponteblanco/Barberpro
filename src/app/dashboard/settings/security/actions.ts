@@ -7,7 +7,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 export async function createAdminUserAction(formData: FormData) {
   const { tenantId, user: currentUser, staff, supabase } = await getSession();
 
-  const isGlobalAdmin = currentUser.user_metadata?.role === "admin" || currentUser.user_metadata?.role === "superadmin";
+  const isGlobalAdmin = currentUser?.user_metadata?.role === "admin" || currentUser?.user_metadata?.role === "superadmin";
   if (!tenantId || !currentUser || (!isGlobalAdmin && staff?.role !== "owner" && staff?.role !== "admin") || !supabase) {
     return { error: "No tienes permisos para crear o gestionar administradores." };
   }
@@ -116,7 +116,7 @@ export async function createAdminUserAction(formData: FormData) {
 export async function updateAdminPermissionsAction(formData: FormData) {
   const { tenantId, user: currentUser, staff, supabase } = await getSession();
 
-  const isGlobalAdmin = currentUser.user_metadata?.role === "admin" || currentUser.user_metadata?.role === "superadmin";
+  const isGlobalAdmin = currentUser?.user_metadata?.role === "admin" || currentUser?.user_metadata?.role === "superadmin";
   if (!tenantId || !currentUser || (!isGlobalAdmin && staff?.role !== "owner" && staff?.role !== "admin") || !supabase) {
     return { error: "No tienes permisos para editar administradores." };
   }
@@ -148,7 +148,7 @@ export async function updateAdminPermissionsAction(formData: FormData) {
 export async function revokeAdminAction(staffId: string) {
   const { tenantId, user: currentUser, staff, supabase } = await getSession();
 
-  const isGlobalAdmin = currentUser.user_metadata?.role === "admin" || currentUser.user_metadata?.role === "superadmin";
+  const isGlobalAdmin = currentUser?.user_metadata?.role === "admin" || currentUser?.user_metadata?.role === "superadmin";
   if (!tenantId || !currentUser || (!isGlobalAdmin && staff?.role !== "owner" && staff?.role !== "admin") || !supabase) {
     return { error: "No tienes permisos para revocar administradores." };
   }

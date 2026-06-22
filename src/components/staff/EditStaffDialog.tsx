@@ -222,10 +222,22 @@ export function EditStaffDialog({ member, services = [] }: { member: any, servic
                     <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 flex items-center gap-2 ml-1">
                       <Shield className="w-3 h-3 text-primary/70" /> Rol
                     </label>
-                    <select name="role" defaultValue={member.role} required className="w-full h-12 px-4 bg-zinc-900/50 border border-white/5 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all text-white appearance-none cursor-pointer">
-                      <option value="barber">Barbero</option>
-                      <option value="admin">Administrador</option>
-                    </select>
+                    {member.role === 'owner' ? (
+                      <div className="w-full h-12 px-4 bg-zinc-900/50 border border-white/5 rounded-2xl flex items-center text-sm text-zinc-500 cursor-not-allowed">
+                        Dueño (Owner)
+                        <input type="hidden" name="role" value="owner" />
+                      </div>
+                    ) : member.role === 'admin' ? (
+                      <div className="w-full h-12 px-4 bg-zinc-900/50 border border-white/5 rounded-2xl flex items-center text-sm text-zinc-500 cursor-not-allowed">
+                        Administrador
+                        <input type="hidden" name="role" value="admin" />
+                      </div>
+                    ) : (
+                      <select name="role" defaultValue={member.role} required className="w-full h-12 px-4 bg-zinc-900/50 border border-white/5 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all text-white appearance-none cursor-pointer">
+                        <option value="barber">Barbero</option>
+                        <option value="receptionist">Recepcionista</option>
+                      </select>
+                    )}
                   </div>
                   <div className="space-y-2.5">
                     <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 flex items-center gap-2 ml-1">

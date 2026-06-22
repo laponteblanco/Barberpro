@@ -192,7 +192,7 @@ export function AddStaffDialog() {
                           </label>
                           <select name="role" required className="w-full h-12 px-4 bg-zinc-900/50 border border-white/5 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all text-white appearance-none cursor-pointer">
                             <option value="barber">Barbero</option>
-                            <option value="admin">Administrador</option>
+                            <option value="receptionist">Recepcionista</option>
                           </select>
                         </div>
                         <div className="space-y-2.5">
