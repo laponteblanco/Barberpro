@@ -1,7 +1,4 @@
-export const unstable_instant = {
-  prefetch: 'static',
-  unstable_disableValidation: true
-};
+
 
 import Link from "next/link";
 import { Clock, LayoutList, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
@@ -200,13 +197,20 @@ async function AppointmentsContent({
 
   if (byDay && byDay.length === 7) {
     const dayConfig = byDay[selectedDayIndex];
-    startHour = dayConfig.open ? dayConfig.start : 8;
-    endHour = dayConfig.open ? dayConfig.end : 20;
+    startHour = dayConfig.open ? (!isNaN(Number(dayConfig.start)) ? Number(dayConfig.start) : 8) : 8;
+    endHour = dayConfig.open ? (!isNaN(Number(dayConfig.end)) ? Number(dayConfig.end) : 20) : 20;
     isShopClosed = !dayConfig.open;
   } else {
-    startHour = settings?.business_hours?.start || 8;
-    endHour = settings?.business_hours?.end || 20;
+    const s = settings?.business_hours?.start;
+    const e = settings?.business_hours?.end;
+    startHour = s !== undefined && !isNaN(Number(s)) ? Number(s) : 8;
+    endHour = e !== undefined && !isNaN(Number(e)) ? Number(e) : 20;
   }
+
+  // Fallback si por alguna razón siguen siendo NaN o si start >= end
+  if (isNaN(startHour)) startHour = 8;
+  if (isNaN(endHour)) endHour = 20;
+  if (startHour >= endHour) endHour = startHour + 12;
 
   const displayDate = new Date(selectedDate + "T12:00:00").toLocaleDateString("es-ES", {
     weekday: 'long',

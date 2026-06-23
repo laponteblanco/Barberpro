@@ -26,7 +26,7 @@ export async function GET(
       { data: tenant },
       { data: staffRow },
       { data: appointments },
-      { data: blocks }
+      blocksResult
     ] = await Promise.all([
       // 1. Get tenant business hours
       (supabase as any).from("tenants").select("settings").eq("id", tenantId).single(),
@@ -40,6 +40,12 @@ export async function GET(
       // 3. Fetch agenda blocks for the same day
       (supabase as any).from("agenda_blocks").select("start_time, end_time").eq("staff_id", staffId).eq("tenant_id", tenantId).gte("start_time", startOfDayUTC).lte("start_time", endOfDayUTC)
     ]);
+
+    const blocks = blocksResult?.data;
+    console.log("[Availability API] staffId:", staffId, "date:", date, "tenantId:", tenantId);
+    console.log("[Availability API] startOfDayUTC:", startOfDayUTC, "endOfDayUTC:", endOfDayUTC);
+    console.log("[Availability API] blocks query result:", JSON.stringify(blocksResult));
+    console.log("[Availability API] appointments found:", appointments?.length);
 
     const settings = tenant?.settings || {};
     const appointmentInterval = Number(settings?.appointment_interval) || 15;

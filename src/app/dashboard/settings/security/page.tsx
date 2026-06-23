@@ -63,11 +63,11 @@ export default async function SecurityPage() {
           <div key={admin.id} className="glass-card bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
             <div className="flex items-center gap-4">
               <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl uppercase ${admin.role === 'owner' ? 'bg-amber-500/20 text-amber-500' : 'bg-indigo-500/20 text-indigo-400'}`}>
-                {admin.display_name.charAt(0)}
+                {(admin.display_name || "A").charAt(0)}
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-bold text-foreground">{admin.display_name}</h3>
+                  <h3 className="text-lg font-bold text-foreground">{admin.display_name || "Administrador"}</h3>
                   {admin.role === 'owner' && (
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-500 border border-amber-500/30">
                       Dueño

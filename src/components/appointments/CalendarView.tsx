@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { updateAppointmentTimeAction, updateAppointmentStatusAction, deleteAgendaBlockAction, createAgendaBlockAction } from "@/app/dashboard/appointments/actions";
@@ -24,26 +24,42 @@ interface CalendarViewProps {
   appointmentInterval?: number;
 }
 
-const BARBER_COLORS = [
-  { base: "bg-indigo-500/15 border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/25", completed: "bg-indigo-500/25 border-indigo-400/40 text-indigo-200 hover:bg-indigo-500/35", dot: "bg-indigo-400" },
-  { base: "bg-amber-500/15 border-amber-500/30 text-amber-300 hover:bg-amber-500/25", completed: "bg-amber-500/25 border-amber-400/40 text-amber-200 hover:bg-amber-500/35", dot: "bg-amber-400" },
-  { base: "bg-rose-500/15 border-rose-500/30 text-rose-300 hover:bg-rose-500/25", completed: "bg-rose-500/25 border-rose-400/40 text-rose-200 hover:bg-rose-500/35", dot: "bg-rose-400" },
-  { base: "bg-cyan-500/15 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/25", completed: "bg-cyan-500/25 border-cyan-400/40 text-cyan-200 hover:bg-cyan-500/35", dot: "bg-cyan-400" },
-  { base: "bg-violet-500/15 border-violet-500/30 text-violet-300 hover:bg-violet-500/25", completed: "bg-violet-500/25 border-violet-400/40 text-violet-200 hover:bg-violet-500/35", dot: "bg-violet-400" },
-  { base: "bg-emerald-500/15 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25", completed: "bg-emerald-500/25 border-emerald-400/40 text-emerald-200 hover:bg-emerald-500/35", dot: "bg-emerald-400" },
-  { base: "bg-orange-500/15 border-orange-500/30 text-orange-300 hover:bg-orange-500/25", completed: "bg-orange-500/25 border-orange-400/40 text-orange-200 hover:bg-orange-500/35", dot: "bg-orange-400" },
-  { base: "bg-pink-500/15 border-pink-500/30 text-pink-300 hover:bg-pink-500/25", completed: "bg-pink-500/25 border-pink-400/40 text-pink-200 hover:bg-pink-500/35", dot: "bg-pink-400" },
-];
+const BARBER_COLORS_THEMES = {
+  dark: [
+    { base: "bg-indigo-500/30 border-indigo-500/50 text-indigo-100 hover:bg-indigo-500/40 shadow-md", completed: "bg-indigo-500/40 border-indigo-400/60 text-white hover:bg-indigo-500/50 shadow-md", dot: "bg-indigo-400" },
+    { base: "bg-amber-500/30 border-amber-500/50 text-amber-100 hover:bg-amber-500/40 shadow-md", completed: "bg-amber-500/40 border-amber-400/60 text-white hover:bg-amber-500/50 shadow-md", dot: "bg-amber-400" },
+    { base: "bg-rose-500/30 border-rose-500/50 text-rose-100 hover:bg-rose-500/40 shadow-md", completed: "bg-rose-500/40 border-rose-400/60 text-white hover:bg-rose-500/50 shadow-md", dot: "bg-rose-400" },
+    { base: "bg-cyan-500/30 border-cyan-500/50 text-cyan-100 hover:bg-cyan-500/40 shadow-md", completed: "bg-cyan-500/40 border-cyan-400/60 text-white hover:bg-cyan-500/50 shadow-md", dot: "bg-cyan-400" },
+    { base: "bg-violet-500/30 border-violet-500/50 text-violet-100 hover:bg-violet-500/40 shadow-md", completed: "bg-violet-500/40 border-violet-400/60 text-white hover:bg-violet-500/50 shadow-md", dot: "bg-violet-400" },
+    { base: "bg-emerald-500/30 border-emerald-500/50 text-emerald-100 hover:bg-emerald-500/40 shadow-md", completed: "bg-emerald-500/40 border-emerald-400/60 text-white hover:bg-emerald-500/50 shadow-md", dot: "bg-emerald-400" },
+    { base: "bg-orange-500/30 border-orange-500/50 text-orange-100 hover:bg-orange-500/40 shadow-md", completed: "bg-orange-500/40 border-orange-400/60 text-white hover:bg-orange-500/50 shadow-md", dot: "bg-orange-400" },
+    { base: "bg-pink-500/30 border-pink-500/50 text-pink-100 hover:bg-pink-500/40 shadow-md", completed: "bg-pink-500/40 border-pink-400/60 text-white hover:bg-pink-500/50 shadow-md", dot: "bg-pink-400" },
+  ],
+  light: [
+    { base: "bg-indigo-200 border-indigo-400 text-indigo-900 hover:bg-indigo-300 shadow-sm", completed: "bg-indigo-300 border-indigo-500 text-indigo-950 hover:bg-indigo-400 shadow-sm", dot: "bg-indigo-600" },
+    { base: "bg-amber-200 border-amber-400 text-amber-900 hover:bg-amber-300 shadow-sm", completed: "bg-amber-300 border-amber-500 text-amber-950 hover:bg-amber-400 shadow-sm", dot: "bg-amber-600" },
+    { base: "bg-rose-200 border-rose-400 text-rose-900 hover:bg-rose-300 shadow-sm", completed: "bg-rose-300 border-rose-500 text-rose-950 hover:bg-rose-400 shadow-sm", dot: "bg-rose-600" },
+    { base: "bg-cyan-200 border-cyan-400 text-cyan-900 hover:bg-cyan-300 shadow-sm", completed: "bg-cyan-300 border-cyan-500 text-cyan-950 hover:bg-cyan-400 shadow-sm", dot: "bg-cyan-600" },
+    { base: "bg-violet-200 border-violet-400 text-violet-900 hover:bg-violet-300 shadow-sm", completed: "bg-violet-300 border-violet-500 text-violet-950 hover:bg-violet-400 shadow-sm", dot: "bg-violet-600" },
+    { base: "bg-emerald-200 border-emerald-400 text-emerald-900 hover:bg-emerald-300 shadow-sm", completed: "bg-emerald-300 border-emerald-500 text-emerald-950 hover:bg-emerald-400 shadow-sm", dot: "bg-emerald-600" },
+    { base: "bg-orange-200 border-orange-400 text-orange-900 hover:bg-orange-300 shadow-sm", completed: "bg-orange-300 border-orange-500 text-orange-950 hover:bg-orange-400 shadow-sm", dot: "bg-orange-600" },
+    { base: "bg-pink-200 border-pink-400 text-pink-900 hover:bg-pink-300 shadow-sm", completed: "bg-pink-300 border-pink-500 text-pink-950 hover:bg-pink-400 shadow-sm", dot: "bg-pink-600" },
+  ]
+};
 
 const getBarberColorIndex = (id: string) =>
-  id.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0) % BARBER_COLORS.length;
+  id.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0) % 8;
 
-const getBarberColor = (id: string, completed = false) => {
-  const color = BARBER_COLORS[getBarberColorIndex(id)];
+const getBarberColor = (id: string, completed = false, theme = 'dark') => {
+  const t = theme === 'light' ? 'light' : 'dark';
+  const color = BARBER_COLORS_THEMES[t][getBarberColorIndex(id)];
   return completed ? color.completed : color.base;
 };
 
-const getBarberDot = (id: string) => BARBER_COLORS[getBarberColorIndex(id)].dot;
+const getBarberDot = (id: string, theme = 'dark') => {
+  const t = theme === 'light' ? 'light' : 'dark';
+  return BARBER_COLORS_THEMES[t][getBarberColorIndex(id)].dot;
+};
 
 const getBogotaNow = () => {
   const d = new Date();
@@ -103,8 +119,25 @@ export function CalendarView({
 
   const [isMobile, setIsMobile] = useState(false);
   const [activeMobileBarber, setActiveMobileBarber] = useState<string>("all");
-  const slotAreaRef = useRef<HTMLDivElement>(null);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const [slotAreaHeight, setSlotAreaHeight] = useState(0);
+
+  const slotAreaRef = useCallback((node: HTMLDivElement | null) => {
+    if (resizeObserverRef.current) {
+      resizeObserverRef.current.disconnect();
+      resizeObserverRef.current = null;
+    }
+    if (node) {
+      setSlotAreaHeight(node.getBoundingClientRect().height);
+      const ro = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          setSlotAreaHeight(entry.contentRect.height);
+        }
+      });
+      ro.observe(node);
+      resizeObserverRef.current = ro;
+    }
+  }, []);
 
   useEffect(() => {
     setMounted(true);
@@ -120,42 +153,19 @@ export function CalendarView({
     const listener = (e: MediaQueryListEvent) => setIsMobile(e.matches);
     media.addEventListener("change", listener);
 
-    // Observe slot area height for dynamic slot sizing
-    let ro: ResizeObserver | null = null;
-    if (slotAreaRef.current) {
-      ro = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-          setSlotAreaHeight(entry.contentRect.height);
-        }
-      });
-      ro.observe(slotAreaRef.current);
-      setSlotAreaHeight(slotAreaRef.current.getBoundingClientRect().height);
-    }
-    
     return () => {
       clearInterval(timer);
       media.removeEventListener("change", listener);
-      ro?.disconnect();
     };
   }, []);
 
-  // Separate effect: re-observe whenever the ref element changes
-  useEffect(() => {
-    const el = slotAreaRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setSlotAreaHeight(entry.contentRect.height);
-      }
-    });
-    ro.observe(el);
-    setSlotAreaHeight(el.getBoundingClientRect().height);
-    return () => ro.disconnect();
-  }, [slotAreaRef.current]);
-
   const { effectiveStartHour, effectiveEndHour } = useMemo(() => {
-    let s = startHour;
-    let e = endHour;
+    let s = Number(startHour);
+    let e = Number(endHour);
+    if (isNaN(s)) s = 8;
+    if (isNaN(e)) e = 20;
+    if (s >= e) e = s + 12;
+
     appointments.forEach(a => {
       const bogota = getBogotaTime(a.start_time);
       const dateStr = `${bogota.yyyy}-${bogota.mm}-${bogota.dd}`;
@@ -406,7 +416,7 @@ export function CalendarView({
         </div>
       </div>
 
-      <div className="flex-1 overflow-x-auto overflow-y-hidden min-h-0 custom-scrollbar relative">
+      <div className="flex-1 overflow-x-auto overflow-y-auto min-h-0 custom-scrollbar relative">
         {calendarColumns.length === 0 ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 bg-zinc-950/50">
             <User className="w-16 h-16 text-zinc-800 mb-4" />
@@ -492,12 +502,12 @@ export function CalendarView({
                         onClick={() => setSelectedAppt(appt)}
                         className={cn(
                           "glass-card p-4 rounded-2xl border transition-all active:scale-[0.98] cursor-pointer flex flex-col gap-3",
-                          getBarberColor(appt.staff_id, isCompleted)
+                          getBarberColor(appt.staff_id, isCompleted, theme)
                         )}
                       >
                         <div className="flex justify-between items-start">
                           <div className="flex items-center gap-2">
-                            <div className={cn("w-2 h-2 rounded-full shrink-0", getBarberDot(appt.staff_id))} />
+                            <div className={cn("w-2 h-2 rounded-full shrink-0", getBarberDot(appt.staff_id, theme))} />
                             <span className="text-xs font-black bg-white/10 px-2 py-1 rounded-lg">
                               {`${bogotaStart.hhStr}:${bogotaStart.minStr}`}
                             </span>
@@ -725,32 +735,54 @@ export function CalendarView({
                         const duration = appt.end_time && appt.start_time ? Math.round((new Date(appt.end_time).getTime() - new Date(appt.start_time).getTime()) / 60000) : (appt.service?.duration_minutes || 30);
                         const height = (duration / appointmentInterval) * SLOT_HEIGHT - 2;
                         const isCompleted = appt.status === 'completed' || appt.status === 'confirmed';
+                        const isCompact = height < 38;
+                        const isTiny = height < 24;
                       
                         return (
                         <div 
                           key={appt.id}
                           onClick={() => setSelectedAppt(appt)}
                           style={{ top: `${top}px`, height: `${height}px` }}
-                          className={cn("absolute inset-x-2 z-[2] rounded-xl p-2.5 border shadow-2xl transition-all cursor-grab active:cursor-grabbing group/appt overflow-hidden animate-in zoom-in-95 duration-300", 
-                            getBarberColor(appt.staff_id, isCompleted))}
+                          className={cn(
+                            "absolute inset-x-1 z-[2] border transition-all cursor-grab active:cursor-grabbing group/appt overflow-hidden animate-in zoom-in-95 duration-300",
+                            isTiny ? "rounded-md px-1.5 py-0 flex items-center gap-1" : isCompact ? "rounded-lg px-2 py-0.5" : "rounded-xl p-2.5 shadow-lg",
+                            getBarberColor(appt.staff_id, isCompleted, theme)
+                          )}
                         >
-                          <div className="flex flex-col h-full relative">
-                            <div className="absolute top-0 left-0 right-0 h-[2px] bg-white/20 rounded-full" />
-                            <div className="flex items-center justify-between gap-1 mb-1">
-                              <span className="text-[10px] font-black uppercase tracking-widest truncate flex items-center gap-1.5">
-                                {isCompleted && <CheckCircle2 className="w-3 h-3 shrink-0 opacity-70" />}
+                          {isTiny ? (
+                            <>
+                              <span className="text-[8px] font-black uppercase tracking-wider truncate leading-none">
+                                {isCompleted && <CheckCircle2 className="w-2.5 h-2.5 shrink-0 opacity-70 inline mr-0.5" />}
                                 {appt.client?.full_name}
                               </span>
-                              <span className="text-[8px] font-black bg-white/10 px-1.5 py-0.5 rounded-full">{duration}m</span>
+                              <span className="text-[7px] font-bold opacity-60 shrink-0 ml-auto">{duration}m</span>
+                            </>
+                          ) : isCompact ? (
+                            <div className="flex items-center justify-between gap-1 h-full min-h-0 overflow-hidden">
+                              <span className="text-[9px] font-black uppercase tracking-wider truncate flex items-center gap-1 leading-tight">
+                                {isCompleted && <CheckCircle2 className="w-2.5 h-2.5 shrink-0 opacity-70" />}
+                                {appt.client?.full_name}
+                              </span>
+                              <span className="text-[7px] font-black bg-white/10 px-1 py-0.5 rounded-full shrink-0 leading-none">{duration}m</span>
                             </div>
-                            <p className="text-[9px] font-medium opacity-80 line-clamp-1">
-                              {appt.services?.length > 0 ? appt.services.map((s: any) => s.name).join(', ') : appt.service?.name}
-                            </p>
-                            <div className="mt-auto flex items-center gap-1.5">
-                              <Clock className="w-2.5 h-2.5 opacity-40" />
-                              <span className="text-[8px] font-bold opacity-60">{`${bogota.hhStr}:${bogota.minStr}`}</span>
+                          ) : (
+                            <div className="flex flex-col h-full relative overflow-hidden">
+                              <div className="flex items-center justify-between gap-1 mb-0.5">
+                                <span className="text-[10px] font-black uppercase tracking-widest truncate flex items-center gap-1.5">
+                                  {isCompleted && <CheckCircle2 className="w-3 h-3 shrink-0 opacity-70" />}
+                                  {appt.client?.full_name}
+                                </span>
+                                <span className="text-[8px] font-black bg-white/10 px-1.5 py-0.5 rounded-full shrink-0">{duration}m</span>
+                              </div>
+                              <p className="text-[9px] font-medium opacity-80 line-clamp-1">
+                                {appt.services?.length > 0 ? appt.services.map((s: any) => s.name).join(', ') : appt.service?.name}
+                              </p>
+                              <div className="mt-auto flex items-center gap-1.5">
+                                <Clock className="w-2.5 h-2.5 opacity-40" />
+                                <span className="text-[8px] font-bold opacity-60">{`${bogota.hhStr}:${bogota.minStr}`}</span>
+                              </div>
                             </div>
-                          </div>
+                          )}
                         </div>
                       );
                     })}
@@ -778,27 +810,46 @@ export function CalendarView({
                       const height = (durationMins / appointmentInterval) * SLOT_HEIGHT - 2;
                       
                       const isLunch = block.is_lunch_break;
+                      const isBlockCompact = height < 38;
+                      const isBlockTiny = height < 24;
                       return (
                         <div 
                           key={block.id}
                           onClick={() => { if(!isLunch) setSelectedBlock(block); }}
                           style={{ top: `${top}px`, height: `${height}px` }}
-                          className={cn("absolute inset-x-2 z-[1] rounded-xl p-2.5 border shadow-2xl transition-all group/block overflow-hidden animate-in zoom-in-95 duration-300 backdrop-blur-sm",
+                          className={cn(
+                            "absolute inset-x-1 z-[1] border transition-all group/block overflow-hidden animate-in zoom-in-95 duration-300",
+                            isBlockTiny ? "rounded-md px-1.5 py-0 flex items-center gap-1" : isBlockCompact ? "rounded-lg px-2 py-0.5" : "rounded-xl p-2.5 shadow-lg backdrop-blur-sm",
                             isLunch 
                               ? "bg-amber-500/10 border-amber-500/20 text-amber-500/80 cursor-default" 
                               : "cursor-pointer bg-zinc-800/80 border-zinc-700/50 text-zinc-400 hover:bg-red-900/40 hover:border-red-500/30 hover:text-red-400"
                           )}
                         >
-                          <div className="absolute inset-0 opacity-10 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSIvPjwvc3ZnPg==')] pointer-events-none" />
-                          <div className="flex flex-col h-full relative z-10">
-                            <div className="flex items-center justify-between gap-1 mb-1">
-                              <span className="text-[10px] font-black uppercase tracking-widest truncate">{block.reason || "Bloqueado"}</span>
+                          {isBlockTiny ? (
+                            <>
+                              <Ban className="w-2.5 h-2.5 opacity-60 shrink-0" />
+                              <span className="text-[8px] font-black uppercase tracking-wider truncate leading-none">{block.reason || "Bloqueado"}</span>
+                            </>
+                          ) : isBlockCompact ? (
+                            <div className="flex items-center gap-1.5 h-full min-h-0 overflow-hidden">
+                              <Ban className="w-2.5 h-2.5 opacity-50 shrink-0" />
+                              <span className="text-[9px] font-black uppercase tracking-wider truncate leading-tight">{block.reason || "Bloqueado"}</span>
+                              <span className="text-[7px] font-bold opacity-60 shrink-0 ml-auto">{`${bogotaStart.hhStr}:${bogotaStart.minStr}`}</span>
                             </div>
-                            <div className="mt-auto flex items-center gap-1.5">
-                              <Ban className="w-2.5 h-2.5 opacity-40" />
-                              <span className="text-[8px] font-bold opacity-60">{`${bogotaStart.hhStr}:${bogotaStart.minStr} - ${bogotaEnd.hhStr}:${bogotaEnd.minStr}`}</span>
-                            </div>
-                          </div>
+                          ) : (
+                            <>
+                              <div className="absolute inset-0 opacity-10 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSIvPjwvc3ZnPg==')] pointer-events-none" />
+                              <div className="flex flex-col h-full relative z-10 overflow-hidden">
+                                <div className="flex items-center justify-between gap-1 mb-0.5">
+                                  <span className="text-[10px] font-black uppercase tracking-widest truncate">{block.reason || "Bloqueado"}</span>
+                                </div>
+                                <div className="mt-auto flex items-center gap-1.5">
+                                  <Ban className="w-2.5 h-2.5 opacity-40" />
+                                  <span className="text-[8px] font-bold opacity-60">{`${bogotaStart.hhStr}:${bogotaStart.minStr} - ${bogotaEnd.hhStr}:${bogotaEnd.minStr}`}</span>
+                                </div>
+                              </div>
+                            </>
+                          )}
                         </div>
                       );
                     })}

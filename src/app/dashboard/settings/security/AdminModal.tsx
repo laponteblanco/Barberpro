@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Shield, Save, Key, Mail, User, CheckCircle2, XCircle } from "lucide-react";
 import { createAdminUserAction, updateAdminPermissionsAction } from "./actions";
 
@@ -17,6 +18,11 @@ export function AdminModal({ existingAdmin, trigger }: AdminModalProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const isEditing = !!existingAdmin;
 
@@ -52,8 +58,8 @@ export function AdminModal({ existingAdmin, trigger }: AdminModalProps) {
         )}
       </div>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+      {mounted && open && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-200 w-full max-w-[500px] rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-6 border-b border-slate-200 dark:border-slate-800">
               <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -170,7 +176,8 @@ export function AdminModal({ existingAdmin, trigger }: AdminModalProps) {
               </form>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

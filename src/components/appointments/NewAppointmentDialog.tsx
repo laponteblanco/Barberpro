@@ -110,7 +110,7 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
         setSlotsLoading(false);
       }
     }
-  }, [formData.date, formData.staff_id, serviceIdsStr, tenantId, editApptId, appointments, services]);
+  }, [formData.date, formData.staff_id, serviceIdsStr, tenantId, editApptId]);
 
   // Fetch slots whenever staff, date, or service changes
   useEffect(() => {
