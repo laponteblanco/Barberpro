@@ -15,11 +15,11 @@ export default async function PublicBookingPage({
 }: { 
   params: Promise<{ slug: string }> 
 }) {
+  const { slug } = await params;
+
   return (
     <Suspense fallback={<BookingLoading />}>
-      {params.then(({ slug }) => (
-        <BookingContent slug={slug} />
-      ))}
+      <BookingContent slug={slug} />
     </Suspense>
   );
 }
