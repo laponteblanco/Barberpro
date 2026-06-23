@@ -41,6 +41,14 @@ interface Props {
   initialData: ProfileFormData;
 }
 
+function normalizeSlug(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_]+/g, "-")
+    .replace(/[^a-z0-9-]/g, "");
+}
+
 export function BarbershopProfileForm({ initialData }: Props) {
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -60,6 +68,10 @@ export function BarbershopProfileForm({ initialData }: Props) {
   });
 
   const logoUrl = watch("logo_url");
+
+  // Derive a clean slug for display / sharing (handle slugs stored with spaces or uppercase)
+  const rawSlug = watch("slug") || initialData.slug || "";
+  const cleanSlug = normalizeSlug(rawSlug);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -173,12 +185,12 @@ export function BarbershopProfileForm({ initialData }: Props) {
                     <span className="text-zinc-600">
                       {typeof window !== "undefined" ? window.location.origin : "barberos.app"}/
                     </span>
-                    <span className="text-primary font-bold">{watch("slug") || initialData.slug}</span>
+                    <span className="text-primary font-bold">{cleanSlug}</span>
                  </p>
                  <button 
                   type="button"
                   onClick={() => {
-                    const url = `${window.location.origin}/${watch("slug") || initialData.slug}`;
+                    const url = `${window.location.origin}/${cleanSlug}`;
                     navigator.clipboard.writeText(url);
                     alert("¡Link copiado al portapapeles!");
                   }}
@@ -194,7 +206,7 @@ export function BarbershopProfileForm({ initialData }: Props) {
                 <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Código QR del Portal</p>
                 <div className="w-40 h-40 p-2 bg-zinc-900 rounded-xl border border-white/5 flex items-center justify-center overflow-hidden relative group/qr">
                   <img 
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(typeof window !== "undefined" ? `${window.location.origin}/${watch("slug") || initialData.slug}` : "http://localhost:3000")}&color=eab308&bgcolor=18181b`} 
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(typeof window !== "undefined" ? `${window.location.origin}/${cleanSlug}` : "http://localhost:3000")}&color=eab308&bgcolor=18181b`} 
                     alt="Código QR de reservas"
                     className="w-full h-full object-contain rounded-lg transition-transform duration-300 group-hover/qr:scale-105"
                   />
@@ -205,7 +217,7 @@ export function BarbershopProfileForm({ initialData }: Props) {
                   <button
                     type="button"
                     onClick={async () => {
-                      const url = `${window.location.origin}/${watch("slug") || initialData.slug}`;
+                      const url = `${window.location.origin}/${cleanSlug}`;
                       if (navigator.share) {
                         try {
                           await navigator.share({
@@ -229,7 +241,7 @@ export function BarbershopProfileForm({ initialData }: Props) {
                   </button>
 
                   <a
-                    href={`https://wa.me/?text=${encodeURIComponent(`¡Hola! Agenda tu cita en nuestra barbería fácilmente ingresando aquí: ${typeof window !== "undefined" ? `${window.location.origin}/${watch("slug") || initialData.slug}` : ""}`)}`}
+                    href={`https://wa.me/?text=${encodeURIComponent(`¡Hola! Agenda tu cita en nuestra barbería fácilmente ingresando aquí: ${typeof window !== "undefined" ? `${window.location.origin}/${cleanSlug}` : ""}`)}`}
                     target="_blank"
                     className="flex flex-col items-center justify-center py-2 px-1 rounded-xl bg-white/5 border border-white/5 hover:bg-emerald-500/10 hover:border-emerald-500/20 text-zinc-400 hover:text-emerald-500 transition-all active:scale-95 text-[10px] font-bold gap-1"
                     title="Enviar por WhatsApp"
@@ -242,7 +254,7 @@ export function BarbershopProfileForm({ initialData }: Props) {
                     type="button"
                     onClick={async () => {
                       try {
-                        const url = `${window.location.origin}/${watch("slug") || initialData.slug}`;
+                        const url = `${window.location.origin}/${cleanSlug}`;
                         // We use a clean high-res black-and-white QR code for printing
                         const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(url)}&color=000000&bgcolor=ffffff`;
                         
@@ -252,7 +264,7 @@ export function BarbershopProfileForm({ initialData }: Props) {
                         
                         const a = document.createElement('a');
                         a.href = blobUrl;
-                        a.download = `qr_reservas_${watch("slug") || initialData.slug}.png`;
+                        a.download = `qr_reservas_${cleanSlug}.png`;
                         document.body.appendChild(a);
                         a.click();
                         document.body.removeChild(a);
@@ -276,7 +288,7 @@ export function BarbershopProfileForm({ initialData }: Props) {
               </p>
 
               <a 
-                href={`/${watch("slug") || initialData.slug}`}
+                href={`/${cleanSlug}`}
                 target="_blank"
                 className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-primary/20 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/5 transition-all mt-2"
               >
@@ -313,6 +325,10 @@ export function BarbershopProfileForm({ initialData }: Props) {
                 </label>
                 <input
                   {...register("slug")}
+                  onChange={(e) => {
+                    // Normalize on every keystroke so the stored slug is always clean
+                    setValue("slug", normalizeSlug(e.target.value), { shouldValidate: true });
+                  }}
                   className={cn(
                     "w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-5 py-4 text-sm font-bold text-primary focus:ring-2 focus:ring-primary/50 outline-none transition-all",
                     errors.slug && "border-red-500/50"
