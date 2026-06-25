@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { updateAppointmentTimeAction, updateAppointmentStatusAction, deleteAgendaBlockAction, createAgendaBlockAction } from "@/app/dashboard/appointments/actions";
-import { User, Clock, LayoutList, CheckCircle2, DollarSign, Calendar, Ban, Trash2, Scissors, X } from "lucide-react";
+import { User, Clock, LayoutList, CheckCircle2, DollarSign, Calendar, Ban, Trash2, Scissors, X, RotateCw } from "lucide-react";
 import { NewAppointmentDialog } from "./NewAppointmentDialog";
 import { StaffSummaryDialog } from "./StaffSummaryDialog";
 import { useRouter } from "next/navigation";
@@ -428,6 +428,15 @@ export function CalendarView({
             </p>
           </div>
         </div>
+
+        <button
+          onClick={() => router.refresh()}
+          className="px-4 py-2.5 rounded-2xl border border-white/5 bg-zinc-900/60 hover:bg-zinc-800/80 text-zinc-400 hover:text-white active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md text-[10px] font-black uppercase tracking-widest h-fit"
+          title="Refrescar Agenda"
+        >
+          <RotateCw className="w-3.5 h-3.5 transition-transform hover:rotate-180 duration-500" />
+          <span>Refrescar</span>
+        </button>
       </div>
 
       <div className="flex-1 overflow-x-auto overflow-y-auto min-h-0 custom-scrollbar relative">

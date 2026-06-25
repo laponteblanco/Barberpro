@@ -33,31 +33,45 @@ export async function createAppointmentAction(formData: FormData) {
 
     if (!name || !cedula || !phone) return { error: "Nombre, Teléfono y Cédula son obligatorios para nuevos clientes" };
 
-    // Create or check profile
-    const { data: profile, error: profileError } = await (adminSupabase as any)
-      .from("profiles")
-      .upsert({
-        full_name: name,
-        phone,
-        id_number: cedula
-      }, { onConflict: 'id_number' })
-      .select()
-      .single();
+    // First, check if a client with this id_number already exists for this tenant
+    const { data: existingClient } = await (adminSupabase as any)
+      .from("clients")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("id_number", cedula)
+      .maybeSingle();
 
-    if (profileError) return { error: `Error en perfil: ${profileError.message}` };
-    client_id = (profile as any).id;
+    if (existingClient) {
+      client_id = existingClient.id;
+    } else {
+      // Find matching profile if exists to link user_id
+      const { data: profile } = await (adminSupabase as any)
+        .from("profiles")
+        .select("id")
+        .eq("id_number", cedula)
+        .maybeSingle();
 
-    // Link to tenant as a client
-    await (adminSupabase as any).from("clients").upsert({
-      id: client_id,
-      tenant_id: tenantId,
-      full_name: name,
-      phone,
-      id_number: cedula,
-      birth_date,
-      email,
-      notes
-    }, { onConflict: 'id' });
+      // Insert directly into clients (does not require auth user profile)
+      const { data: newClient, error: clientError } = await (adminSupabase as any)
+        .from("clients")
+        .insert({
+          tenant_id: tenantId,
+          user_id: profile?.id || null,
+          full_name: name,
+          phone,
+          id_number: cedula,
+          birth_date,
+          email,
+          notes
+        })
+        .select("id")
+        .single();
+
+      if (clientError || !newClient) {
+        return { error: `Error al crear cliente: ${clientError?.message || "No se pudo registrar"}` };
+      }
+      client_id = newClient.id;
+    }
   }
 
   const staff_id = formData.get("staff_id")?.toString();
