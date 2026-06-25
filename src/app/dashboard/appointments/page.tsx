@@ -106,7 +106,7 @@ async function AppointmentsContent({
     Promise.all([
       adminSupabase
         .from("appointments")
-        .select("*, client:clients(*), staff:tenant_staff(*, profiles(*)), appointment_services(services(*))")
+        .select("*, client:clients(*), staff:tenant_staff(*, profiles(*)), service:services(*), appointment_services(services(*))")
         .eq("tenant_id", tenantId)
         .match(isBarber ? { staff_id: sessionStaff.id } : {})
         .gte("start_time", fetchStart.toISOString())

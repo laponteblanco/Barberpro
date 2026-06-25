@@ -908,13 +908,15 @@ export function CalendarView({
                   <div className="space-y-1">
                     <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black">Horario</p>
                     <p className="font-medium text-sm text-zinc-300">
-                      {new Date(selectedAppt.start_time).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
+                      {new Date(selectedAppt.start_time).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })} - {new Date(selectedAppt.end_time).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
                     </p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black">Servicios</p>
                     <p className="font-medium text-sm text-zinc-300">
-                      {selectedAppt.services?.length > 0 ? selectedAppt.services.map((s: any) => s.name).join(', ') : (selectedAppt.service?.name || "Servicio")}
+                      {selectedAppt.services?.length > 0 
+                        ? selectedAppt.services.map((s: any) => s?.name).filter(Boolean).join(', ') 
+                        : (selectedAppt.service?.name || "Servicio")}
                     </p>
                   </div>
                   <div className="pt-2 grid gap-3">
