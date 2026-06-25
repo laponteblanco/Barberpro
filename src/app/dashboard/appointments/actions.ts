@@ -81,61 +81,123 @@ export async function createAppointmentAction(formData: FormData) {
   
   if (!servicesData || servicesData.length === 0) return { error: "Servicios no encontrados" };
 
-  const total_duration = servicesData.reduce((acc: number, s: any) => acc + (s.duration_minutes || 30), 0);
-  const total_price = servicesData.reduce((acc: number, s: any) => acc + Number(s.price || 0), 0);
+  // Calculate totals accounting for duplicate service IDs (same service multiple times)
+  const serviceMap = new Map(servicesData.map((s: any) => [s.id, s]));
+  const total_duration = service_ids.reduce((acc: number, id: string) => {
+    const s = serviceMap.get(id);
+    return acc + (s?.duration_minutes || 30);
+  }, 0);
+  const total_price = service_ids.reduce((acc: number, id: string) => {
+    const s = serviceMap.get(id);
+    return acc + Number(s?.price || 0);
+  }, 0);
 
-  const start_time = new Date(`${date}T${time}:00-05:00`);
-  const end_time = new Date(start_time.getTime() + total_duration * 60000);
+  const is_fragmented = formData.get("is_fragmented") === "true";
+  const fragmented_slots_str = formData.get("fragmented_slots")?.toString();
 
-  // Check for conflicts
-  const { data: conflict } = await (adminSupabase as any)
-    .from("appointments")
-    .select("id")
-    .eq("staff_id", staff_id)
-    .in("status", ["pending", "confirmed", "completed"])
-    .lt("start_time", end_time.toISOString())
-    .gt("end_time", start_time.toISOString())
-    .maybeSingle();
+  let firstApptId = null;
 
-  if (conflict) {
-    return { error: "El barbero ya tiene una cita programada en este horario." };
-  }
+  if (is_fragmented && fragmented_slots_str) {
+    const slots = JSON.parse(fragmented_slots_str);
+    
+    // 1. Check conflicts for all slots first
+    for (const slot of slots) {
+      const start = new Date(`${date}T${slot.startTime}:00-05:00`);
+      const end = new Date(start.getTime() + slot.duration * 60000);
+      const { data: conflict } = await (adminSupabase as any)
+        .from("appointments")
+        .select("id")
+        .eq("staff_id", staff_id)
+        .in("status", ["pending", "confirmed", "completed"])
+        .lt("start_time", end.toISOString())
+        .gt("end_time", start.toISOString())
+        .maybeSingle();
 
-  // Use the first service_id as a fallback for the old column if it still exists
-  const { data: appt, error } = await (adminSupabase as any).from("appointments").insert({
-    tenant_id: tenantId,
-    client_id,
-    staff_id,
-    service_id: service_ids[0], 
-    start_time: start_time.toISOString(),
-    end_time: end_time.toISOString(),
-    total_price: total_price,
-    status: 'pending'
-  }).select('id').single();
+      if (conflict) {
+        return { error: `El horario ${slot.startTime} ya no está disponible para el servicio ${slot.name}. Por favor, selecciona otro horario.` };
+      }
+    }
 
-  if (error) {
-    console.error("Error inserting appointment:", error);
-    return { error: error.message };
-  }
+    // 2. Insert all fragmented appointments
+    for (const slot of slots) {
+      const start = new Date(`${date}T${slot.startTime}:00-05:00`);
+      const end = new Date(start.getTime() + slot.duration * 60000);
+      const servicePrice = Number(serviceMap.get(slot.serviceId)?.price || 0);
 
-  // Insert into appointment_services
-  const apptServices = service_ids.map(id => ({
-    appointment_id: appt.id,
-    service_id: id
-  }));
+      const { data: appt, error } = await (adminSupabase as any).from("appointments").insert({
+        tenant_id: tenantId,
+        client_id,
+        staff_id,
+        service_id: slot.serviceId, 
+        start_time: start.toISOString(),
+        end_time: end.toISOString(),
+        total_price: servicePrice,
+        status: 'pending'
+      }).select('id').single();
 
-  const { error: asError } = await (adminSupabase as any)
-    .from("appointment_services")
-    .insert(apptServices);
-  
-  if (asError) {
-    console.error("Error linking services:", asError);
-    // Ignore error for now, or maybe rollback if it was critical
-  }
+      if (error) {
+        console.error("Error inserting fragmented appointment:", error);
+        return { error: error.message };
+      }
 
-  if (error) {
-    console.error("Error inserting appointment:", error);
-    return { error: error.message };
+      if (!firstApptId) firstApptId = appt.id;
+
+      await (adminSupabase as any).from("appointment_services").insert({
+        appointment_id: appt.id,
+        service_id: slot.serviceId
+      });
+    }
+
+  } else {
+    // Normal continuous logic
+    const start_time = new Date(`${date}T${time}:00-05:00`);
+    const end_time = new Date(start_time.getTime() + total_duration * 60000);
+
+    // Check for conflicts
+    const { data: conflict } = await (adminSupabase as any)
+      .from("appointments")
+      .select("id")
+      .eq("staff_id", staff_id)
+      .in("status", ["pending", "confirmed", "completed"])
+      .lt("start_time", end_time.toISOString())
+      .gt("end_time", start_time.toISOString())
+      .maybeSingle();
+
+    if (conflict) {
+      return { error: "El barbero ya tiene una cita programada en este horario." };
+    }
+
+    const { data: appt, error } = await (adminSupabase as any).from("appointments").insert({
+      tenant_id: tenantId,
+      client_id,
+      staff_id,
+      service_id: service_ids[0], 
+      start_time: start_time.toISOString(),
+      end_time: end_time.toISOString(),
+      total_price: total_price,
+      status: 'pending'
+    }).select('id').single();
+
+    if (error) {
+      console.error("Error inserting appointment:", error);
+      return { error: error.message };
+    }
+
+    firstApptId = appt.id;
+
+    // Insert into appointment_services
+    const apptServices = service_ids.map(id => ({
+      appointment_id: appt.id,
+      service_id: id
+    }));
+
+    const { error: asError } = await (adminSupabase as any)
+      .from("appointment_services")
+      .insert(apptServices);
+    
+    if (asError) {
+      console.error("Error linking services:", asError);
+    }
   }
 
   revalidatePath("/dashboard/appointments");
@@ -143,7 +205,7 @@ export async function createAppointmentAction(formData: FormData) {
   runInBackground("Send WhatsApp Confirmation", async () => {
     // Aquí iría la lógica pesada: consultar API de WhatsApp, esperar respuesta, guardar log
     await new Promise(resolve => setTimeout(resolve, 2000));
-    console.log(`[WhatsApp] Confirmación de cita enviada asincrónicamente para la cita ${appt.id}`);
+    console.log(`[WhatsApp] Confirmación de cita enviada asincrónicamente para la cita ${firstApptId}`);
   });
 
   return { success: true };
@@ -197,7 +259,7 @@ export async function updateAppointmentTimeAction(appointmentId: string, newStar
   return { success: true };
 }
 
-export async function updateAppointmentStatusAction(appointmentId: string, status: string, paymentMethod?: string) {
+export async function updateAppointmentStatusAction(appointmentId: string, status: string, paymentMethod?: string, discountAmount: number = 0) {
   const { tenantId } = await getSession();
   if (!tenantId) return { error: "No hay sesión activa" };
 
@@ -231,6 +293,19 @@ export async function updateAppointmentStatusAction(appointmentId: string, statu
     const updates: any = { status };
     if (paymentMethod) {
       updates.payment_method = paymentMethod;
+    }
+
+    if (status === "completed" && discountAmount > 0) {
+      // Fetch current price to safely apply discount
+      const { data: appt } = await (adminSupabase as any)
+        .from("appointments")
+        .select("total_price")
+        .eq("id", appointmentId)
+        .single();
+      
+      if (appt) {
+        updates.total_price = Math.max(0, appt.total_price - discountAmount);
+      }
     }
 
     const { error } = await (adminSupabase as any)
@@ -285,8 +360,16 @@ export async function updateAppointmentDetailsAction(appointmentId: string, form
     .select("id, duration_minutes, price")
     .in("id", serviceIds);
 
-  const duration = servicesData?.reduce((acc: number, s: any) => acc + (s.duration_minutes || 30), 0) || 30;
-  const totalPrice = servicesData?.reduce((acc: number, s: any) => acc + Number(s.price || 0), 0) || 0;
+  // Calculate totals accounting for duplicate service IDs (same service multiple times)
+  const serviceMap = new Map((servicesData || []).map((s: any) => [s.id, s]));
+  const duration = serviceIds.reduce((acc: number, id: string) => {
+    const s = serviceMap.get(id);
+    return acc + (s?.duration_minutes || 30);
+  }, 0) || 30;
+  const totalPrice = serviceIds.reduce((acc: number, id: string) => {
+    const s = serviceMap.get(id);
+    return acc + Number(s?.price || 0);
+  }, 0) || 0;
 
   const start = new Date(`${date}T${time}:00-05:00`);
   const end = new Date(start.getTime() + duration * 60000);

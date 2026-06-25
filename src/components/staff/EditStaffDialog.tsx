@@ -414,9 +414,12 @@ export function EditStaffDialog({ member, services = [] }: { member: any, servic
                                           onChange={e => updateWorkingDay(idx, "break_start", Number(e.target.value))}
                                           className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1 text-[10px] outline-none text-white"
                                         >
-                                          {Array.from({length: 24}).map((_,h) => (
-                                            <option key={h} value={h}>{h}:00</option>
-                                          ))}
+                                          {Array.from({length: 24 * 4}).map((_, i) => {
+                                            const h = Math.floor(i / 4);
+                                            const m = (i % 4) * 15;
+                                            const val = h + (m / 60);
+                                            return <option key={`start-${i}`} value={val}>{`${h}:${m.toString().padStart(2, '0')}`}</option>
+                                          })}
                                         </select>
                                       </div>
                                       <div className="flex items-center gap-1 flex-1 min-w-0">
@@ -426,9 +429,12 @@ export function EditStaffDialog({ member, services = [] }: { member: any, servic
                                           onChange={e => updateWorkingDay(idx, "break_end", Number(e.target.value))}
                                           className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1 text-[10px] outline-none text-white"
                                         >
-                                          {Array.from({length: 24}).map((_,h) => (
-                                            <option key={h} value={h}>{h}:00</option>
-                                          ))}
+                                          {Array.from({length: 24 * 4}).map((_, i) => {
+                                            const h = Math.floor(i / 4);
+                                            const m = (i % 4) * 15;
+                                            const val = h + (m / 60);
+                                            return <option key={`end-${i}`} value={val}>{`${h}:${m.toString().padStart(2, '0')}`}</option>
+                                          })}
                                         </select>
                                       </div>
                                     </div>

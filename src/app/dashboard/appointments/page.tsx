@@ -172,12 +172,17 @@ async function AppointmentsContent({
             const dd = String(currentDate.getDate()).padStart(2, '0');
             const dateStr = `${yyyy}-${mm}-${dd}`;
             
+            const startH = Math.floor(dayConfig.break_start);
+            const startM = Math.round((dayConfig.break_start - startH) * 60);
+            const endH = Math.floor(dayConfig.break_end);
+            const endM = Math.round((dayConfig.break_end - endH) * 60);
+            
             agendaBlocks.push({
                id: `lunch-${s.id}-${dateStr}`,
                tenant_id: tenantId,
                staff_id: s.id,
-               start_time: new Date(`${dateStr}T${String(dayConfig.break_start).padStart(2, '0')}:00:00-05:00`).toISOString(),
-               end_time: new Date(`${dateStr}T${String(dayConfig.break_end).padStart(2, '0')}:00:00-05:00`).toISOString(),
+               start_time: new Date(`${dateStr}T${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}:00-05:00`).toISOString(),
+               end_time: new Date(`${dateStr}T${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}:00-05:00`).toISOString(),
                reason: "Almuerzo",
                is_lunch_break: true
             });

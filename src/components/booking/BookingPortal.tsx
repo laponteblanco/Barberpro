@@ -37,6 +37,9 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
   const [idNumber, setIdNumber] = useState("");
   const [client, setClient] = useState<any>(null);
   const [clientHistory, setClientHistory] = useState<any[]>([]);
+  
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [fragmentedOptions, setFragmentedOptions] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeHistoryTab, setActiveHistoryTab] = useState<"upcoming" | "completed">("upcoming");
 
@@ -52,7 +55,7 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
   const [selectedStaff, setSelectedStaff] = useState<any>(null);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [selectedTime, setSelectedTime] = useState<string>("");
-  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+
 
   const handleIdentify = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,8 +118,8 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
   const fetchSlots = async () => {
     setLoading(true);
     try {
-      const totalDuration = selectedServices.reduce((acc, s) => acc + (s.duration_minutes || 30), 0);
-      const res = await fetch(`/api/tenants/${tenant.id}/staff/${selectedStaff.id}/availability?date=${selectedDate}&duration=${totalDuration}`);
+      const serviceIdsStr = selectedServices.map(s => s.id).join(",");
+      const res = await fetch(`/api/tenants/${tenant.id}/staff/${selectedStaff.id}/availability?date=${selectedDate}&service_ids=${serviceIdsStr}`);
       
       if (!res.ok) throw new Error("Error fetching slots");
       
@@ -126,10 +129,12 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
       }
 
       const data = await res.json();
-      setAvailableSlots(data.slots || []);
+      setAvailableSlots(data.continuous || data.slots || []);
+      setFragmentedOptions(data.fragmented || []);
     } catch (err) {
       console.error("Fetch slots error:", err);
       setAvailableSlots([]);
+      setFragmentedOptions([]);
     } finally {
       setLoading(false);
     }
@@ -153,7 +158,9 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
           staffId: selectedStaff.id,
           serviceIds: selectedServices.map(s => s.id),
           date: selectedDate,
-          time: selectedTime
+          time: selectedTime,
+          isFragmented: selectedTime.startsWith("frag-"),
+          fragmentedSlots: selectedTime.startsWith("frag-") ? fragmentedOptions[parseInt(selectedTime.split("-")[1])]?.slots : null
         }
       );
       
@@ -588,29 +595,62 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
                  <div key={i} className="h-14 rounded-xl bg-white/5 animate-pulse" />
                ))}
              </div>
-           ) : availableSlots.length > 0 ? (
-             <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-               {availableSlots.map((slot) => (
-                 <button 
-                   key={slot}
-                   onClick={() => {
-                     setSelectedTime(slot);
-                     setStep("confirm");
-                   }}
-                   className={cn(
-                     "py-4 rounded-xl text-sm font-black tracking-widest border transition-all active:scale-95",
-                     selectedTime === slot 
-                      ? "bg-primary border-primary text-white shadow-lg shadow-primary/20" 
-                      : "bg-white/5 border-white/5 text-zinc-400 hover:border-primary/40 hover:text-white"
-                   )}
-                 >
-                   {slot}
-                 </button>
-               ))}
+           ) : (availableSlots.length > 0 || fragmentedOptions.length > 0) ? (
+             <div className="space-y-6">
+               {availableSlots.length > 0 && (
+                 <div>
+                   <p className="text-[10px] uppercase font-black tracking-widest text-emerald-500 mb-2">Opciones Continuas</p>
+                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                     {availableSlots.map((slot) => (
+                       <button 
+                         key={slot}
+                         onClick={() => {
+                           setSelectedTime(slot);
+                           setStep("confirm");
+                         }}
+                         className={cn(
+                           "h-14 rounded-xl border text-sm font-bold transition-all",
+                           selectedTime === slot 
+                             ? "bg-primary border-primary text-white shadow-lg shadow-primary/20 scale-105" 
+                             : "bg-black/20 border-white/5 text-zinc-300 hover:border-white/10 hover:bg-white/5 hover:text-white"
+                         )}
+                       >
+                         {slot}
+                       </button>
+                     ))}
+                   </div>
+                 </div>
+               )}
+
+               {fragmentedOptions.length > 0 && selectedServices.length > 1 && (
+                 <div className={availableSlots.length > 0 ? "pt-4 border-t border-white/5" : ""}>
+                   <p className="text-[10px] uppercase font-black tracking-widest text-amber-500 mb-2">Opciones Divididas</p>
+                   <div className="grid gap-2">
+                     {fragmentedOptions.map((opt: any, idx: number) => (
+                       <button
+                         key={`frag-${idx}`}
+                         onClick={() => {
+                           setSelectedTime(`frag-${idx}`);
+                           setStep("confirm");
+                         }}
+                         className={cn(
+                           "w-full text-left p-4 rounded-xl border transition-all",
+                           selectedTime === `frag-${idx}`
+                             ? "bg-amber-500/10 border-amber-500 text-white shadow-lg shadow-amber-500/20"
+                             : "bg-black/20 border-white/5 text-zinc-300 hover:border-white/10 hover:bg-white/5 hover:text-white"
+                         )}
+                       >
+                         <p className="font-bold text-sm">{opt.label}</p>
+                         <p className="text-xs text-zinc-500 mt-1">Tiempo de espera: {opt.waitTime} min</p>
+                       </button>
+                     ))}
+                   </div>
+                 </div>
+               )}
              </div>
            ) : (
-             <div className="p-10 text-center glass-card rounded-[32px] border-white/5 bg-zinc-900/40">
-                <p className="text-zinc-600 text-sm font-bold uppercase tracking-widest">No hay espacios disponibles para este día</p>
+             <div className="text-center py-10 bg-white/5 rounded-2xl border border-white/5">
+               <p className="text-zinc-500 font-bold uppercase tracking-widest text-[10px]">No hay horarios disponibles</p>
              </div>
            )}
         </div>

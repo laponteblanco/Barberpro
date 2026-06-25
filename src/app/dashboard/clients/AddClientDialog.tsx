@@ -111,6 +111,7 @@ export function AddClientDialog() {
                 <input 
                   name="birth_date"
                   type="date"
+                  required
                   max={new Date(new Date().getTime() - (5 * 3600000)).toISOString().split('T')[0]}
                   className="w-full h-12 px-5 bg-zinc-900/50 border border-white/5 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all text-white [color-scheme:dark]" 
                 />
@@ -118,11 +119,12 @@ export function AddClientDialog() {
 
               <div className="space-y-2.5">
                 <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-2 ml-1">
-                  <Mail className="w-3 h-3 text-primary/70" /> Email (Opcional)
+                  <Mail className="w-3 h-3 text-primary/70" /> Email
                 </label>
                 <input 
                   name="email"
                   type="email"
+                  required
                   placeholder="cliente@correo.com" 
                   className="w-full h-12 px-5 bg-zinc-900/50 border border-white/5 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all text-white" 
                 />
@@ -137,6 +139,21 @@ export function AddClientDialog() {
                   placeholder="Preferencias de corte, alergias, etc..." 
                   className="w-full min-h-[100px] px-5 py-4 bg-zinc-900/50 border border-white/5 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all text-white resize-none" 
                 />
+              </div>
+
+              <div className="pt-2">
+                <label className="flex items-start gap-3 cursor-pointer group">
+                  <input 
+                    type="checkbox" 
+                    name="habeas_data" 
+                    required
+                    className="mt-0.5 w-4 h-4 accent-primary rounded border-white/10 bg-zinc-900 shrink-0 cursor-pointer"
+                  />
+                  <span className="text-xs text-zinc-400 leading-relaxed group-hover:text-zinc-300 transition-colors">
+                    Acepto el tratamiento de mis datos personales de acuerdo con la{" "}
+                    <span className="text-primary underline underline-offset-2">Política de Tratamiento de Datos Personales (Habeas Data)</span>.
+                  </span>
+                </label>
               </div>
 
               <div className="pt-4">

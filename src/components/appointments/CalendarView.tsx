@@ -115,6 +115,7 @@ export function CalendarView({
   const [mounted, setMounted] = useState(false);
   const [showPaymentSelector, setShowPaymentSelector] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [discountAmount, setDiscountAmount] = useState<number | "">("");
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
 
   const [isMobile, setIsMobile] = useState(false);
@@ -281,11 +282,12 @@ export function CalendarView({
     }, { total: 0, completed: 0, earnings: 0 });
   }, [appointments, selectedDate, viewMode, calendarColumns, staff]);
 
-  const updateStatus = async (id: string, status: string, paymentMethod?: string) => {
+  const updateStatus = async (id: string, status: string, paymentMethod?: string, discount?: number) => {
     try {
-      await updateAppointmentStatusAction(id, status, paymentMethod);
+      await updateAppointmentStatusAction(id, status, paymentMethod, discount);
       setSelectedAppt(null);
       setShowPaymentSelector(false);
+      setDiscountAmount("");
       router.refresh();
     } catch (err: any) {
       alert(err.message || "Error");
@@ -962,9 +964,37 @@ export function CalendarView({
                     </div>
                   </div>
 
-                  <div className="pt-2 grid gap-3">
+                  <div className="space-y-2 mt-4 p-4 rounded-xl border border-white/5 bg-black/20">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-bold text-zinc-400">Total Original:</p>
+                      <p className="text-sm font-black text-white">
+                        {new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(selectedAppt.total_price)}
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <p className="text-xs font-bold text-zinc-400">Bono / Descuento:</p>
+                      <div className="relative w-1/2">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">$</span>
+                        <input
+                          type="number"
+                          value={discountAmount}
+                          onChange={(e) => setDiscountAmount(e.target.value === "" ? "" : Number(e.target.value))}
+                          placeholder="0"
+                          className="w-full pl-7 pr-3 py-2 bg-zinc-900 border border-white/10 rounded-lg text-right text-sm font-black text-emerald-400 outline-none focus:border-emerald-500/50 transition-colors"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between pt-2 border-t border-white/10">
+                      <p className="text-xs font-black uppercase tracking-widest text-emerald-500">Total a Cobrar:</p>
+                      <p className="text-xl font-black text-emerald-400">
+                        {new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(Math.max(0, selectedAppt.total_price - (Number(discountAmount) || 0)))}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 grid gap-3 mt-4">
                     <button 
-                      onClick={() => updateStatus(selectedAppt.id, 'completed', paymentMethod)} 
+                      onClick={() => updateStatus(selectedAppt.id, 'completed', paymentMethod, Number(discountAmount) || 0)} 
                       className="w-full py-3.5 rounded-2xl bg-emerald-500 text-white font-black uppercase tracking-widest text-xs hover:scale-[1.01] active:scale-[0.99] transition-transform"
                     >
                       Confirmar Cierre

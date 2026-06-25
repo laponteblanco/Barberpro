@@ -9,9 +9,12 @@ export async function GET(
     const { tenantId, staffId } = await params;
     const { searchParams } = request.nextUrl;
     const date = searchParams.get("date");
+    const serviceIdsParam = searchParams.get("service_ids");
     const durationStr = searchParams.get("duration");
-    const parsedDuration = durationStr ? parseInt(durationStr, 10) : 15;
-    const requestedDuration = Math.max(parsedDuration, 15); // minimum 15 mins to prevent 0-duration bypassing conflict checks
+    const parsedDuration = durationStr ? parseInt(durationStr, 10) : 0;
+    
+    // We will use service_ids if provided, otherwise fallback to duration for backward compatibility
+    let requestedDuration = Math.max(parsedDuration, 0);
 
     if (!date) {
       return NextResponse.json({ error: "Falta la fecha" }, { status: 400 });
@@ -26,7 +29,8 @@ export async function GET(
       { data: tenant },
       { data: staffRow },
       { data: appointments },
-      blocksResult
+      blocksResult,
+      servicesResult
     ] = await Promise.all([
       // 1. Get tenant business hours
       (supabase as any).from("tenants").select("settings").eq("id", tenantId).single(),
@@ -38,16 +42,18 @@ export async function GET(
       (supabase as any).from("appointments").select("start_time, end_time, service:services(duration_minutes)").eq("staff_id", staffId).eq("tenant_id", tenantId).gte("start_time", startOfDayUTC).lte("start_time", endOfDayUTC).in("status", ["pending", "confirmed", "completed"]),
       
       // 3. Fetch agenda blocks for the same day
-      (supabase as any).from("agenda_blocks").select("start_time, end_time").eq("staff_id", staffId).eq("tenant_id", tenantId).gte("start_time", startOfDayUTC).lte("start_time", endOfDayUTC)
+      (supabase as any).from("agenda_blocks").select("start_time, end_time").eq("staff_id", staffId).eq("tenant_id", tenantId).gte("start_time", startOfDayUTC).lte("start_time", endOfDayUTC),
+      
+      // 4. Fetch requested services to get their durations if service_ids are provided
+      serviceIdsParam 
+        ? (supabase as any).from("services").select("id, name, duration_minutes").in("id", serviceIdsParam.split(","))
+        : Promise.resolve({ data: [] })
     ]);
 
     const blocks = blocksResult?.data;
-    console.log("[Availability API] staffId:", staffId, "date:", date, "tenantId:", tenantId);
-    console.log("[Availability API] startOfDayUTC:", startOfDayUTC, "endOfDayUTC:", endOfDayUTC);
-    console.log("[Availability API] blocks query result:", JSON.stringify(blocksResult));
-    console.log("[Availability API] appointments found:", appointments?.length);
+    const servicesData = servicesResult?.data || [];
+    const settings = tenant?.settings;
 
-    const settings = tenant?.settings || {};
     const appointmentInterval = Number(settings?.appointment_interval) || 15;
 
     // Determine the day-of-week for the requested date (0=Sun … 6=Sat)
@@ -132,6 +138,28 @@ export async function GET(
       }
     }
 
+    // Prepare services list with proper durations taking into account duplicate service_ids
+    const requestedServices: Array<{id: string; name: string; duration_minutes: number}> = [];
+    if (serviceIdsParam) {
+      const serviceIdsArray = serviceIdsParam.split(",");
+      const serviceMap = new Map(servicesData.map((s: any) => [s.id, s]));
+      for (const id of serviceIdsArray) {
+        const s = serviceMap.get(id);
+        if (s) {
+          requestedServices.push({
+            id: s.id,
+            name: s.name,
+            duration_minutes: s.duration_minutes || 30
+          });
+        }
+      }
+      if (requestedServices.length > 0) {
+        requestedDuration = requestedServices.reduce((acc, s) => acc + s.duration_minutes, 0);
+      }
+    }
+    // ensure minimum 15 mins
+    requestedDuration = Math.max(requestedDuration, 15);
+
     // 5. Generate available slots
     const slots: string[] = [];
 
@@ -193,7 +221,83 @@ export async function GET(
       }
     }
 
-    return NextResponse.json({ slots });
+    // 6. If no continuous slots and multiple services, find fragmented options
+    const fragmentedOptions: any[] = [];
+    
+    if (slots.length === 0 && requestedServices.length > 1) {
+      const fits = (startMin: number, duration: number) => {
+        if (startMin + duration > endHour * 60) return false;
+        // Check lunch break
+        if (breakStart !== null && breakEnd !== null) {
+          const breakStartMin = breakStart * 60;
+          const breakEndMin = breakEnd * 60;
+          if (startMin < breakEndMin && (startMin + duration) > breakStartMin) {
+            return false;
+          }
+        }
+        for (let t = startMin; t < startMin + duration; t++) {
+          if (blockedMinutes.has(t)) return false;
+        }
+        return true;
+      };
+
+      const findCombinations = (serviceIndex: number, currentMin: number, currentCombo: any[]) => {
+        if (serviceIndex === requestedServices.length) {
+          let waitTime = 0;
+          for (let i = 1; i < currentCombo.length; i++) {
+            const prev = currentCombo[i - 1];
+            const curr = currentCombo[i];
+            waitTime += curr.startMin - (prev.startMin + prev.duration);
+          }
+          fragmentedOptions.push({
+            label: currentCombo.map(c => `${Math.floor(c.startMin/60).toString().padStart(2, '0')}:${(c.startMin%60).toString().padStart(2, '0')} (${c.name})`).join(' y '),
+            waitTime,
+            slots: currentCombo.map(c => ({
+              serviceId: c.serviceId,
+              name: c.name,
+              startTime: `${Math.floor(c.startMin/60).toString().padStart(2, '0')}:${(c.startMin%60).toString().padStart(2, '0')}`,
+              duration: c.duration
+            }))
+          });
+          return;
+        }
+
+        const s = requestedServices[serviceIndex];
+        // Allow a maximum of a few hours between services to avoid combinatorial explosion, 
+        // but since we want the absolute minimum wait time, we'll search up to endHour
+        for (let min = currentMin; min <= endHour * 60 - s.duration_minutes; min += appointmentInterval) {
+          // Skip past slots for today
+          const h = Math.floor(min / 60);
+          const m = min % 60;
+          if (isToday && (h < nowHour || (h === nowHour && m <= nowMin))) {
+            continue;
+          }
+
+          if (fits(min, s.duration_minutes)) {
+            currentCombo.push({ serviceId: s.id, name: s.name, startMin: min, duration: s.duration_minutes });
+            findCombinations(serviceIndex + 1, min + s.duration_minutes, currentCombo);
+            currentCombo.pop();
+          }
+        }
+      };
+
+      const startMinSearch = startHour * 60;
+      findCombinations(0, startMinSearch, []);
+
+      // Sort by lowest wait time, then by earliest start time
+      fragmentedOptions.sort((a, b) => {
+        if (a.waitTime !== b.waitTime) return a.waitTime - b.waitTime;
+        const startA = a.slots[0].startTime.split(':');
+        const startB = b.slots[0].startTime.split(':');
+        return (parseInt(startA[0]) * 60 + parseInt(startA[1])) - (parseInt(startB[0]) * 60 + parseInt(startB[1]));
+      });
+    }
+
+    return NextResponse.json({ 
+      slots, // backward compatible continuous slots
+      continuous: slots,
+      fragmented: fragmentedOptions.slice(0, 8) // Limit to top 8 options
+    });
   } catch (err: any) {
     console.error("Availability API Error:", err);
     return NextResponse.json(

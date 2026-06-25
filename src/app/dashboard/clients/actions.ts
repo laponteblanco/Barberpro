@@ -4,7 +4,7 @@ import { getSession } from "@/lib/supabase/session";
 import { createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
-export async function createClientAction(data: { full_name: string; id_number: string; phone: string; email?: string; notes?: string; birth_date?: string }) {
+export async function createClientAction(data: { full_name: string; id_number: string; phone: string; email: string; notes?: string; birth_date: string }) {
   const { tenantId } = await getSession();
   if (!tenantId) return { error: "No session" };
 

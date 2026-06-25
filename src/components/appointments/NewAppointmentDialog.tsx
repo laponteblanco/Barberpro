@@ -57,6 +57,7 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
 
   // Fetch available slots from the API for real-time accuracy
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [fragmentedOptions, setFragmentedOptions] = useState<any[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const fetchCounter = useRef(0);
 
@@ -71,14 +72,18 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
     const currentFetchId = ++fetchCounter.current;
     setSlotsLoading(true);
     try {
-      // Filter slots based on total service duration to ensure the full appointment fits
-      const selectedServices = services.filter((s: any) => formData.service_ids.includes(s.id));
-      const totalDuration = selectedServices.reduce((acc: number, s: any) => acc + (s.duration_minutes || 30), 0);
+      // Calculate total duration accounting for same service selected multiple times
+      const serviceMap = new Map(services.map((s: any) => [s.id, s]));
+      const totalDuration = formData.service_ids.reduce((acc: number, id: string) => {
+        const s = serviceMap.get(id);
+        return acc + (s?.duration_minutes || 30);
+      }, 0);
       
-      const res = await fetch(`/api/tenants/${tenantId}/staff/${formData.staff_id}/availability?date=${formData.date}&duration=${totalDuration}`);
+      const res = await fetch(`/api/tenants/${tenantId}/staff/${formData.staff_id}/availability?date=${formData.date}&service_ids=${serviceIdsStr}`);
       if (!res.ok) throw new Error("Error fetching slots");
       const data = await res.json();
-      let slots: string[] = data.slots || [];
+      let slots: string[] = data.continuous || data.slots || [];
+      let fragmented: any[] = data.fragmented || [];
 
       // If editing, add the current appointment's time slot back as available
       if (editApptId && appointments) {
@@ -101,10 +106,12 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
       if (currentFetchId !== fetchCounter.current) return;
 
       setAvailableSlots(slots);
+      setFragmentedOptions(fragmented);
     } catch (err) {
       if (currentFetchId !== fetchCounter.current) return;
       console.error("Error fetching available slots:", err);
       setAvailableSlots([]);
+      setFragmentedOptions([]);
     } finally {
       if (currentFetchId === fetchCounter.current) {
         setSlotsLoading(false);
@@ -126,10 +133,14 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
 
   // Automatically clear selected time if it's no longer valid
   useEffect(() => {
-    if (formData.time && availableSlots.length > 0 && !availableSlots.includes(formData.time)) {
-      setFormData(prev => ({ ...prev, time: "" }));
+    if (formData.time) {
+      const isContinuousValid = availableSlots.includes(formData.time);
+      const isFragmentedValid = formData.time.startsWith("frag-") && fragmentedOptions.length > parseInt(formData.time.split("-")[1] || "999");
+      if (!isContinuousValid && !isFragmentedValid) {
+        setFormData(prev => ({ ...prev, time: "" }));
+      }
     }
-  }, [availableSlots, formData.time]);
+  }, [availableSlots, fragmentedOptions, formData.time]);
 
   const filteredClients = clients.filter((c: any) => 
     (c.full_name?.toLowerCase().includes(clientSearch.toLowerCase())) || 
@@ -142,7 +153,9 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (formData.time && !availableSlots.includes(formData.time)) return;
+    const isContinuousValid = availableSlots.includes(formData.time);
+    const isFragmentedValid = formData.time.startsWith("frag-") && fragmentedOptions.length > parseInt(formData.time.split("-")[1] || "999");
+    if (formData.time && !isContinuousValid && !isFragmentedValid) return;
 
     setLoading(true);
     const fd = new FormData(e.currentTarget);
@@ -153,6 +166,13 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
     
     // Append all selected service ids as JSON array
     fd.append("service_ids", JSON.stringify(formData.service_ids));
+
+    if (isFragmentedValid) {
+      const fragIdx = parseInt(formData.time.split("-")[1]);
+      const selectedFrag = fragmentedOptions[fragIdx];
+      fd.append("is_fragmented", "true");
+      fd.append("fragmented_slots", JSON.stringify(selectedFrag.slots));
+    }
 
     try {
       let res;
@@ -339,38 +359,71 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
                     <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 flex items-center gap-2 ml-1">
                       <Scissors className="w-3 h-3 text-primary/70" /> Servicios
                     </label>
-                    <div className="w-full max-h-[160px] overflow-y-auto px-4 py-2 bg-zinc-900/50 border border-white/5 rounded-2xl text-sm transition-all flex flex-col gap-2 custom-scrollbar">
+                    <div className="w-full max-h-[200px] overflow-y-auto px-4 py-3 bg-zinc-900/50 border border-white/5 rounded-2xl text-sm transition-all flex flex-col gap-2 custom-scrollbar">
                       {[...services].sort((a: any, b: any) => (b.price ?? 0) - (a.price ?? 0)).map((s: any) => {
-                        const isSelected = formData.service_ids.includes(s.id);
+                        const qty = formData.service_ids.filter((id: string) => id === s.id).length;
                         return (
-                          <label key={s.id} className="flex items-center gap-3 cursor-pointer group">
-                            <div className={cn(
-                              "w-5 h-5 rounded border flex items-center justify-center transition-all flex-shrink-0",
-                              isSelected ? "bg-primary border-primary text-white" : "border-zinc-700 bg-zinc-950 group-hover:border-zinc-500"
-                            )}>
-                              {isSelected && <CheckCircle2 className="w-3.5 h-3.5" />}
-                            </div>
+                          <div key={s.id} className="flex items-center gap-2 group">
                             <div className="flex-1 min-w-0">
-                              <p className={cn("truncate transition-colors", isSelected ? "text-white" : "text-zinc-400 group-hover:text-zinc-300")}>{s.name}</p>
-                              <p className="text-xs text-zinc-600">${Number(s.price).toLocaleString('es-CO')}</p>
+                              <p className={cn("truncate text-sm transition-colors", qty > 0 ? "text-white font-medium" : "text-zinc-400 group-hover:text-zinc-300")}>{s.name}</p>
+                              <p className="text-[10px] text-zinc-600">${Number(s.price).toLocaleString('es-CO')} · {s.duration_minutes || 30}min</p>
                             </div>
-                            <input 
-                              type="checkbox" 
-                              className="hidden" 
-                              checked={isSelected}
-                              onChange={(e) => {
-                                setFormData(prev => ({
-                                  ...prev,
-                                  service_ids: e.target.checked 
-                                    ? [...prev.service_ids, s.id]
-                                    : prev.service_ids.filter((id: string) => id !== s.id)
-                                }));
-                              }}
-                            />
-                          </label>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                disabled={qty === 0}
+                                onClick={() => {
+                                  setFormData(prev => {
+                                    const idx = prev.service_ids.lastIndexOf(s.id);
+                                    if (idx === -1) return prev;
+                                    const newIds = [...prev.service_ids];
+                                    newIds.splice(idx, 1);
+                                    return { ...prev, service_ids: newIds };
+                                  });
+                                }}
+                                className={cn(
+                                  "w-7 h-7 rounded-lg flex items-center justify-center text-sm font-bold transition-all",
+                                  qty > 0 ? "bg-zinc-800 text-white hover:bg-zinc-700 active:scale-90" : "bg-zinc-900 text-zinc-700 cursor-not-allowed"
+                                )}
+                              >
+                                −
+                              </button>
+                              <span className={cn(
+                                "w-6 text-center text-sm font-bold tabular-nums",
+                                qty > 0 ? "text-primary" : "text-zinc-600"
+                              )}>
+                                {qty}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    service_ids: [...prev.service_ids, s.id]
+                                  }));
+                                }}
+                                className="w-7 h-7 rounded-lg bg-zinc-800 text-white hover:bg-primary hover:text-white flex items-center justify-center text-sm font-bold transition-all active:scale-90"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
                         );
                       })}
                     </div>
+                    {formData.service_ids.length > 0 && (
+                      <div className="flex items-center justify-between px-2 pt-1">
+                        <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">
+                          {formData.service_ids.length} servicio{formData.service_ids.length !== 1 ? 's' : ''}
+                        </p>
+                        <p className="text-xs text-primary font-bold">
+                          ${services
+                            .filter((s: any) => formData.service_ids.includes(s.id))
+                            .reduce((acc: number, s: any) => acc + (Number(s.price) * formData.service_ids.filter((id: string) => id === s.id).length), 0)
+                            .toLocaleString('es-CO')}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -401,11 +454,26 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
                       className="w-full h-12 px-4 bg-zinc-900/50 border border-white/5 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all text-white appearance-none cursor-pointer" 
                     >
                       <option value="">{slotsLoading ? "Cargando horarios..." : "Seleccionar hora..."}</option>
-                      {availableSlots.map((timeStr: string) => (
-                        <option key={timeStr} value={timeStr} className="bg-zinc-950">
-                          {timeStr}
-                        </option>
-                      ))}
+                      
+                      {availableSlots.length > 0 && (
+                        <optgroup label="Opciones Continuas" className="bg-zinc-950 text-white">
+                          {availableSlots.map((timeStr: string) => (
+                            <option key={timeStr} value={timeStr} className="bg-zinc-950">
+                              {timeStr}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+
+                      {availableSlots.length === 0 && fragmentedOptions.length > 0 && (
+                        <optgroup label="Opciones Divididas" className="bg-zinc-950 text-white">
+                          {fragmentedOptions.map((opt: any, idx: number) => (
+                            <option key={`frag-${idx}`} value={`frag-${idx}`} className="bg-zinc-950">
+                              {opt.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
                     </select>
                   </div>
                 </div>
@@ -432,7 +500,7 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
               )}>
                 <button 
                   type="submit" 
-                  disabled={loading || (formData.time && !availableSlots.includes(formData.time) && availability.status !== 'checking')}
+                  disabled={loading || (formData.time && !availableSlots.includes(formData.time) && !formData.time.startsWith("frag-") && availability.status !== 'checking')}
                   className="w-full h-14 rounded-2xl bg-primary text-primary-foreground font-black uppercase tracking-widest text-xs hover:brightness-110 transition-all shadow-xl shadow-primary/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
                 >
                   {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (editApptId ? "Guardar Cambios" : "Confirmar Cita")}
