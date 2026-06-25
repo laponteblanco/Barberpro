@@ -142,7 +142,7 @@ export async function GET(
     const requestedServices: Array<{id: string; name: string; duration_minutes: number}> = [];
     if (serviceIdsParam) {
       const serviceIdsArray = serviceIdsParam.split(",");
-      const serviceMap = new Map(servicesData.map((s: any) => [s.id, s]));
+      const serviceMap = new Map<string, any>(servicesData.map((s: any) => [s.id, s]));
       for (const id of serviceIdsArray) {
         const s = serviceMap.get(id);
         if (s) {
