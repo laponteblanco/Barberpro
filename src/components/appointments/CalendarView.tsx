@@ -53,7 +53,14 @@ const getBarberColorIndex = (id: string) =>
 const getBarberColor = (id: string, completed = false, theme = 'dark') => {
   const t = theme === 'light' ? 'light' : 'dark';
   const color = BARBER_COLORS_THEMES[t][getBarberColorIndex(id)];
-  return completed ? color.completed : color.base;
+  
+  if (completed) {
+    return theme === 'light' 
+      ? "bg-emerald-100 border-emerald-300 text-emerald-900 shadow-sm" 
+      : "bg-emerald-500/20 border-emerald-500/50 text-emerald-400 shadow-md";
+  }
+  
+  return color.base;
 };
 
 const getBarberDot = (id: string, theme = 'dark') => {
@@ -921,12 +928,14 @@ export function CalendarView({
                     </p>
                   </div>
                   <div className="pt-2 grid gap-3">
-                    <button 
-                      onClick={() => setShowPaymentSelector(true)} 
-                      className="w-full py-3.5 rounded-2xl bg-emerald-500 text-white font-black uppercase tracking-widest text-xs hover:scale-[1.01] active:scale-[0.99] transition-transform"
-                    >
-                      Completar
-                    </button>
+                    {selectedAppt.status !== 'completed' && (
+                      <button 
+                        onClick={() => setShowPaymentSelector(true)} 
+                        className="w-full py-3.5 rounded-2xl bg-emerald-500 text-white font-black uppercase tracking-widest text-xs hover:scale-[1.01] active:scale-[0.99] transition-transform"
+                      >
+                        Completar
+                      </button>
+                    )}
                     <button 
                       onClick={() => handleDelete(selectedAppt.id)} 
                       className="w-full py-3.5 rounded-2xl bg-zinc-800 text-zinc-300 font-black uppercase tracking-widest text-xs hover:scale-[1.01] active:scale-[0.99] transition-transform"
