@@ -14,7 +14,7 @@ export async function publicCreateAppointmentAction(
     email?: string; 
     notes?: string;
   },
-  appointmentData: { staffId: string; serviceIds: string[]; date: string; time: string }
+  appointmentData: { staffId: string; serviceIds: string[]; date: string; time: string; isFragmented?: boolean; fragmentedSlots?: any[] }
 ) {
   const adminSupabase = await createAdminClient();
 
