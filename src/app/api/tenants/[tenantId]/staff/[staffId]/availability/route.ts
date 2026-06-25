@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
-import { getOptimizedAvailableSlots } from "@/lib/booking-utils";
+import { getOptimizedSlots } from "@/lib/booking-utils";
 
 export async function GET(
   request: NextRequest,
@@ -31,7 +31,8 @@ export async function GET(
       { data: staffRow },
       { data: appointments },
       blocksResult,
-      servicesResult
+      servicesResult,
+      tenantServicesResult
     ] = await Promise.all([
       // 1. Get tenant business hours
       (supabase as any).from("tenants").select("settings").eq("id", tenantId).single(),
@@ -48,12 +49,16 @@ export async function GET(
       // 4. Fetch requested services to get their durations if service_ids are provided
       serviceIdsParam 
         ? (supabase as any).from("services").select("id, name, duration_minutes").in("id", serviceIdsParam.split(","))
-        : Promise.resolve({ data: [] })
+        : Promise.resolve({ data: [] }),
+      
+      // 5. Fetch all services of the tenant to determine minimum_bookable_service
+      (supabase as any).from("services").select("duration_minutes").eq("tenant_id", tenantId)
     ]);
 
     const blocks = blocksResult?.data;
     const servicesData = servicesResult?.data || [];
     const settings = tenant?.settings;
+    const tenantServices = tenantServicesResult?.data || [];
 
     const appointmentInterval = Number(settings?.appointment_interval) || 15;
 
@@ -185,13 +190,24 @@ export async function GET(
       end_time: block.end_time
     }));
 
-    const allSlots = getOptimizedAvailableSlots(
-      staffId,
+    const isStrictQuery = searchParams.get("strict");
+    const is_strict_mode = isStrictQuery !== null
+      ? isStrictQuery === "true"
+      : (settings?.is_strict_mode ?? true);
+
+    const minimum_bookable_service = tenantServices.length > 0
+      ? Math.min(...tenantServices.map((s: any) => s.duration_minutes || 30))
+      : 30;
+
+    const allSlots = getOptimizedSlots({
+      barber_id: staffId,
       date,
-      requestedDuration,
+      service_duration: requestedDuration,
+      minimum_bookable_service,
       businessHours,
-      [...existingAppointmentsMapped, ...blockedTimesMapped]
-    );
+      existingAppointments: [...existingAppointmentsMapped, ...blockedTimesMapped],
+      is_strict_mode
+    });
 
     // Get current Bogotá time to filter out past slots for today
     const now = new Date();

@@ -122,27 +122,43 @@ export function getFreeBlocks(
   return freeBlocks;
 }
 
+export interface BookingParams {
+  barber_id: string;
+  date: string;
+  service_duration: number;
+  minimum_bookable_service: number;
+  businessHours: BusinessHours;
+  existingAppointments: Appointment[];
+  is_strict_mode: boolean;
+}
+
 /**
- * Calcula los horarios de inicio disponibles optimizados para evitar huecos huérfanos de exactamente 15 minutos.
- *
- * Regla de negocio crítica (Snap-to-Adjacent):
- * 1. Solo permite que la nueva reserva inicie pegada al inicio del bloque libre, o termine pegada al final.
- * 2. Si el espacio sobrante es exactamente 15 minutos, ese candidato se invalida para evitar huecos inútiles.
- * 3. Si el hueco dura exactamente lo mismo que el servicio ("Perfect Fit"), se devuelve con prioridad máxima.
- *
- * @returns Un arreglo de strings con los horarios de inicio disponibles ordenados (Perfect Fits primero, luego el resto de manera cronológica).
+ * Calcula los horarios de inicio disponibles optimizados segun la modalidad:
+ * 
+ * - MODO ESTRICTO (is_strict_mode = true):
+ *   1. Agendamiento por bordes (Edge-Snapping): Solo permite iniciar pegado al inicio del bloque o terminar pegado al final.
+ *   2. Validacion de Residuo Mortal (Dead-Space Remainder Check): Si el sobrante (residuo) es mayor a 0 pero menor a minimum_bookable_service,
+ *      entonces el candidato se descarta ya que dejaria un hueco inutilizable.
+ * 
+ * - MODO FLEXIBLE (is_strict_mode = false):
+ *   1. Intervalos regulares: Genera horas cada 15 minutos (o el intervalo configurado) a lo largo de todo el bloque libre.
+ *   2. Sin validacion de residuo: Mientras el servicio quepa completo, se permite el slot.
  */
-export function getOptimizedAvailableSlots(
-  barber_id: string,
-  date: string,
-  service_duration: number,
-  businessHours: BusinessHours,
-  existingAppointments: Appointment[]
-): string[] {
-  // 1. Mapeo y preparación de los intervalos ocupados del día
+export function getOptimizedSlots(params: BookingParams): string[] {
+  const {
+    barber_id,
+    date,
+    service_duration,
+    minimum_bookable_service,
+    businessHours,
+    existingAppointments,
+    is_strict_mode
+  } = params;
+
+  // 1. Mapeo y preparacion de los intervalos ocupados del dia
   const occupiedIntervals: TimeInterval[] = [];
 
-  // Agregar almuerzo si está definido
+  // Agregar almuerzo si esta definido
   if (businessHours.lunch_start && businessHours.lunch_end) {
     occupiedIntervals.push({
       start: timeToMinutes(businessHours.lunch_start),
@@ -168,45 +184,74 @@ export function getOptimizedAvailableSlots(
   for (const block of freeBlocks) {
     const blockLength = block.end - block.start;
 
-    // Descartar si el bloque es más corto que la duración del servicio
+    // Descartar si el bloque es mas corto que la duracion del servicio
     if (blockLength < service_duration) {
       continue;
     }
 
-    // Coincidencia perfecta ("Perfect Fit"): Ocupa exactamente todo el bloque libre
-    if (blockLength === service_duration) {
-      perfectFits.push(minutesToTime(block.start));
-      continue;
+    if (is_strict_mode) {
+      // --- LOGICA ESTRICTA (Edge-Snapping + Remainder Check) ---
+      
+      // Coincidencia perfecta ("Perfect Fit"): Ocupa exactamente todo el bloque libre (residuo = 0)
+      if (blockLength === service_duration) {
+        perfectFits.push(minutesToTime(block.start));
+        continue;
+      }
+
+      // Si el bloque es mayor, analizamos el residuo restante
+      const leftoverTime = blockLength - service_duration;
+
+      // Residuo Mortal: Si el sobrante es menor que el servicio minimo que ofrece el barbero,
+      // no se permite agendar en los extremos de este bloque porque dejaria un hueco invendible.
+      if (leftoverTime > 0 && leftoverTime < minimum_bookable_service) {
+        continue;
+      }
+
+      // Candidato A: Pegado al inicio del bloque libre (inicia en block.start)
+      standardSlots.add(minutesToTime(block.start));
+
+      // Candidato B: Pegado al final del bloque libre (inicia en block.end - service_duration)
+      const startForEndSnapped = block.end - service_duration;
+      standardSlots.add(minutesToTime(startForEndSnapped));
+
+    } else {
+      // --- LOGICA FLEXIBLE (Intervalos Regulares cada 15 min sin validacion de residuo) ---
+      const step = 15;
+      for (let min = block.start; min <= block.end - service_duration; min += step) {
+        standardSlots.add(minutesToTime(min));
+      }
     }
-
-    // Si el bloque es mayor, evaluamos los dos puntos de anclaje (Regla Snap-to-Adjacent):
-    const leftoverTime = blockLength - service_duration;
-
-    // Si el espacio sobrante es exactamente 15 minutos, ubicar la cita en cualquier extremo
-    // dejará un hueco de 15 minutos en el otro extremo. Por lo tanto, no se permite ninguna reserva en este bloque.
-    if (leftoverTime === 15) {
-      continue;
-    }
-
-    // Candidato A: Pegado al inicio del bloque libre (inicia en block.start)
-    // El espacio muerto restante queda al final del bloque: de (block.start + service_duration) a block.end.
-    // Como leftoverTime !== 15 (ya validado arriba), este slot es seguro.
-    standardSlots.add(minutesToTime(block.start));
-
-    // Candidato B: Pegado al final del bloque libre (termina en block.end, inicia en block.end - service_duration)
-    // El espacio muerto restante queda al inicio del bloque: de block.start a (block.end - service_duration).
-    // Como leftoverTime !== 15, este slot también es seguro.
-    const startForEndSnapped = block.end - service_duration;
-    standardSlots.add(minutesToTime(startForEndSnapped));
   }
 
-  // Convertir el Set de standard slots a un array ordenado cronológicamente
+  // Convertir el Set a un array ordenado cronologicamente
   const sortedStandardSlots = Array.from(standardSlots).sort((a, b) => {
     return timeToMinutes(a) - timeToMinutes(b);
   });
 
-  // Priorizar "Perfect Fits" colocándolos primero, seguidos por los slots estándar
+  // Priorizar "Perfect Fits" en el resultado final colocandolos primero
   const result = [...perfectFits, ...sortedStandardSlots];
   
   return result;
+}
+
+/**
+ * Funcion wrapper heredada para mantener compatibilidad hacia atras.
+ * Ejecuta getOptimizedSlots en modo estricto asumiendo un servicio minimo de 30 min por defecto.
+ */
+export function getOptimizedAvailableSlots(
+  barber_id: string,
+  date: string,
+  service_duration: number,
+  businessHours: BusinessHours,
+  existingAppointments: Appointment[]
+): string[] {
+  return getOptimizedSlots({
+    barber_id,
+    date,
+    service_duration,
+    minimum_bookable_service: 30,
+    businessHours,
+    existingAppointments,
+    is_strict_mode: true
+  });
 }
