@@ -284,7 +284,8 @@ export function CalendarView({
 
   const updateStatus = async (id: string, status: string, paymentMethod?: string, discount?: number) => {
     try {
-      await updateAppointmentStatusAction(id, status, paymentMethod, discount);
+      const res = await updateAppointmentStatusAction(id, status, paymentMethod, discount);
+      if (res?.error) throw new Error(res.error);
       setSelectedAppt(null);
       setShowPaymentSelector(false);
       setDiscountAmount("");

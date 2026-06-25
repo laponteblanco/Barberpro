@@ -1,4 +1,4 @@
-
+export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { Clock, LayoutList, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
