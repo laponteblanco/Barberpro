@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { runInBackground } from "@/lib/background-tasks";
 
 interface ServiceRecord {
+  id: string;
   duration_minutes: number;
   price: number;
 }
@@ -82,7 +83,7 @@ export async function createAppointmentAction(formData: FormData) {
   if (!servicesData || servicesData.length === 0) return { error: "Servicios no encontrados" };
 
   // Calculate totals accounting for duplicate service IDs (same service multiple times)
-  const serviceMap = new Map(servicesData.map((s: any) => [s.id, s]));
+  const serviceMap = new Map<string, ServiceRecord>(servicesData.map((s: any) => [s.id, s]));
   const total_duration = service_ids.reduce((acc: number, id: string) => {
     const s = serviceMap.get(id);
     return acc + (s?.duration_minutes || 30);
@@ -361,7 +362,7 @@ export async function updateAppointmentDetailsAction(appointmentId: string, form
     .in("id", serviceIds);
 
   // Calculate totals accounting for duplicate service IDs (same service multiple times)
-  const serviceMap = new Map((servicesData || []).map((s: any) => [s.id, s]));
+  const serviceMap = new Map<string, ServiceRecord>((servicesData || []).map((s: any) => [s.id, s]));
   const duration = serviceIds.reduce((acc: number, id: string) => {
     const s = serviceMap.get(id);
     return acc + (s?.duration_minutes || 30);

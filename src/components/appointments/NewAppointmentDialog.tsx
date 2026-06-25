@@ -73,7 +73,7 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
     setSlotsLoading(true);
     try {
       // Calculate total duration accounting for same service selected multiple times
-      const serviceMap = new Map(services.map((s: any) => [s.id, s]));
+      const serviceMap = new Map<string, any>(services.map((s: any) => [s.id, s]));
       const totalDuration = formData.service_ids.reduce((acc: number, id: string) => {
         const s = serviceMap.get(id);
         return acc + (s?.duration_minutes || 30);
