@@ -34,7 +34,15 @@ export interface SlotResult {
 export function timeToMinutes(timeStr: string): number {
   if (timeStr.includes("T")) {
     const date = new Date(timeStr);
-    return date.getHours() * 60 + date.getMinutes();
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Bogota",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false
+    }).formatToParts(date);
+    const h = parseInt(parts.find(p => p.type === "hour")!.value, 10);
+    const m = parseInt(parts.find(p => p.type === "minute")!.value, 10);
+    return h * 60 + m;
   }
   
   const parts = timeStr.split(":");
