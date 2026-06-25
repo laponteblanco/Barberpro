@@ -609,10 +609,10 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
                            setStep("confirm");
                          }}
                          className={cn(
-                           "h-14 rounded-xl border text-sm font-bold transition-all",
+                           "h-14 rounded-xl border-2 text-sm font-black transition-all",
                            selectedTime === slot 
                              ? "bg-primary border-primary text-primary-foreground shadow-lg shadow-primary/20 scale-105" 
-                             : "bg-secondary/50 border-border text-foreground hover:border-primary/50 hover:bg-secondary"
+                             : "bg-white dark:bg-zinc-900 border-primary text-primary hover:bg-primary/10"
                          )}
                        >
                          {slot}
@@ -634,14 +634,14 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
                            setStep("confirm");
                          }}
                          className={cn(
-                           "w-full text-left p-4 rounded-xl border transition-all",
+                           "w-full text-left p-4 rounded-xl border-2 transition-all",
                            selectedTime === `frag-${idx}`
-                             ? "bg-amber-500/10 border-amber-500 text-amber-600 dark:text-amber-400 shadow-lg shadow-amber-500/20"
-                             : "bg-secondary/50 border-border text-foreground hover:border-amber-500/50 hover:bg-secondary"
+                             ? "bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-500/20"
+                             : "bg-white dark:bg-zinc-900 border-amber-500 text-amber-600 dark:text-amber-500 hover:bg-amber-500/10"
                          )}
                        >
-                         <p className="font-bold text-sm">{opt.label}</p>
-                         <p className="text-xs text-muted-foreground mt-1">Tiempo de espera: {opt.waitTime} min</p>
+                         <p className="font-black text-sm">{opt.label}</p>
+                         <p className="text-xs font-bold opacity-80 mt-1">Tiempo de espera: {opt.waitTime} min</p>
                        </button>
                      ))}
                    </div>
