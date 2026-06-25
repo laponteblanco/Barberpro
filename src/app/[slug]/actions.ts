@@ -138,16 +138,19 @@ export async function publicCreateAppointmentAction(
     for (const slot of slots) {
       const start = new Date(`${appointmentData.date}T${slot.startTime}:00-05:00`);
       const end = new Date(start.getTime() + slot.duration * 60000);
-      const { data: conflict } = await (adminSupabase as any)
+      const { data: conflicts, error: conflictErr } = await (adminSupabase as any)
         .from("appointments")
         .select("id")
         .eq("staff_id", appointmentData.staffId)
         .in("status", ["pending", "confirmed", "completed"])
         .lt("start_time", end.toISOString())
-        .gt("end_time", start.toISOString())
-        .maybeSingle();
+        .gt("end_time", start.toISOString());
 
-      if (conflict) {
+      if (conflictErr) {
+        console.error("Error checking fragmented conflicts:", conflictErr);
+      }
+
+      if (conflicts && conflicts.length > 0) {
         throw new Error(`El horario ${slot.startTime} ya no está disponible para el servicio ${slot.name}. Por favor, selecciona otro horario.`);
       }
     }
@@ -185,21 +188,20 @@ export async function publicCreateAppointmentAction(
     const end_time = new Date(start_time.getTime() + total_duration * 60000);
 
     // 2.5. Validate that barber (staff_id) doesn't have overlapping appointments
-    const { data: overlappingAppointment, error: overlapError } = await (adminSupabase as any)
+    const { data: overlappingAppointments, error: overlapError } = await (adminSupabase as any)
       .from("appointments")
       .select("id")
       .eq("tenant_id", tenantId)
       .eq("staff_id", appointmentData.staffId)
       .in("status", ["pending", "confirmed", "completed"])
       .lt("start_time", end_time.toISOString())
-      .gt("end_time", start_time.toISOString())
-      .maybeSingle();
+      .gt("end_time", start_time.toISOString());
 
     if (overlapError) {
       console.error("Error checking overlapping appointments:", overlapError);
     }
 
-    if (overlappingAppointment) {
+    if (overlappingAppointments && overlappingAppointments.length > 0) {
       throw new Error("El barbero ya tiene una cita programada en este horario. Por favor selecciona otro espacio.");
     }
 

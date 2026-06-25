@@ -105,16 +105,15 @@ export async function createAppointmentAction(formData: FormData) {
     for (const slot of slots) {
       const start = new Date(`${date}T${slot.startTime}:00-05:00`);
       const end = new Date(start.getTime() + slot.duration * 60000);
-      const { data: conflict } = await (adminSupabase as any)
+      const { data: conflicts } = await (adminSupabase as any)
         .from("appointments")
         .select("id")
         .eq("staff_id", staff_id)
         .in("status", ["pending", "confirmed", "completed"])
         .lt("start_time", end.toISOString())
-        .gt("end_time", start.toISOString())
-        .maybeSingle();
+        .gt("end_time", start.toISOString());
 
-      if (conflict) {
+      if (conflicts && conflicts.length > 0) {
         return { error: `El horario ${slot.startTime} ya no está disponible para el servicio ${slot.name}. Por favor, selecciona otro horario.` };
       }
     }
@@ -155,16 +154,15 @@ export async function createAppointmentAction(formData: FormData) {
     const end_time = new Date(start_time.getTime() + total_duration * 60000);
 
     // Check for conflicts
-    const { data: conflict } = await (adminSupabase as any)
+    const { data: conflicts } = await (adminSupabase as any)
       .from("appointments")
       .select("id")
       .eq("staff_id", staff_id)
       .in("status", ["pending", "confirmed", "completed"])
       .lt("start_time", end_time.toISOString())
-      .gt("end_time", start_time.toISOString())
-      .maybeSingle();
+      .gt("end_time", start_time.toISOString());
 
-    if (conflict) {
+    if (conflicts && conflicts.length > 0) {
       return { error: "El barbero ya tiene una cita programada en este horario." };
     }
 
@@ -231,17 +229,16 @@ export async function updateAppointmentTimeAction(appointmentId: string, newStar
   const duration = (appt.service as any)?.duration_minutes || 30;
   const end = new Date(start.getTime() + duration * 60000);
 
-  const { data: conflict } = await (adminSupabase as any)
+  const { data: conflicts } = await (adminSupabase as any)
     .from("appointments")
     .select("id")
     .eq("staff_id", appt.staff_id)
     .neq("id", appointmentId)
     .in("status", ["pending", "confirmed", "completed"])
     .lt("start_time", end.toISOString())
-    .gt("end_time", start.toISOString())
-    .maybeSingle();
+    .gt("end_time", start.toISOString());
 
-  if (conflict) {
+  if (conflicts && conflicts.length > 0) {
     return { error: "El nuevo horario está ocupado por otra cita." };
   }
 

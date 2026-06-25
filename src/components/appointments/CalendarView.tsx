@@ -322,7 +322,11 @@ export function CalendarView({
     const [y, m, d] = (dateToUse as string).split('-').map(Number);
     const newStart = new Date(Date.UTC(y, m - 1, d, hour + 5, min, 0));
     try {
-      await updateAppointmentTimeAction(id, newStart.toISOString());
+      const res = await updateAppointmentTimeAction(id, newStart.toISOString());
+      if (res?.error) {
+        alert(res.error);
+        return;
+      }
       router.refresh();
     } catch (err: any) {
       alert(err.message || "Error");
