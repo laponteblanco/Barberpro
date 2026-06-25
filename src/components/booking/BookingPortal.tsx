@@ -436,33 +436,22 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
 
       <div className="grid gap-5">
         {services.map((service) => {
-          const isSelected = selectedServices.some(s => s.id === service.id);
+          const selectedCount = selectedServices.filter(s => s.id === service.id).length;
+          const isSelected = selectedCount > 0;
           return (
-          <button 
+          <div 
             key={service.id}
-            onClick={() => {
-              setSelectedServices(prev => 
-                isSelected 
-                  ? prev.filter(s => s.id !== service.id)
-                  : [...prev, service]
-              );
-            }}
             className={cn(
-              "glass-card p-6 rounded-[32px] border-white/5 bg-zinc-900/20 text-left transition-all hover:border-primary/40 hover:bg-primary/5 active:scale-[0.98] flex items-center justify-between group relative overflow-hidden",
+              "glass-card p-6 rounded-[32px] border-white/5 bg-zinc-900/20 text-left transition-all hover:border-primary/40 flex items-center justify-between group relative overflow-hidden",
               isSelected && "border-primary/50 bg-primary/10"
             )}
           >
-            {isSelected && (
-              <div className="absolute top-0 right-0 p-4">
-                 <CheckCircle2 className="w-6 h-6 text-primary" />
-              </div>
-            )}
             <div className="flex items-start gap-5">
               <div className="w-16 h-16 shrink-0 rounded-2xl bg-zinc-800 flex items-center justify-center text-zinc-500 group-hover:text-primary transition-colors mt-1">
                 <Scissors className="w-8 h-8" />
               </div>
               <div className="flex-1">
-                <h4 className="font-black text-xl group-hover:text-white transition-colors">{service.name}</h4>
+                <h4 className="font-black text-xl text-white transition-colors">{service.name}</h4>
                 {service.description && (
                   <p className="text-xs text-zinc-500 mt-1.5 leading-relaxed pr-2">{service.description}</p>
                 )}
@@ -474,10 +463,43 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
                 </div>
               </div>
             </div>
-            <div className="text-2xl font-black text-primary">
-              {formatCurrency(service.price)}
+            <div className="flex flex-col items-end gap-3">
+              <div className="text-2xl font-black text-primary">
+                {formatCurrency(service.price)}
+              </div>
+              
+              {isSelected ? (
+                <div className="flex items-center gap-3 bg-black/40 rounded-2xl px-2 py-1.5 border border-white/5">
+                  <button 
+                    onClick={() => {
+                      setSelectedServices(prev => {
+                        const index = prev.findIndex(s => s.id === service.id);
+                        if (index !== -1) {
+                          const newServices = [...prev];
+                          newServices.splice(index, 1);
+                          return newServices;
+                        }
+                        return prev;
+                      });
+                    }}
+                    className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors text-white font-bold"
+                  >-</button>
+                  <span className="font-black text-sm w-4 text-center">{selectedCount}</span>
+                  <button 
+                    onClick={() => setSelectedServices(prev => [...prev, service])}
+                    className="w-8 h-8 rounded-xl bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors font-bold"
+                  >+</button>
+                </div>
+              ) : (
+                <button 
+                  onClick={() => setSelectedServices(prev => [...prev, service])}
+                  className="px-5 py-2.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl font-black text-xs uppercase tracking-widest transition-colors"
+                >
+                  Agregar
+                </button>
+              )}
             </div>
-          </button>
+          </div>
           );
         })}
       </div>
