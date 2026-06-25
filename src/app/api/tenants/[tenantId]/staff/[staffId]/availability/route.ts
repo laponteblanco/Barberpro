@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { getOptimizedAvailableSlots } from "@/lib/booking-utils";
 
 export async function GET(
   request: NextRequest,
@@ -161,7 +162,36 @@ export async function GET(
     requestedDuration = Math.max(requestedDuration, 15);
 
     // 5. Generate available slots
-    const slots: string[] = [];
+    const decimalHoursToTimeString = (dec: number): string => {
+      const h = Math.floor(dec);
+      const m = Math.round((dec - h) * 60);
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    };
+
+    const businessHours = {
+      start: decimalHoursToTimeString(startHour),
+      end: decimalHoursToTimeString(endHour),
+      lunch_start: breakStart !== null ? decimalHoursToTimeString(breakStart) : undefined,
+      lunch_end: breakEnd !== null ? decimalHoursToTimeString(breakEnd) : undefined,
+    };
+
+    const existingAppointmentsMapped = (appointments ?? []).map((appt: any) => ({
+      start_time: appt.start_time,
+      end_time: appt.end_time || new Date(new Date(appt.start_time).getTime() + (appt.service?.duration_minutes || 30) * 60000).toISOString()
+    }));
+
+    const blockedTimesMapped = (blocks ?? []).map((block: any) => ({
+      start_time: block.start_time,
+      end_time: block.end_time
+    }));
+
+    const allSlots = getOptimizedAvailableSlots(
+      staffId,
+      date,
+      requestedDuration,
+      businessHours,
+      [...existingAppointmentsMapped, ...blockedTimesMapped]
+    );
 
     // Get current Bogotá time to filter out past slots for today
     const now = new Date();
@@ -176,50 +206,13 @@ export async function GET(
     const nowMin  = parseInt(bogotaParts.find(p => p.type === "minute")!.value, 10);
     const isToday = date === todayBogota;
 
-    for (let hour = startHour; hour < endHour; hour++) {
-      for (let min = 0; min < 60; min += appointmentInterval) {
-        // Skip slots in the past when booking for today
-        if (isToday && (hour < nowHour || (hour === nowHour && min <= nowMin))) {
-          continue;
-        }
-
-        // Skip lunch break
-        if (breakStart !== null && breakEnd !== null && hour >= breakStart && hour < breakEnd) {
-          continue;
-        }
-
-        const slotTotalMin = hour * 60 + min;
-
-        // Check if the entire required duration fits without hitting a block
-        let canFit = true;
-        // 1. Check if it exceeds barber's shift end
-        if (slotTotalMin + requestedDuration > endHour * 60) {
-          canFit = false;
-        }
-        // 2. Check if it hits the lunch break
-        if (canFit && breakStart !== null && breakEnd !== null) {
-          const breakStartMin = breakStart * 60;
-          const breakEndMin = breakEnd * 60;
-          // If the slot starts before break but ends during/after break
-          if (slotTotalMin < breakStartMin && (slotTotalMin + requestedDuration) > breakStartMin) {
-            canFit = false;
-          }
-        }
-        // 3. Check against blocked minutes from appointments/blocks
-        if (canFit) {
-          for (let t = slotTotalMin; t < slotTotalMin + requestedDuration; t++) {
-            if (blockedMinutes.has(t)) {
-              canFit = false;
-              break;
-            }
-          }
-        }
-
-        if (canFit) {
-          slots.push(`${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`);
-        }
-      }
-    }
+    const slots = allSlots.filter((slot) => {
+      if (!isToday) return true;
+      const [hStr, mStr] = slot.split(":");
+      const slotHour = parseInt(hStr, 10);
+      const slotMin = parseInt(mStr, 10);
+      return slotHour > nowHour || (slotHour === nowHour && slotMin > nowMin);
+    });
 
     // 6. If no continuous slots and multiple services, find fragmented options
     const fragmentedOptions: any[] = [];

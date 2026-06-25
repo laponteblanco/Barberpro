@@ -8,6 +8,17 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 
+const formatTo12Hour = (time24: string): string => {
+  if (!time24) return "";
+  const parts = time24.split(":");
+  if (parts.length < 2) return time24;
+  const hour = parseInt(parts[0], 10);
+  const min = parts[1];
+  const ampm = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+  return `${displayHour}:${min} ${ampm}`;
+};
+
 export function NewAppointmentDialog({ clients, staff, services, appointments, externalOpen, onCloseExternal, defaultValues, triggerButton, editApptId, startHour = 7, endHour = 22, theme = "dark", tenantId }: any) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -459,7 +470,7 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
                         <optgroup label="Opciones Continuas" className="bg-zinc-950 text-white">
                           {availableSlots.map((timeStr: string) => (
                             <option key={timeStr} value={timeStr} className="bg-zinc-950">
-                              {timeStr}
+                              {formatTo12Hour(timeStr)}
                             </option>
                           ))}
                         </optgroup>

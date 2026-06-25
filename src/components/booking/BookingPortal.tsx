@@ -32,6 +32,17 @@ interface BookingPortalProps {
 
 type Step = "identify" | "register" | "history" | "select-service" | "select-staff" | "select-time" | "confirm" | "success";
 
+const formatTo12Hour = (time24: string): string => {
+  if (!time24) return "";
+  const parts = time24.split(":");
+  if (parts.length < 2) return time24;
+  const hour = parseInt(parts[0], 10);
+  const min = parts[1];
+  const ampm = hour >= 12 ? "pm" : "am";
+  const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+  return `${displayHour}:${min} ${ampm}`;
+};
+
 export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
   const [step, setStep] = useState<Step>("identify");
   const [idNumber, setIdNumber] = useState("");
@@ -637,7 +648,7 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
                              : "bg-white dark:bg-zinc-900 border-primary text-primary hover:bg-primary/10"
                          )}
                        >
-                         {slot}
+                         {formatTo12Hour(slot)}
                        </button>
                      ))}
                    </div>
