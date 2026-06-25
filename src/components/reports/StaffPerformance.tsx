@@ -37,6 +37,8 @@ export function StaffPerformance({ data: staffData }: { data: any[] }) {
               <Tooltip 
                 cursor={{ fill: 'rgba(255,255,255,0.02)' }}
                 contentStyle={{ backgroundColor: '#18181b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }}
+                itemStyle={{ color: '#ffffff', fontWeight: 'bold' }}
+                labelStyle={{ color: '#a1a1aa', fontWeight: 'bold', marginBottom: '4px' }}
               />
               <Bar dataKey="revenue" radius={[0, 8, 8, 0]} barSize={24}>
                 {staffData.map((entry, index) => (

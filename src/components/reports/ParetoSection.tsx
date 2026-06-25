@@ -43,6 +43,8 @@ export function ParetoSection({ data: paretoData, topClients }: { data: any[], t
               <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: '#52525b', fontSize: 10 }} unit="%" />
               <Tooltip 
                 contentStyle={{ backgroundColor: '#18181b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }}
+                itemStyle={{ color: '#ffffff', fontWeight: 'bold' }}
+                labelStyle={{ color: '#a1a1aa', fontWeight: 'bold', marginBottom: '4px' }}
               />
               <Bar yAxisId="left" dataKey="count" fill="#312e81" radius={[8, 8, 0, 0]} barSize={40} />
               <Line yAxisId="right" type="monotone" dataKey="cumulative" stroke="#f59e0b" strokeWidth={3} dot={{ fill: '#f59e0b', r: 4 }} />
