@@ -44,6 +44,7 @@ export default async function ProfileSettingsPage() {
     business_hours_by_day,
     security_pin: tenant?.settings?.security_pin || "",
     appointment_interval: tenant?.settings?.appointment_interval || 15,
+    is_strict_mode: tenant?.settings?.is_strict_mode !== undefined ? tenant?.settings?.is_strict_mode : true,
   };
 
   if (!tenant) {

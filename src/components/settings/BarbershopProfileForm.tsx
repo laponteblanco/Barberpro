@@ -32,6 +32,7 @@ const profileSchema = z.object({
   business_hours_by_day: z.array(dayHoursSchema).length(7).optional(),
   security_pin: z.string().optional().nullable(),
   appointment_interval: z.number().default(15),
+  is_strict_mode: z.boolean().default(true),
 });
 
 const DAY_NAMES = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -534,6 +535,23 @@ export function BarbershopProfileForm({ initialData }: Props) {
                   <option value={60}>60 minutos (1 hora)</option>
                 </select>
                 <p className="text-[10px] text-zinc-500 ml-2">Define el tamaño de los bloques de tiempo al agendar citas.</p>
+              </div>
+
+              {/* Strict vs Flexible Optimization Mode */}
+              <div className="space-y-2 sm:col-span-2">
+                <label className="text-sm font-bold text-zinc-400 ml-1 flex items-center gap-2">
+                  <Lock className="w-3.5 h-3.5" /> Modo de Optimizacion de Agenda
+                </label>
+                <select
+                  {...register("is_strict_mode", {
+                    setValueAs: (v) => v === "true" || v === true
+                  })}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-5 py-4 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition-all appearance-none"
+                >
+                  <option value="true">Modo Estricto (Máxima Rentabilidad: 0% Huecos de 15 min)</option>
+                  <option value="false">Modo Flexible (Máxima Conversión: Permite todos los intervalos)</option>
+                </select>
+                <p className="text-[10px] text-zinc-500 ml-2">El modo estricto obliga a las citas a pegarse a los bordes de bloques libres, evitando huecos muertos menores al servicio minimo.</p>
               </div>
 
               {/* Security PIN */}
