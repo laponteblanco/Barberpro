@@ -611,8 +611,8 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
                          className={cn(
                            "h-14 rounded-xl border text-sm font-bold transition-all",
                            selectedTime === slot 
-                             ? "bg-primary border-primary text-white shadow-lg shadow-primary/20 scale-105" 
-                             : "bg-black/20 border-white/5 text-zinc-300 hover:border-white/10 hover:bg-white/5 hover:text-white"
+                             ? "bg-primary border-primary text-primary-foreground shadow-lg shadow-primary/20 scale-105" 
+                             : "bg-secondary/50 border-border text-foreground hover:border-primary/50 hover:bg-secondary"
                          )}
                        >
                          {slot}
@@ -623,7 +623,7 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
                )}
 
                {fragmentedOptions.length > 0 && selectedServices.length > 1 && (
-                 <div className={availableSlots.length > 0 ? "pt-4 border-t border-white/5" : ""}>
+                 <div className={availableSlots.length > 0 ? "pt-4 border-t border-border" : ""}>
                    <p className="text-[10px] uppercase font-black tracking-widest text-amber-500 mb-2">Opciones Divididas</p>
                    <div className="grid gap-2">
                      {fragmentedOptions.map((opt: any, idx: number) => (
@@ -636,12 +636,12 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
                          className={cn(
                            "w-full text-left p-4 rounded-xl border transition-all",
                            selectedTime === `frag-${idx}`
-                             ? "bg-amber-500/10 border-amber-500 text-white shadow-lg shadow-amber-500/20"
-                             : "bg-black/20 border-white/5 text-zinc-300 hover:border-white/10 hover:bg-white/5 hover:text-white"
+                             ? "bg-amber-500/10 border-amber-500 text-amber-600 dark:text-amber-400 shadow-lg shadow-amber-500/20"
+                             : "bg-secondary/50 border-border text-foreground hover:border-amber-500/50 hover:bg-secondary"
                          )}
                        >
                          <p className="font-bold text-sm">{opt.label}</p>
-                         <p className="text-xs text-zinc-500 mt-1">Tiempo de espera: {opt.waitTime} min</p>
+                         <p className="text-xs text-muted-foreground mt-1">Tiempo de espera: {opt.waitTime} min</p>
                        </button>
                      ))}
                    </div>
@@ -649,8 +649,8 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
                )}
              </div>
            ) : (
-             <div className="text-center py-10 bg-white/5 rounded-2xl border border-white/5">
-               <p className="text-zinc-500 font-bold uppercase tracking-widest text-[10px]">No hay horarios disponibles</p>
+             <div className="p-10 text-center glass-card rounded-[32px] border-border bg-secondary/30">
+                <p className="text-muted-foreground text-sm font-bold uppercase tracking-widest">No hay espacios disponibles para este día</p>
              </div>
            )}
         </div>
