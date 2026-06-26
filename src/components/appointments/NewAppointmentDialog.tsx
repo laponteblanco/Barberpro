@@ -96,6 +96,14 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
       let slots: string[] = data.continuous || data.slots || [];
       let fragmented: any[] = data.fragmented || [];
 
+      // If clicked from calendar and matches current staff/date selection, force add that slot
+      if (defaultValues?.time && formData.date === defaultValues.date && formData.staff_id === defaultValues.staff_id) {
+        if (!slots.includes(defaultValues.time)) {
+          slots.push(defaultValues.time);
+          slots.sort();
+        }
+      }
+
       // If editing, add the current appointment's time slot back as available
       if (editApptId && appointments) {
         const editingAppt = appointments.find((a: any) => a.id === editApptId);
@@ -121,14 +129,18 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
     } catch (err) {
       if (currentFetchId !== fetchCounter.current) return;
       console.error("Error fetching available slots:", err);
-      setAvailableSlots([]);
+      let fallbackSlots: string[] = [];
+      if (defaultValues?.time && formData.date === defaultValues.date && formData.staff_id === defaultValues.staff_id) {
+        fallbackSlots = [defaultValues.time];
+      }
+      setAvailableSlots(fallbackSlots);
       setFragmentedOptions([]);
     } finally {
       if (currentFetchId === fetchCounter.current) {
         setSlotsLoading(false);
       }
     }
-  }, [formData.date, formData.staff_id, serviceIdsStr, tenantId, editApptId]);
+  }, [formData.date, formData.staff_id, serviceIdsStr, tenantId, editApptId, defaultValues]);
 
   // Fetch slots whenever staff, date, or service changes
   useEffect(() => {
@@ -144,14 +156,19 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
 
   // Automatically clear selected time if it's no longer valid
   useEffect(() => {
+    if (slotsLoading) return; // Don't clear while loading slots
     if (formData.time) {
+      // If it is the original clicked time from the calendar for the same date/staff, do not clear
+      if (defaultValues?.time && formData.time === defaultValues.time && formData.date === defaultValues.date && formData.staff_id === defaultValues.staff_id) {
+        return;
+      }
       const isContinuousValid = availableSlots.includes(formData.time);
       const isFragmentedValid = formData.time.startsWith("frag-") && fragmentedOptions.length > parseInt(formData.time.split("-")[1] || "999");
       if (!isContinuousValid && !isFragmentedValid) {
         setFormData(prev => ({ ...prev, time: "" }));
       }
     }
-  }, [availableSlots, fragmentedOptions, formData.time]);
+  }, [availableSlots, fragmentedOptions, formData.time, slotsLoading, defaultValues, formData.date, formData.staff_id]);
 
   const filteredClients = clients.filter((c: any) => 
     (c.full_name?.toLowerCase().includes(clientSearch.toLowerCase())) || 
