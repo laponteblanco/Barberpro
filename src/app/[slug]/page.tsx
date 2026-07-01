@@ -41,7 +41,8 @@ async function BookingContent({ slug }: { slug: string }) {
     .map((s: any) => ({
       id: s.id,
       name: s.profiles?.full_name ?? s.display_name ?? "Barbero",
-      avatar: s.profiles?.avatar_url ?? s.avatar_url ?? null
+      avatar: s.profiles?.avatar_url ?? s.avatar_url ?? null,
+      specialties: s.specialties ?? [] // IDs de servicios habilitados para este barbero
     }));
 
   const activeServices = (tenant.services ?? [])

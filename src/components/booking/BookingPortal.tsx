@@ -30,7 +30,7 @@ interface BookingPortalProps {
   services: any[];
 }
 
-type Step = "identify" | "register" | "history" | "select-service" | "select-staff" | "select-time" | "confirm" | "success";
+type Step = "identify" | "register" | "history" | "select-staff" | "select-service" | "select-time" | "confirm" | "success";
 
 const formatTo12Hour = (time24: string): string => {
   if (!time24) return "";
@@ -74,10 +74,13 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
     
     setLoading(true);
     try {
-      // Turbopack may return 404 on first hit (lazy compilation), so retry once
+      // Turbopack compila rutas de forma lazy — puede devolver 404 en el primer hit.
+      // Reintentamos hasta 3 veces con delays crecientes para dar tiempo a compilar.
+      const delays = [1000, 2000, 3000];
       let res = await fetch(`/api/tenants/${tenant.id}/clients/identify?id_number=${idNumber}`);
-      if (res.status === 404) {
-        await new Promise(r => setTimeout(r, 1500));
+      for (const delay of delays) {
+        if (res.status !== 404) break;
+        await new Promise(r => setTimeout(r, delay));
         res = await fetch(`/api/tenants/${tenant.id}/clients/identify?id_number=${idNumber}`);
       }
       
@@ -416,7 +419,9 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
               alert("Ya tienes una cita activa programada. Debes completar o cancelar tu cita actual antes de reservar una nueva.");
               return;
             }
-            setStep("select-service");
+            setSelectedStaff(null);
+            setSelectedServices([]);
+            setStep("select-staff");
           }}
           disabled={upcomingAppointments.length > 0}
           className={cn(
@@ -433,21 +438,34 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
     );
   };
 
+  // Servicios disponibles para el barbero seleccionado
+  // Si specialties está vacío, el barbero puede hacer todos los servicios
+  const availableServicesForStaff = selectedStaff
+    ? (selectedStaff.specialties && selectedStaff.specialties.length > 0
+        ? services.filter((s: any) => selectedStaff.specialties.includes(s.id))
+        : services)
+    : services;
+
   const renderServiceSelection = () => (
     <div className="max-w-2xl mx-auto py-12 px-6 animate-in fade-in slide-in-from-bottom-8 duration-700 pb-20">
       <div className="flex items-center justify-between mb-12">
-        <button onClick={() => setStep(client ? "history" : "identify")} className="p-3 hover:bg-white/10 rounded-2xl text-zinc-400 transition-colors">
+        <button onClick={() => setStep("select-staff")} className="p-3 hover:bg-white/10 rounded-2xl text-zinc-400 transition-colors">
           <ArrowLeft className="w-6 h-6" />
         </button>
         <div className="text-right">
           <h2 className="text-2xl font-black uppercase tracking-tight">Elige tu Servicio</h2>
-          <p className="text-[10px] text-zinc-500 font-black uppercase tracking-[0.2em]">Paso 1 de 3</p>
+          <p className="text-[10px] text-zinc-500 font-black uppercase tracking-[0.2em]">Paso 2 de 3</p>
+          {selectedStaff && (
+            <p className="text-[10px] text-primary font-black uppercase tracking-widest mt-1">
+              Con {selectedStaff.name}
+            </p>
+          )}
         </div>
       </div>
 
       <div className="grid gap-5">
-        {services.map((service) => {
-          const selectedCount = selectedServices.filter(s => s.id === service.id).length;
+        {availableServicesForStaff.map((service: any) => {
+          const selectedCount = selectedServices.filter((s: any) => s.id === service.id).length;
           const isSelected = selectedCount > 0;
           return (
           <div 
@@ -484,7 +502,7 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
                   <button 
                     onClick={() => {
                       setSelectedServices(prev => {
-                        const index = prev.findIndex(s => s.id === service.id);
+                        const index = prev.findIndex((s: any) => s.id === service.id);
                         if (index !== -1) {
                           const newServices = [...prev];
                           newServices.splice(index, 1);
@@ -497,13 +515,13 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
                   >-</button>
                   <span className="font-black text-sm w-4 text-center">{selectedCount}</span>
                   <button 
-                    onClick={() => setSelectedServices(prev => [...prev, service])}
+                    onClick={() => setSelectedServices((prev: any[]) => [...prev, service])}
                     className="w-8 h-8 rounded-xl bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors font-bold"
                   >+</button>
                 </div>
               ) : (
                 <button 
-                  onClick={() => setSelectedServices(prev => [...prev, service])}
+                  onClick={() => setSelectedServices((prev: any[]) => [...prev, service])}
                   className="px-5 py-2.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl font-black text-xs uppercase tracking-widest transition-colors"
                 >
                   Agregar
@@ -526,11 +544,11 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
                 {selectedServices.map((s: any) => s.name).join(', ')}
               </p>
               <p className="text-xl font-black text-primary mt-1">
-                {formatCurrency(selectedServices.reduce((acc, s) => acc + (Number(s.price) || 0), 0))}
+                {formatCurrency(selectedServices.reduce((acc: number, s: any) => acc + (Number(s.price) || 0), 0))}
               </p>
             </div>
             <button
-              onClick={() => setStep("select-staff")}
+              onClick={() => setStep("select-time")}
               className="bg-primary hover:bg-primary/90 text-white font-black uppercase tracking-[0.2em] py-4 px-8 rounded-2xl transition-all shadow-xl shadow-primary/20 flex items-center gap-2"
             >
               Continuar <ArrowRight className="w-5 h-5" />
@@ -544,12 +562,12 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
   const renderStaffSelection = () => (
     <div className="max-w-2xl mx-auto py-12 px-6 animate-in fade-in slide-in-from-bottom-8 duration-700 pb-20">
       <div className="flex items-center justify-between mb-12">
-        <button onClick={() => setStep("select-service")} className="p-3 hover:bg-white/10 rounded-2xl text-zinc-400 transition-colors">
+        <button onClick={() => setStep(client ? "history" : "identify")} className="p-3 hover:bg-white/10 rounded-2xl text-zinc-400 transition-colors">
           <ArrowLeft className="w-6 h-6" />
         </button>
         <div className="text-right">
           <h2 className="text-2xl font-black uppercase tracking-tight">¿Con quién agendamos?</h2>
-          <p className="text-[10px] text-zinc-500 font-black uppercase tracking-[0.2em]">Paso 2 de 3</p>
+          <p className="text-[10px] text-zinc-500 font-black uppercase tracking-[0.2em]">Paso 1 de 3</p>
         </div>
       </div>
 
@@ -559,7 +577,8 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
             key={barber.id}
             onClick={() => {
               setSelectedStaff(barber);
-              setStep("select-time");
+              setSelectedServices([]); // Limpiar servicios al cambiar barbero
+              setStep("select-service");
             }}
             className={cn(
               "flex flex-col items-center gap-4 group p-4 rounded-[48px] transition-all active:scale-95",
@@ -592,7 +611,7 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
   const renderTimeSelection = () => (
     <div className="max-w-2xl mx-auto py-12 px-6 animate-in fade-in slide-in-from-bottom-8 duration-700 pb-20">
       <div className="flex items-center justify-between mb-12">
-        <button onClick={() => setStep("select-staff")} className="p-3 hover:bg-white/10 rounded-2xl text-zinc-400 transition-colors">
+        <button onClick={() => setStep("select-service")} className="p-3 hover:bg-white/10 rounded-2xl text-zinc-400 transition-colors">
           <ArrowLeft className="w-6 h-6" />
         </button>
         <div className="text-right">
@@ -955,7 +974,7 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
                   alert("Por favor completa los campos obligatorios (*)");
                   return;
                 }
-                setStep("select-service");
+                setStep("select-staff");
               }}
               disabled={!newName || !newPhone}
               className="flex-1 h-14 bg-gradient-to-r from-amber-500 to-amber-600 text-black font-black uppercase tracking-widest text-xs rounded-2xl flex items-center justify-center gap-2 hover:brightness-110 transition-all shadow-xl shadow-amber-500/20 active:scale-[0.98] disabled:opacity-50"
@@ -973,8 +992,8 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
       {step === "identify" && renderIdentify()}
       {step === "register" && renderRegister()}
       {step === "history" && renderHistory()}
-      {step === "select-service" && renderServiceSelection()}
       {step === "select-staff" && renderStaffSelection()}
+      {step === "select-service" && renderServiceSelection()}
       {step === "select-time" && renderTimeSelection()}
       {step === "confirm" && renderConfirm()}
       {step === "success" && renderSuccess()}
