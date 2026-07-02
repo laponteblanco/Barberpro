@@ -32,14 +32,14 @@ export async function getBarberCredentialsAction(shopCode: string, pin: string) 
 
     if ((staff as any).role === 'owner' || (staff as any).role === 'admin') {
       const { data: user, error: userError } = await adminSupabase.auth.admin.getUserById((staff as any).profile_id);
-      if (userError || !user?.user?.email) return { error: "No se pudo encontrar el correo del administrador." };
+      if (userError || !user?.user?.email) return { error: `Error getUserById: ${userError?.message || "No email"}` };
       
       const { data: linkData, error: linkError } = await adminSupabase.auth.admin.generateLink({
         type: 'magiclink',
         email: user.user.email
       });
 
-      if (linkError || !linkData?.properties?.action_link) return { error: "No se pudo generar el acceso para el administrador." };
+      if (linkError || !linkData?.properties?.action_link) return { error: `Error generateLink: ${linkError?.message || "No action link"}` };
 
       return { magicLink: linkData.properties.action_link };
     }
@@ -52,7 +52,7 @@ export async function getBarberCredentialsAction(shopCode: string, pin: string) 
     };
   } catch (error: any) {
     console.error("Barber Login Error:", error);
-    return { error: "Error interno del servidor." };
+    return { error: `Error catch: ${error.message}` };
   }
 }
 
