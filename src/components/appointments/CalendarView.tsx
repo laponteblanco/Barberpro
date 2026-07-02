@@ -1212,6 +1212,7 @@ export function CalendarView({
           })} 
           onClose={() => setSummaryBarber(null)} 
           theme={theme}
+          isBarber={viewMode === "days"}
         />,
         portalContainer
       )}

@@ -34,9 +34,10 @@ interface StaffSummaryDialogProps {
   appointments: any[];
   onClose: () => void;
   theme?: string;
+  isBarber?: boolean;
 }
 
-export function StaffSummaryDialog({ barber, appointments, onClose, theme = "dark" }: StaffSummaryDialogProps) {
+export function StaffSummaryDialog({ barber, appointments, onClose, theme = "dark", isBarber = false }: StaffSummaryDialogProps) {
   const isLight = theme === "light";
   const [activeTab, setActiveTab] = useState<'arqueo' | 'services' | 'finance'>('arqueo');
   const [ledgerData, setLedgerData] = useState<any>(null);
@@ -221,17 +222,19 @@ export function StaffSummaryDialog({ barber, appointments, onClose, theme = "dar
           >
             <Scissors className="w-3.5 h-3.5" /> Servicios
           </button>
-          <button 
-            onClick={() => setActiveTab('finance')}
-            className={cn(
-              "flex-1 py-4 text-[10px] uppercase tracking-widest font-black transition-all border-b-2 text-center flex items-center justify-center gap-1.5",
-              activeTab === 'finance' 
-                ? "border-primary text-primary" 
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Wallet className="w-3.5 h-3.5" /> Finanzas
-          </button>
+          {!isBarber && (
+            <button 
+              onClick={() => setActiveTab('finance')}
+              className={cn(
+                "flex-1 py-4 text-[10px] uppercase tracking-widest font-black transition-all border-b-2 text-center flex items-center justify-center gap-1.5",
+                activeTab === 'finance' 
+                  ? "border-primary text-primary" 
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Wallet className="w-3.5 h-3.5" /> Finanzas
+            </button>
+          )}
         </div>
 
         {/* Tab 0: Arqueo Content */}
