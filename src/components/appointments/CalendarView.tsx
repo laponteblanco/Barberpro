@@ -924,29 +924,25 @@ export function CalendarView({
         )}
           style={{ background: "linear-gradient(135deg, rgba(0,0,0,0.85) 0%, rgba(10,10,25,0.92) 50%, rgba(0,0,0,0.88) 100%)" }}
         >
-          <div className="w-full max-w-sm rounded-[28px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 h-fit my-auto"
-            style={{ background: "linear-gradient(160deg, #0f0f1a 0%, #111118 60%, #0a0a14 100%)", border: "1px solid rgba(255,255,255,0.08)" }}
-          >
+          <div className="w-full max-w-sm rounded-[28px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 h-fit my-auto bg-white border border-blue-200">
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-white/5"
-              style={{ background: "linear-gradient(90deg, rgba(99,102,241,0.08) 0%, rgba(139,92,246,0.05) 100%)" }}
-            >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-blue-100 bg-blue-50/50">
               <div className="flex items-center gap-2">
                 {showPaymentSelector && (
-                  <button onClick={() => { setShowPaymentSelector(false); }} className="p-1.5 hover:bg-white/10 rounded-lg text-zinc-400 transition-colors">
+                  <button onClick={() => { setShowPaymentSelector(false); }} className="p-1.5 hover:bg-blue-100 rounded-lg text-blue-500 transition-colors">
                     <ArrowLeft className="w-4 h-4" />
                   </button>
                 )}
                 <div>
-                  <h3 className="font-bold text-white tracking-tight text-sm">
+                  <h3 className="font-bold text-blue-900 tracking-tight text-sm">
                     {showPaymentSelector ? "Cobrar Servicio" : "Detalles de la Cita"}
                   </h3>
                   {!showPaymentSelector && (
-                    <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-bold mt-0.5">{selectedAppt.client?.full_name}</p>
+                    <p className="text-[9px] text-blue-600 uppercase tracking-widest font-bold mt-0.5">{selectedAppt.client?.full_name}</p>
                   )}
                 </div>
               </div>
-              <button onClick={resetPaymentModal} className="p-2 hover:bg-white/10 rounded-xl text-zinc-400 transition-colors">
+              <button onClick={resetPaymentModal} className="p-2 hover:bg-blue-100 rounded-xl text-blue-500 transition-colors">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -956,22 +952,22 @@ export function CalendarView({
                 <>
                   {/* Info cards */}
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="p-3 rounded-2xl border border-white/5" style={{ background: "rgba(255,255,255,0.03)" }}>
-                      <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-black mb-1">Horario</p>
-                      <p className="font-bold text-xs text-white">
+                    <div className="p-3 rounded-2xl border border-blue-100 bg-white shadow-sm">
+                      <p className="text-[9px] text-blue-600 uppercase tracking-widest font-black mb-1">Horario</p>
+                      <p className="font-bold text-xs text-blue-900">
                         {new Date(selectedAppt.start_time).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })} – {new Date(selectedAppt.end_time).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
                       </p>
                     </div>
-                    <div className="p-3 rounded-2xl border border-white/5" style={{ background: "rgba(255,255,255,0.03)" }}>
-                      <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-black mb-1">Total</p>
-                      <p className="font-bold text-xs text-emerald-400">
+                    <div className="p-3 rounded-2xl border border-blue-100 bg-white shadow-sm">
+                      <p className="text-[9px] text-blue-600 uppercase tracking-widest font-black mb-1">Total</p>
+                      <p className="font-bold text-xs text-blue-600">
                         {new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(selectedAppt.total_price)}
                       </p>
                     </div>
                   </div>
-                  <div className="p-3 rounded-2xl border border-white/5" style={{ background: "rgba(255,255,255,0.03)" }}>
-                    <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-black mb-1">Servicios</p>
-                    <p className="font-medium text-xs text-zinc-300">
+                  <div className="p-3 rounded-2xl border border-blue-100 bg-white shadow-sm">
+                    <p className="text-[9px] text-blue-600 uppercase tracking-widest font-black mb-1">Servicios</p>
+                    <p className="font-medium text-xs text-blue-800">
                       {selectedAppt.services?.length > 0
                         ? selectedAppt.services.map((s: any) => s?.name).filter(Boolean).join(", ")
                         : (selectedAppt.service?.name || "Servicio")}
@@ -982,15 +978,14 @@ export function CalendarView({
                     {selectedAppt.status !== "completed" && (
                       <button
                         onClick={() => setShowPaymentSelector(true)}
-                        className="w-full py-3 rounded-2xl font-black uppercase tracking-widest text-xs transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2"
-                        style={{ background: "linear-gradient(135deg, #10b981, #059669)", color: "#fff", boxShadow: "0 8px 24px -4px rgba(16,185,129,0.35)" }}
+                        className="w-full py-3 rounded-2xl font-black uppercase tracking-widest text-xs transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 bg-blue-600 text-white shadow-[0_8px_24px_-4px_rgba(37,99,235,0.35)]"
                       >
                         <DollarSign className="w-4 h-4" /> Completar y Cobrar
                       </button>
                     )}
                     <button
                       onClick={() => handleDelete(selectedAppt.id)}
-                      className="w-full py-3 rounded-2xl bg-zinc-800/80 border border-white/5 text-zinc-400 font-black uppercase tracking-widest text-xs hover:bg-zinc-700/80 transition-all flex items-center justify-center gap-2"
+                      className="w-full py-3 rounded-2xl bg-white border border-red-200 text-red-500 font-black uppercase tracking-widest text-xs hover:bg-red-50 transition-all flex items-center justify-center gap-2 shadow-sm"
                     >
                       <Trash2 className="w-3.5 h-3.5" /> Eliminar
                     </button>
@@ -1000,19 +995,19 @@ export function CalendarView({
                 <>
                   {/* ── PAYMENT METHOD ── */}
                   <div className="space-y-2">
-                    <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-black">Método de pago</p>
+                    <p className="text-[9px] text-blue-600 uppercase tracking-widest font-black">Método de pago</p>
                     <div className="grid grid-cols-5 gap-1.5">
                       {([
-                        { id: "cash",      label: "Efectivo",   Icon: Banknote,    active: "bg-emerald-500/20 border-emerald-500/50 text-emerald-300" },
-                        { id: "card",      label: "Tarjeta",    Icon: CreditCard,  active: "bg-cyan-500/20 border-cyan-500/50 text-cyan-300" },
-                        { id: "nequi",     label: "Nequi",      Icon: Smartphone,  active: "bg-indigo-500/20 border-indigo-500/50 text-indigo-300" },
-                        { id: "daviplata", label: "Daviplata",  Icon: Smartphone,  active: "bg-red-500/20 border-red-500/50 text-red-300" },
-                        { id: "transfer",  label: "Transfer.",  Icon: ArrowUpRight, active: "bg-amber-500/20 border-amber-500/50 text-amber-300" },
-                      ] as const).map(({ id, label, Icon, active }) => (
+                        { id: "cash",      label: "Efectivo",   Icon: Banknote },
+                        { id: "card",      label: "Tarjeta",    Icon: CreditCard },
+                        { id: "nequi",     label: "Nequi",      Icon: Smartphone },
+                        { id: "daviplata", label: "Daviplata",  Icon: Smartphone },
+                        { id: "transfer",  label: "Transfer.",  Icon: ArrowUpRight },
+                      ] as const).map(({ id, label, Icon }) => (
                         <button key={id} type="button" onClick={() => setPaymentMethod(id)}
                           className={cn(
                             "flex flex-col items-center gap-1 py-2 px-1 rounded-xl border text-[8px] font-black uppercase tracking-wider transition-all",
-                            paymentMethod === id ? `${active} scale-105` : "bg-white/3 border-white/5 text-zinc-500 hover:border-white/15 hover:text-zinc-300"
+                            paymentMethod === id ? "bg-blue-100 border-blue-400 text-blue-700 scale-105 shadow-sm" : "bg-white border-blue-100 text-blue-400 hover:border-blue-300 hover:text-blue-600 shadow-sm"
                           )}
                         >
                           <Icon className="w-4 h-4" />{label}
@@ -1023,21 +1018,19 @@ export function CalendarView({
 
                   {/* ── CASH CHANGE CALCULATOR ── */}
                   {paymentMethod === "cash" && (
-                    <div className="p-3.5 rounded-2xl border border-emerald-500/20 space-y-2 animate-in fade-in slide-in-from-top-1 duration-200"
-                      style={{ background: "rgba(16,185,129,0.06)" }}
-                    >
-                      <p className="text-[9px] text-emerald-400 uppercase tracking-widest font-black flex items-center gap-1.5">
+                    <div className="p-3.5 rounded-2xl border border-blue-200 bg-blue-50 space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                      <p className="text-[9px] text-blue-600 uppercase tracking-widest font-black flex items-center gap-1.5">
                         <Banknote className="w-3 h-3" /> Calcular vuelto
                       </p>
                       <div className="flex items-center gap-2">
                         <div className="relative flex-1">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-xs font-bold">$</span>
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400 text-xs font-bold">$</span>
                           <input
                             type="number"
                             value={cashGiven}
                             onChange={(e) => setCashGiven(e.target.value === "" ? "" : Number(e.target.value))}
                             placeholder="Valor del billete"
-                            className="w-full pl-7 pr-3 py-2 bg-zinc-900/80 border border-white/10 rounded-xl text-right text-sm font-black text-white outline-none focus:border-emerald-500/50 transition-colors"
+                            className="w-full pl-7 pr-3 py-2 bg-white border border-blue-200 rounded-xl text-right text-sm font-black text-blue-900 outline-none focus:border-blue-500 transition-colors shadow-sm"
                           />
                         </div>
                         {Number(cashGiven) > 0 && (
@@ -1046,7 +1039,7 @@ export function CalendarView({
                               const total = Math.max(0, selectedAppt.total_price + extraProducts.reduce((s, p) => s + p.price * p.qty, 0) - (Number(discountAmount) || 0));
                               const change = Number(cashGiven) - total;
                               return (
-                                <p className={cn("text-sm font-black", change >= 0 ? "text-emerald-400" : "text-red-400")}>
+                                <p className={cn("text-sm font-black", change >= 0 ? "text-blue-600" : "text-red-500")}>
                                   {change >= 0 ? "Vuelto:" : "Falta:"}<br />
                                   {new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(Math.abs(change))}
                                 </p>
@@ -1060,30 +1053,30 @@ export function CalendarView({
 
                   {/* ── PRODUCTS ── */}
                   <div className="space-y-2">
-                    <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-black flex items-center gap-1.5">
+                    <p className="text-[9px] text-blue-600 uppercase tracking-widest font-black flex items-center gap-1.5">
                       <ShoppingBag className="w-3 h-3" /> Agregar productos
                     </p>
                     {/* Added products list */}
                     {extraProducts.length > 0 && (
                       <div className="space-y-1">
                         {extraProducts.map(p => (
-                          <div key={p.id} className="flex items-center justify-between px-3 py-2 rounded-xl border border-white/5 bg-white/3">
+                          <div key={p.id} className="flex items-center justify-between px-3 py-2 rounded-xl border border-blue-100 bg-white shadow-sm">
                             <div>
-                              <p className="text-xs font-bold text-white">{p.name}</p>
-                              <p className="text-[10px] text-zinc-500">{new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(p.price)} c/u</p>
+                              <p className="text-xs font-bold text-blue-900">{p.name}</p>
+                              <p className="text-[10px] text-blue-500">{new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(p.price)} c/u</p>
                             </div>
                             <div className="flex items-center gap-1.5">
                               <button type="button" onClick={() => setExtraProducts(prev => prev.map(ep => ep.id === p.id ? { ...ep, qty: Math.max(1, ep.qty - 1) } : ep).filter(ep => ep.qty > 0))}
-                                className="w-6 h-6 rounded-lg bg-zinc-800 text-white flex items-center justify-center hover:bg-zinc-700 transition-colors">
+                                className="w-6 h-6 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100 transition-colors">
                                 <Minus className="w-3 h-3" />
                               </button>
-                              <span className="text-sm font-black text-white w-4 text-center">{p.qty}</span>
+                              <span className="text-sm font-black text-blue-900 w-4 text-center">{p.qty}</span>
                               <button type="button" onClick={() => setExtraProducts(prev => prev.map(ep => ep.id === p.id ? { ...ep, qty: ep.qty + 1 } : ep))}
-                                className="w-6 h-6 rounded-lg bg-zinc-800 text-white flex items-center justify-center hover:bg-zinc-700 transition-colors">
+                                className="w-6 h-6 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100 transition-colors">
                                 <Plus className="w-3 h-3" />
                               </button>
                               <button type="button" onClick={() => setExtraProducts(prev => prev.filter(ep => ep.id !== p.id))}
-                                className="w-6 h-6 rounded-lg bg-red-500/20 text-red-400 flex items-center justify-center hover:bg-red-500/30 transition-colors">
+                                className="w-6 h-6 rounded-lg bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-100 transition-colors">
                                 <X className="w-3 h-3" />
                               </button>
                             </div>
@@ -1093,19 +1086,17 @@ export function CalendarView({
                     )}
                     {/* Product search */}
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-blue-400" />
                       <input
                         type="text"
                         value={productSearch}
                         onChange={(e) => setProductSearch(e.target.value)}
                         placeholder="Buscar producto..."
-                        className="w-full pl-9 pr-3 py-2.5 bg-zinc-900/60 border border-white/5 rounded-xl text-xs text-white outline-none focus:border-primary/40 transition-colors"
+                        className="w-full pl-9 pr-3 py-2.5 bg-white border border-blue-200 rounded-xl text-xs text-blue-900 outline-none focus:border-blue-400 transition-colors shadow-sm"
                       />
                     </div>
                     {productSearch && (
-                      <div className="rounded-xl border border-white/5 overflow-hidden max-h-32 overflow-y-auto"
-                        style={{ background: "rgba(255,255,255,0.03)" }}
-                      >
+                      <div className="rounded-xl border border-blue-100 bg-white overflow-hidden max-h-32 overflow-y-auto shadow-sm">
                         {products
                           .filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase()) && !extraProducts.find(ep => ep.id === p.id))
                           .slice(0, 6)
@@ -1115,56 +1106,54 @@ export function CalendarView({
                                 setExtraProducts(prev => [...prev, { id: p.id, name: p.name, price: Number(p.retail_price), qty: 1 }]);
                                 setProductSearch("");
                               }}
-                              className="w-full px-3 py-2 flex items-center justify-between hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors text-left"
+                              className="w-full px-3 py-2 flex items-center justify-between hover:bg-blue-50 border-b border-blue-50 last:border-0 transition-colors text-left"
                             >
                               <div>
-                                <p className="text-xs font-bold text-white">{p.name}</p>
-                                <p className="text-[10px] text-zinc-500">Stock: {p.stock}</p>
+                                <p className="text-xs font-bold text-blue-900">{p.name}</p>
+                                <p className="text-[10px] text-blue-500">Stock: {p.stock}</p>
                               </div>
-                              <p className="text-xs font-black text-primary">{new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(p.retail_price)}</p>
+                              <p className="text-xs font-black text-blue-600">{new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(p.retail_price)}</p>
                             </button>
                           ))}
                         {products.filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase())).length === 0 && (
-                          <p className="text-xs text-zinc-500 text-center py-3">Sin resultados</p>
+                          <p className="text-xs text-blue-500 text-center py-3">Sin resultados</p>
                         )}
                       </div>
                     )}
                   </div>
 
                   {/* ── TOTALS ── */}
-                  <div className="p-3.5 rounded-2xl border border-white/5 space-y-2"
-                    style={{ background: "rgba(255,255,255,0.03)" }}
-                  >
+                  <div className="p-3.5 rounded-2xl border border-blue-100 bg-white shadow-sm space-y-2">
                     <div className="flex items-center justify-between">
-                      <p className="text-[10px] text-zinc-500 font-bold">Servicios:</p>
-                      <p className="text-xs font-black text-white">
+                      <p className="text-[10px] text-blue-600 font-bold">Servicios:</p>
+                      <p className="text-xs font-black text-blue-900">
                         {new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(selectedAppt.total_price)}
                       </p>
                     </div>
                     {extraProducts.length > 0 && (
                       <div className="flex items-center justify-between">
-                        <p className="text-[10px] text-zinc-500 font-bold">Productos:</p>
-                        <p className="text-xs font-black text-amber-400">
+                        <p className="text-[10px] text-blue-600 font-bold">Productos:</p>
+                        <p className="text-xs font-black text-blue-500">
                           + {new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(extraProducts.reduce((s, p) => s + p.price * p.qty, 0))}
                         </p>
                       </div>
                     )}
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-[10px] text-zinc-500 font-bold">Descuento:</p>
+                      <p className="text-[10px] text-blue-600 font-bold">Descuento:</p>
                       <div className="relative w-32">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-xs font-bold">$</span>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400 text-xs font-bold">$</span>
                         <input
                           type="number"
                           value={discountAmount}
                           onChange={(e) => setDiscountAmount(e.target.value === "" ? "" : Number(e.target.value))}
                           placeholder="0"
-                          className="w-full pl-7 pr-3 py-1.5 bg-zinc-900 border border-white/10 rounded-lg text-right text-xs font-black text-rose-400 outline-none focus:border-rose-500/40 transition-colors"
+                          className="w-full pl-7 pr-3 py-1.5 bg-white border border-blue-200 rounded-lg text-right text-xs font-black text-red-500 outline-none focus:border-red-400 transition-colors"
                         />
                       </div>
                     </div>
-                    <div className="flex items-center justify-between pt-2 border-t border-white/10">
-                      <p className="text-xs font-black uppercase tracking-widest text-emerald-400">Total a Cobrar:</p>
-                      <p className="text-xl font-black text-emerald-400">
+                    <div className="flex items-center justify-between pt-2 border-t border-blue-100">
+                      <p className="text-xs font-black uppercase tracking-widest text-blue-700">Total a Cobrar:</p>
+                      <p className="text-xl font-black text-blue-700">
                         {new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(
                           Math.max(0, selectedAppt.total_price + extraProducts.reduce((s, p) => s + p.price * p.qty, 0) - (Number(discountAmount) || 0))
                         )}
@@ -1176,8 +1165,7 @@ export function CalendarView({
                   <button
                     onClick={() => updateStatus(selectedAppt.id, "completed", paymentMethod, Number(discountAmount) || 0)}
                     disabled={productLoading}
-                    className="w-full py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60 flex items-center justify-center gap-2"
-                    style={{ background: "linear-gradient(135deg, #10b981, #059669)", color: "#fff", boxShadow: "0 8px 24px -4px rgba(16,185,129,0.35)" }}
+                    className="w-full py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60 flex items-center justify-center gap-2 bg-blue-600 text-white shadow-[0_8px_24px_-4px_rgba(37,99,235,0.35)]"
                   >
                     {productLoading
                       ? <><RotateCw className="w-4 h-4 animate-spin" /> Procesando...</>

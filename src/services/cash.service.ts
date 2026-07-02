@@ -51,13 +51,19 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
   if (error || !session) return null;
 
   // 1. Calculate appointments total since opened_at
+  // Helper to get start of day in local time (UTC-5 for Colombia)
+  const sessionDate = new Date(session.opened_at);
+  const utcDate = new Date(sessionDate.getTime() - (5 * 3600000));
+  const startOfDayUtc = new Date(Date.UTC(utcDate.getUTCFullYear(), utcDate.getUTCMonth(), utcDate.getUTCDate(), 5, 0, 0, 0)); // 5:00 UTC is 00:00 local time
+  const startOfDayISO = startOfDayUtc.toISOString();
+
   const [appointmentsRes, staffRes] = await Promise.all([
     (adminSupabase as any)
       .from("appointments")
       .select("total_price, payment_method, start_time, staff_id, staff:tenant_staff(id, profiles(full_name))")
       .eq("tenant_id", tenantId)
-      .in("status", ["completed", "confirmed", "pending"])
-      .gte("start_time", session.opened_at),
+      .in("status", ["completed", "confirmed"])
+      .gte("start_time", startOfDayISO),
     (adminSupabase as any)
       .from("tenant_staff")
       .select("id, role, commission_rate, daily_commission_rates, profiles(full_name)")
