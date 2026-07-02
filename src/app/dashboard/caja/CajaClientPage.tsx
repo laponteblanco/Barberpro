@@ -917,24 +917,29 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
                               {session.barbers_breakdown && session.barbers_breakdown.length > 0 ? (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                                   {session.barbers_breakdown.map((b: any) => {
-                                    const expectedC = b.expected_cash ?? b.total_cash ?? 0;
+                                    const expectedC = b.net_expected_cash ?? b.expected_cash ?? b.total_cash ?? 0;
                                     const actualC = b.actual_cash ?? 0;
                                     const discrepancyC = actualC - expectedC;
                                     const digitalC = b.total_digital ?? 0;
+                                    const totalServ = (b.appointments_count || 0) + (b.appointments_digital_count || 0);
 
                                     return (
                                       <div key={b.id} className="rounded-xl border border-white/5 bg-zinc-900/30 p-4 space-y-3">
                                         <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-2">
                                           <span className="font-black text-white text-xs">{b.name}</span>
                                           <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">
-                                            {b.appointments_count === 1 ? "1 cita" : `${b.appointments_count} citas`} en efec.
+                                            {totalServ === 1 ? "1 cita" : `${totalServ} citas`}
                                           </span>
                                         </div>
                                         
                                         <div className="space-y-1.5 text-[11px] leading-none">
                                           <div className="flex justify-between">
-                                            <span className="text-zinc-500">Efec. Esperado:</span>
-                                            <span className="font-bold text-zinc-300">{formatCurrency(expectedC)}</span>
+                                            <span className="text-zinc-500">Recaudo (Efec + Dig):</span>
+                                            <span className="font-bold text-zinc-300">{formatCurrency((b.total_cash || 0) + digitalC)}</span>
+                                          </div>
+                                          <div className="flex justify-between">
+                                            <span className="text-zinc-500">Comisión Barbero:</span>
+                                            <span className="font-bold text-primary">{formatCurrency(b.total_commission || 0)}</span>
                                           </div>
                                           {b.total_advances > 0 && (
                                             <div className="flex justify-between text-red-400 font-medium">
@@ -954,13 +959,13 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
                                               <span>{formatCurrency(b.total_consignments)}</span>
                                             </div>
                                           )}
-                                          <div className="flex justify-between">
-                                            <span className="text-zinc-500">Efec. Entregado:</span>
-                                            <span className="font-black text-white">{formatCurrency(actualC)}</span>
+                                          <div className="flex justify-between border-t border-white/5 pt-2 mt-1.5">
+                                            <span className="text-zinc-500 font-bold">Total a Entregar:</span>
+                                            <span className="font-black text-primary">{formatCurrency(expectedC)}</span>
                                           </div>
-                                          <div className="flex justify-between border-t border-white/5 pt-2 mt-1.5 font-bold">
-                                            <span className="text-zinc-500">Digital Recaudado:</span>
-                                            <span className="font-bold text-cyan-400">{formatCurrency(digitalC)}</span>
+                                          <div className="flex justify-between border-t border-white/5 pt-2 mt-1.5">
+                                            <span className="text-zinc-500">Total Entregado:</span>
+                                            <span className="font-black text-white">{formatCurrency(actualC)}</span>
                                           </div>
                                           <div className="flex justify-between border-t border-white/5 pt-2 mt-1.5 font-bold">
                                             <span className="text-zinc-400">Estado Entrega:</span>
