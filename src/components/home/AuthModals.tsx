@@ -60,16 +60,24 @@ export function AuthModals() {
         }
 
         const result = await getBarberCredentialsAction(shopCode, pin);
-        if (result.error || !result.email || !result.password) {
+        if (result.error || (!result.email && !result.magicLink) || (!result.password && !result.magicLink)) {
           setError(result.error || "Error al verificar el PIN.");
           setLoading(false);
           return;
         }
 
+        // Guardar el rol activo en cookies antes de redirigir como Barbero
+        document.cookie = "active_role=barber; path=/; max-age=31536000; SameSite=Lax; Secure";
+
+        if (result.magicLink) {
+          window.location.href = result.magicLink;
+          return;
+        }
+
         const supabase = createClient();
         const { data, error: signInError } = await supabase.auth.signInWithPassword({
-          email: result.email,
-          password: result.password,
+          email: result.email!,
+          password: result.password!,
         });
 
         if (signInError) {
@@ -78,9 +86,6 @@ export function AuthModals() {
           return;
         }
         
-        // Guardar el rol activo en cookies antes de redirigir como Barbero
-        document.cookie = "active_role=barber; path=/; max-age=31536000; SameSite=Lax; Secure";
-
         window.location.href = '/dashboard/appointments';
         return;
       }

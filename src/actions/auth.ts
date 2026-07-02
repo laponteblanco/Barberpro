@@ -30,6 +30,20 @@ export async function getBarberCredentialsAction(shopCode: string, pin: string) 
     const cedula = (staff as any).profile?.id_number;
     if (!cedula) return { error: "No se pudo identificar el usuario." };
 
+    if ((staff as any).role === 'owner' || (staff as any).role === 'admin') {
+      const { data: user, error: userError } = await adminSupabase.auth.admin.getUserById((staff as any).profile_id);
+      if (userError || !user?.user?.email) return { error: "No se pudo encontrar el correo del administrador." };
+      
+      const { data: linkData, error: linkError } = await adminSupabase.auth.admin.generateLink({
+        type: 'magiclink',
+        email: user.user.email
+      });
+
+      if (linkError || !linkData?.properties?.action_link) return { error: "No se pudo generar el acceso para el administrador." };
+
+      return { magicLink: linkData.properties.action_link };
+    }
+
     const virtualEmail = `${cedula}@barberos.app`;
 
     return { 

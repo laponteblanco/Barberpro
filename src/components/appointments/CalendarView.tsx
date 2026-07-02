@@ -452,14 +452,37 @@ export function CalendarView({
           </div>
         </div>
 
-        <button
-          onClick={() => router.refresh()}
-          className="px-4 py-2.5 rounded-2xl border border-white/5 bg-zinc-900/60 hover:bg-zinc-800/80 text-zinc-400 hover:text-white active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md text-[10px] font-black uppercase tracking-widest h-fit"
-          title="Refrescar Agenda"
-        >
-          <RotateCw className="w-3.5 h-3.5 transition-transform hover:rotate-180 duration-500" />
-          <span>Refrescar</span>
-        </button>
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2 h-fit">
+          <button
+            onClick={() => {
+              if (viewMode === "days" && staff.length > 0) {
+                setSummaryBarber(staff[0]);
+              } else if (activeMobileBarber && activeMobileBarber !== "all") {
+                const b = staff.find(s => s.id === activeMobileBarber);
+                if (b) setSummaryBarber(b);
+              } else if (staff.length > 0) {
+                // If they haven't selected a specific barber on mobile admin, just show the first one or alert
+                setSummaryBarber(staff[0]);
+              }
+            }}
+            className="px-4 py-2.5 rounded-2xl border border-white/5 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 hover:text-indigo-100 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md text-[10px] font-black uppercase tracking-widest h-fit"
+            title="Ver mi resumen del día"
+          >
+            <User className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Mi Resumen</span>
+            <span className="sm:hidden">Resumen</span>
+          </button>
+          
+          <button
+            onClick={() => router.refresh()}
+            className="px-4 py-2.5 rounded-2xl border border-white/5 bg-zinc-900/60 hover:bg-zinc-800/80 text-zinc-400 hover:text-white active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md text-[10px] font-black uppercase tracking-widest h-fit"
+            title="Refrescar Agenda"
+          >
+            <RotateCw className="w-3.5 h-3.5 transition-transform hover:rotate-180 duration-500" />
+            <span className="hidden sm:inline">Refrescar</span>
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-x-auto overflow-y-auto min-h-0 custom-scrollbar relative">
@@ -1182,7 +1205,11 @@ export function CalendarView({
       {summaryBarber && mounted && portalContainer && createPortal(
         <StaffSummaryDialog 
           barber={summaryBarber} 
-          appointments={appointments.filter(a => a.staff_id === summaryBarber.id)} 
+          appointments={appointments.filter(a => {
+            if (a.staff_id !== summaryBarber.id) return false;
+            const bogota = getBogotaTime(a.start_time);
+            return `${bogota.yyyy}-${bogota.mm}-${bogota.dd}` === selectedDate;
+          })} 
           onClose={() => setSummaryBarber(null)} 
           theme={theme}
         />,
