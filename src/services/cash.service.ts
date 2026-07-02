@@ -56,7 +56,7 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
       .from("appointments")
       .select("total_price, payment_method, start_time, staff_id, staff:tenant_staff(id, profiles(full_name))")
       .eq("tenant_id", tenantId)
-      .in("status", ["completed", "confirmed"])
+      .in("status", ["completed", "confirmed", "pending"])
       .gte("start_time", session.opened_at),
     (adminSupabase as any)
       .from("tenant_staff")
@@ -271,9 +271,11 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
     }
   });
 
-  // Compute final net_expected_cash for each staff member
+  // Compute final net_expected_cash for each staff member.
+  // The barber must hand over their full commission (on cash + digital)
+  // minus any advances (vales) taken from the register today.
   breakdownMap.forEach((b) => {
-    b.net_expected_cash = b.total_cash - b.total_advances + b.total_payments;
+    b.net_expected_cash = b.total_commission - b.total_advances + b.total_payments;
   });
 
   const barbersBreakdown = Array.from(breakdownMap.values()).sort((a, b) => b.net_expected_cash - a.net_expected_cash);

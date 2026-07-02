@@ -558,7 +558,7 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
                           <span className="font-bold text-white">{formatCurrency(barber.total_digital || 0)}</span>
                         </div>
                         <div className="flex justify-between items-center text-xs border-t border-white/5 pt-2 mt-1">
-                          <span className="font-bold text-zinc-300">Efectivo Neto Esperado:</span>
+                          <span className="font-bold text-zinc-300">Total a Entregar (Comisión − Vales):</span>
                           <span className="font-black text-primary">{formatCurrency(expectedNum)}</span>
                         </div>
                       </div>
@@ -566,7 +566,7 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
                       {/* Cash Input Form for the handover */}
                       <div className="space-y-1.5">
                         <label className="text-[9px] font-black uppercase tracking-widest text-zinc-500">
-                          Efectivo Físico Entregado
+                          Total Entregado (Efectivo + Digital)
                         </label>
                         <div className="relative">
                           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">

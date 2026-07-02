@@ -100,7 +100,7 @@ async function AppointmentsContent({
     fetchEnd.setHours(fetchEnd.getHours() + 36);
   }
 
-  const [ {data: appointmentsRaw}, {data: clients}, {data: staffRaw}, {data: services}, {data: blocksRaw} ] = await withTimeout(
+  const [ {data: appointmentsRaw}, {data: clients}, {data: staffRaw}, {data: services}, {data: blocksRaw}, {data: productsRaw} ] = await withTimeout(
     Promise.all([
       adminSupabase
         .from("appointments")
@@ -117,8 +117,6 @@ async function AppointmentsContent({
         .eq("tenant_id", tenantId)
         .eq("is_active", true)
         .in("role", ["barber", "owner", "admin"])
-        // Admin: fetch ALL active barbers
-        // Barber: fetch only themselves
         .match(isBarber ? { id: sessionStaff.id } : {}),
       adminSupabase.from("services").select("id, name, price, duration_minutes").eq("tenant_id", tenantId).eq("is_active", true).order("price", { ascending: false }),
       (adminSupabase as any)
@@ -127,7 +125,8 @@ async function AppointmentsContent({
         .eq("tenant_id", tenantId)
         .match(isBarber ? { staff_id: sessionStaff.id } : {})
         .gte("start_time", fetchStart.toISOString())
-        .lte("start_time", fetchEnd.toISOString())
+        .lte("start_time", fetchEnd.toISOString()),
+      adminSupabase.from("products").select("id, name, retail_price, stock").eq("tenant_id", tenantId).gt("stock", 0).order("name"),
     ]),
     8000,
     "Fetch Dashboard Main Data (Appointments/Staff)"
@@ -287,6 +286,7 @@ async function AppointmentsContent({
           endHour={endHour}
           clients={clients || []}
           services={services || []}
+          products={productsRaw || []}
           selectedDate={selectedDate}
           viewMode={isBarber ? "days" : "staff"}
           theme={settings?.theme || "dark"}

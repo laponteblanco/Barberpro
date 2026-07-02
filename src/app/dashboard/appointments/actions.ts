@@ -109,6 +109,8 @@ export async function createAppointmentAction(formData: FormData) {
 
   const is_fragmented = formData.get("is_fragmented") === "true";
   const fragmented_slots_str = formData.get("fragmented_slots")?.toString();
+  const initialStatus = formData.get("initial_status")?.toString() || "pending";
+  const initialPaymentMethod = formData.get("payment_method")?.toString() || "cash";
 
   let firstApptId = null;
 
@@ -146,7 +148,8 @@ export async function createAppointmentAction(formData: FormData) {
         start_time: start.toISOString(),
         end_time: end.toISOString(),
         total_price: servicePrice,
-        status: 'pending'
+        status: initialStatus,
+        payment_method: initialStatus === 'completed' ? initialPaymentMethod : null,
       }).select('id').single();
 
       if (error) {
@@ -188,7 +191,8 @@ export async function createAppointmentAction(formData: FormData) {
       start_time: start_time.toISOString(),
       end_time: end_time.toISOString(),
       total_price: total_price,
-      status: 'pending'
+      status: initialStatus,
+      payment_method: initialStatus === 'completed' ? initialPaymentMethod : null,
     }).select('id').single();
 
     if (error) {

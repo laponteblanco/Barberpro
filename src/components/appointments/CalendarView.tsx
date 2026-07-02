@@ -4,7 +4,8 @@ import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { updateAppointmentTimeAction, updateAppointmentStatusAction, deleteAgendaBlockAction, createAgendaBlockAction } from "@/app/dashboard/appointments/actions";
-import { User, Clock, LayoutList, CheckCircle2, DollarSign, Calendar, Ban, Trash2, Scissors, X, RotateCw } from "lucide-react";
+import { sellProductAction } from "@/app/dashboard/inventory/actions";
+import { User, Clock, LayoutList, CheckCircle2, DollarSign, Calendar, Ban, Trash2, Scissors, X, RotateCw, ShoppingBag, Package, Banknote, Search, Plus, Minus, ArrowLeft, CreditCard, Smartphone, ArrowUpRight } from "lucide-react";
 import { NewAppointmentDialog } from "./NewAppointmentDialog";
 import { StaffSummaryDialog } from "./StaffSummaryDialog";
 import { useRouter } from "next/navigation";
@@ -15,6 +16,7 @@ interface CalendarViewProps {
   staff: any[];
   clients: any[];
   services: any[];
+  products?: any[];
   startHour?: number;
   endHour?: number;
   selectedDate?: string;
@@ -95,7 +97,8 @@ export function CalendarView({
   agendaBlocks = [],
   staff, 
   clients, 
-  services, 
+  services,
+  products = [],
   startHour = 7, 
   endHour = 22, 
   selectedDate,
@@ -123,6 +126,10 @@ export function CalendarView({
   const [showPaymentSelector, setShowPaymentSelector] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [discountAmount, setDiscountAmount] = useState<number | "">("");
+  const [cashGiven, setCashGiven] = useState<number | "">("");
+  const [extraProducts, setExtraProducts] = useState<Array<{id: string; name: string; price: number; qty: number}>>([]);
+  const [productSearch, setProductSearch] = useState("");
+  const [productLoading, setProductLoading] = useState(false);
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
 
   const [isMobile, setIsMobile] = useState(false);
@@ -289,16 +296,32 @@ export function CalendarView({
     }, { total: 0, completed: 0, earnings: 0 });
   }, [appointments, selectedDate, viewMode, calendarColumns, staff]);
 
+  const resetPaymentModal = () => {
+    setSelectedAppt(null);
+    setShowPaymentSelector(false);
+    setDiscountAmount("");
+    setCashGiven("");
+    setExtraProducts([]);
+    setProductSearch("");
+    setPaymentMethod("cash");
+  };
+
   const updateStatus = async (id: string, status: string, paymentMethod?: string, discount?: number) => {
     try {
+      // Sell any extra products added to the bill
+      for (const p of extraProducts) {
+        setProductLoading(true);
+        const res = await sellProductAction(p.id, p.qty);
+        if (res?.error) throw new Error(`Error al vender ${p.name}: ${res.error}`);
+      }
       const res = await updateAppointmentStatusAction(id, status, paymentMethod, discount);
       if (res?.error) throw new Error(res.error);
-      setSelectedAppt(null);
-      setShowPaymentSelector(false);
-      setDiscountAmount("");
+      resetPaymentModal();
       router.refresh();
     } catch (err: any) {
       alert(err.message || "Error");
+    } finally {
+      setProductLoading(false);
     }
   };
 
@@ -897,143 +920,269 @@ export function CalendarView({
       {mounted && portalContainer && selectedAppt && createPortal(
         <div className={cn(
           theme === "light" ? "theme-light" : "theme-dark",
-          "fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto"
-        )}>
-          <div className={cn(
-            "w-full max-w-sm border rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 h-fit my-auto",
-            theme === "light" ? "theme-light bg-white border-blue-200" : "bg-zinc-950 border-white/10"
-          )}>
-            <div className={cn(
-              "flex items-center justify-between px-6 py-5 border-b",
-              theme === "light" ? "bg-blue-50/80 border-blue-100" : "border-white/5 bg-zinc-900/50"
-            )}>
-              <h3 className="font-bold text-white tracking-tight">Detalles de la Cita</h3>
-              <button 
-                onClick={() => {
-                  setSelectedAppt(null);
-                  setShowPaymentSelector(false);
-                  setPaymentMethod("cash");
-                }} 
-                className="p-2 hover:bg-white/10 rounded-xl text-zinc-400"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          "fixed inset-0 z-[200] flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto"
+        )}
+          style={{ background: "linear-gradient(135deg, rgba(0,0,0,0.85) 0%, rgba(10,10,25,0.92) 50%, rgba(0,0,0,0.88) 100%)" }}
+        >
+          <div className="w-full max-w-sm rounded-[28px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 h-fit my-auto"
+            style={{ background: "linear-gradient(160deg, #0f0f1a 0%, #111118 60%, #0a0a14 100%)", border: "1px solid rgba(255,255,255,0.08)" }}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/5"
+              style={{ background: "linear-gradient(90deg, rgba(99,102,241,0.08) 0%, rgba(139,92,246,0.05) 100%)" }}
+            >
+              <div className="flex items-center gap-2">
+                {showPaymentSelector && (
+                  <button onClick={() => { setShowPaymentSelector(false); }} className="p-1.5 hover:bg-white/10 rounded-lg text-zinc-400 transition-colors">
+                    <ArrowLeft className="w-4 h-4" />
+                  </button>
+                )}
+                <div>
+                  <h3 className="font-bold text-white tracking-tight text-sm">
+                    {showPaymentSelector ? "Cobrar Servicio" : "Detalles de la Cita"}
+                  </h3>
+                  {!showPaymentSelector && (
+                    <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-bold mt-0.5">{selectedAppt.client?.full_name}</p>
+                  )}
+                </div>
+              </div>
+              <button onClick={resetPaymentModal} className="p-2 hover:bg-white/10 rounded-xl text-zinc-400 transition-colors">
+                <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="p-6 space-y-6">
+
+            <div className="p-5 space-y-4 max-h-[80vh] overflow-y-auto custom-scrollbar">
               {!showPaymentSelector ? (
                 <>
-                  <div className="space-y-1">
-                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black">Cliente</p>
-                    <p className="font-bold text-lg text-white">{selectedAppt.client?.full_name}</p>
+                  {/* Info cards */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 rounded-2xl border border-white/5" style={{ background: "rgba(255,255,255,0.03)" }}>
+                      <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-black mb-1">Horario</p>
+                      <p className="font-bold text-xs text-white">
+                        {new Date(selectedAppt.start_time).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })} – {new Date(selectedAppt.end_time).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-2xl border border-white/5" style={{ background: "rgba(255,255,255,0.03)" }}>
+                      <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-black mb-1">Total</p>
+                      <p className="font-bold text-xs text-emerald-400">
+                        {new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(selectedAppt.total_price)}
+                      </p>
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black">Horario</p>
-                    <p className="font-medium text-sm text-zinc-300">
-                      {new Date(selectedAppt.start_time).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })} - {new Date(selectedAppt.end_time).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
-                    </p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black">Servicios</p>
-                    <p className="font-medium text-sm text-zinc-300">
-                      {selectedAppt.services?.length > 0 
-                        ? selectedAppt.services.map((s: any) => s?.name).filter(Boolean).join(', ') 
+                  <div className="p-3 rounded-2xl border border-white/5" style={{ background: "rgba(255,255,255,0.03)" }}>
+                    <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-black mb-1">Servicios</p>
+                    <p className="font-medium text-xs text-zinc-300">
+                      {selectedAppt.services?.length > 0
+                        ? selectedAppt.services.map((s: any) => s?.name).filter(Boolean).join(", ")
                         : (selectedAppt.service?.name || "Servicio")}
                     </p>
                   </div>
-                  <div className="pt-2 grid gap-3">
-                    {selectedAppt.status !== 'completed' && (
-                      <button 
-                        onClick={() => setShowPaymentSelector(true)} 
-                        className="w-full py-3.5 rounded-2xl bg-emerald-500 text-white font-black uppercase tracking-widest text-xs hover:scale-[1.01] active:scale-[0.99] transition-transform"
+
+                  <div className="grid gap-2 pt-1">
+                    {selectedAppt.status !== "completed" && (
+                      <button
+                        onClick={() => setShowPaymentSelector(true)}
+                        className="w-full py-3 rounded-2xl font-black uppercase tracking-widest text-xs transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2"
+                        style={{ background: "linear-gradient(135deg, #10b981, #059669)", color: "#fff", boxShadow: "0 8px 24px -4px rgba(16,185,129,0.35)" }}
                       >
-                        Completar
+                        <DollarSign className="w-4 h-4" /> Completar y Cobrar
                       </button>
                     )}
-                    <button 
-                      onClick={() => handleDelete(selectedAppt.id)} 
-                      className="w-full py-3.5 rounded-2xl bg-zinc-800 text-zinc-300 font-black uppercase tracking-widest text-xs hover:scale-[1.01] active:scale-[0.99] transition-transform"
+                    <button
+                      onClick={() => handleDelete(selectedAppt.id)}
+                      className="w-full py-3 rounded-2xl bg-zinc-800/80 border border-white/5 text-zinc-400 font-black uppercase tracking-widest text-xs hover:bg-zinc-700/80 transition-all flex items-center justify-center gap-2"
                     >
-                      Eliminar
+                      <Trash2 className="w-3.5 h-3.5" /> Eliminar
                     </button>
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="space-y-3">
-                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black mb-1">Seleccionar Método de Pago</p>
-                    <div className="grid gap-2">
-                      {[
-                        { id: "cash", label: "💵 Efectivo" },
-                        { id: "card", label: "💳 Tarjeta / Llave" },
-                        { id: "nequi", label: "📱 Nequi" },
-                        { id: "daviplata", label: "📱 Daviplata" },
-                        { id: "transfer", label: "🔄 Transferencia" },
-                      ].map((method) => (
-                        <button
-                          key={method.id}
-                          type="button"
-                          onClick={() => setPaymentMethod(method.id)}
+                  {/* ── PAYMENT METHOD ── */}
+                  <div className="space-y-2">
+                    <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-black">Método de pago</p>
+                    <div className="grid grid-cols-5 gap-1.5">
+                      {([
+                        { id: "cash",      label: "Efectivo",   Icon: Banknote,    active: "bg-emerald-500/20 border-emerald-500/50 text-emerald-300" },
+                        { id: "card",      label: "Tarjeta",    Icon: CreditCard,  active: "bg-cyan-500/20 border-cyan-500/50 text-cyan-300" },
+                        { id: "nequi",     label: "Nequi",      Icon: Smartphone,  active: "bg-indigo-500/20 border-indigo-500/50 text-indigo-300" },
+                        { id: "daviplata", label: "Daviplata",  Icon: Smartphone,  active: "bg-red-500/20 border-red-500/50 text-red-300" },
+                        { id: "transfer",  label: "Transfer.",  Icon: ArrowUpRight, active: "bg-amber-500/20 border-amber-500/50 text-amber-300" },
+                      ] as const).map(({ id, label, Icon, active }) => (
+                        <button key={id} type="button" onClick={() => setPaymentMethod(id)}
                           className={cn(
-                            "w-full px-4 py-3 rounded-xl border text-left font-semibold text-sm transition-all flex items-center justify-between",
-                            paymentMethod === method.id
-                              ? "bg-primary/10 border-primary text-white"
-                              : "bg-black/20 border-white/5 text-zinc-400 hover:border-white/10 hover:text-white"
+                            "flex flex-col items-center gap-1 py-2 px-1 rounded-xl border text-[8px] font-black uppercase tracking-wider transition-all",
+                            paymentMethod === id ? `${active} scale-105` : "bg-white/3 border-white/5 text-zinc-500 hover:border-white/15 hover:text-zinc-300"
                           )}
                         >
-                          <span>{method.label}</span>
-                          {paymentMethod === method.id && (
-                            <div className="w-2.5 h-2.5 rounded-full bg-primary shadow-[0_0_8px_rgba(234,179,8,0.5)] animate-pulse" />
-                          )}
+                          <Icon className="w-4 h-4" />{label}
                         </button>
                       ))}
                     </div>
                   </div>
 
-                  <div className="space-y-2 mt-4 p-4 rounded-xl border border-white/5 bg-black/20">
+                  {/* ── CASH CHANGE CALCULATOR ── */}
+                  {paymentMethod === "cash" && (
+                    <div className="p-3.5 rounded-2xl border border-emerald-500/20 space-y-2 animate-in fade-in slide-in-from-top-1 duration-200"
+                      style={{ background: "rgba(16,185,129,0.06)" }}
+                    >
+                      <p className="text-[9px] text-emerald-400 uppercase tracking-widest font-black flex items-center gap-1.5">
+                        <Banknote className="w-3 h-3" /> Calcular vuelto
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-xs font-bold">$</span>
+                          <input
+                            type="number"
+                            value={cashGiven}
+                            onChange={(e) => setCashGiven(e.target.value === "" ? "" : Number(e.target.value))}
+                            placeholder="Valor del billete"
+                            className="w-full pl-7 pr-3 py-2 bg-zinc-900/80 border border-white/10 rounded-xl text-right text-sm font-black text-white outline-none focus:border-emerald-500/50 transition-colors"
+                          />
+                        </div>
+                        {Number(cashGiven) > 0 && (
+                          <div className="text-right shrink-0">
+                            {(() => {
+                              const total = Math.max(0, selectedAppt.total_price + extraProducts.reduce((s, p) => s + p.price * p.qty, 0) - (Number(discountAmount) || 0));
+                              const change = Number(cashGiven) - total;
+                              return (
+                                <p className={cn("text-sm font-black", change >= 0 ? "text-emerald-400" : "text-red-400")}>
+                                  {change >= 0 ? "Vuelto:" : "Falta:"}<br />
+                                  {new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(Math.abs(change))}
+                                </p>
+                              );
+                            })()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── PRODUCTS ── */}
+                  <div className="space-y-2">
+                    <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-black flex items-center gap-1.5">
+                      <ShoppingBag className="w-3 h-3" /> Agregar productos
+                    </p>
+                    {/* Added products list */}
+                    {extraProducts.length > 0 && (
+                      <div className="space-y-1">
+                        {extraProducts.map(p => (
+                          <div key={p.id} className="flex items-center justify-between px-3 py-2 rounded-xl border border-white/5 bg-white/3">
+                            <div>
+                              <p className="text-xs font-bold text-white">{p.name}</p>
+                              <p className="text-[10px] text-zinc-500">{new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(p.price)} c/u</p>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <button type="button" onClick={() => setExtraProducts(prev => prev.map(ep => ep.id === p.id ? { ...ep, qty: Math.max(1, ep.qty - 1) } : ep).filter(ep => ep.qty > 0))}
+                                className="w-6 h-6 rounded-lg bg-zinc-800 text-white flex items-center justify-center hover:bg-zinc-700 transition-colors">
+                                <Minus className="w-3 h-3" />
+                              </button>
+                              <span className="text-sm font-black text-white w-4 text-center">{p.qty}</span>
+                              <button type="button" onClick={() => setExtraProducts(prev => prev.map(ep => ep.id === p.id ? { ...ep, qty: ep.qty + 1 } : ep))}
+                                className="w-6 h-6 rounded-lg bg-zinc-800 text-white flex items-center justify-center hover:bg-zinc-700 transition-colors">
+                                <Plus className="w-3 h-3" />
+                              </button>
+                              <button type="button" onClick={() => setExtraProducts(prev => prev.filter(ep => ep.id !== p.id))}
+                                className="w-6 h-6 rounded-lg bg-red-500/20 text-red-400 flex items-center justify-center hover:bg-red-500/30 transition-colors">
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {/* Product search */}
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+                      <input
+                        type="text"
+                        value={productSearch}
+                        onChange={(e) => setProductSearch(e.target.value)}
+                        placeholder="Buscar producto..."
+                        className="w-full pl-9 pr-3 py-2.5 bg-zinc-900/60 border border-white/5 rounded-xl text-xs text-white outline-none focus:border-primary/40 transition-colors"
+                      />
+                    </div>
+                    {productSearch && (
+                      <div className="rounded-xl border border-white/5 overflow-hidden max-h-32 overflow-y-auto"
+                        style={{ background: "rgba(255,255,255,0.03)" }}
+                      >
+                        {products
+                          .filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase()) && !extraProducts.find(ep => ep.id === p.id))
+                          .slice(0, 6)
+                          .map((p: any) => (
+                            <button key={p.id} type="button"
+                              onClick={() => {
+                                setExtraProducts(prev => [...prev, { id: p.id, name: p.name, price: Number(p.retail_price), qty: 1 }]);
+                                setProductSearch("");
+                              }}
+                              className="w-full px-3 py-2 flex items-center justify-between hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors text-left"
+                            >
+                              <div>
+                                <p className="text-xs font-bold text-white">{p.name}</p>
+                                <p className="text-[10px] text-zinc-500">Stock: {p.stock}</p>
+                              </div>
+                              <p className="text-xs font-black text-primary">{new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(p.retail_price)}</p>
+                            </button>
+                          ))}
+                        {products.filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase())).length === 0 && (
+                          <p className="text-xs text-zinc-500 text-center py-3">Sin resultados</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── TOTALS ── */}
+                  <div className="p-3.5 rounded-2xl border border-white/5 space-y-2"
+                    style={{ background: "rgba(255,255,255,0.03)" }}
+                  >
                     <div className="flex items-center justify-between">
-                      <p className="text-xs font-bold text-zinc-400">Total Original:</p>
-                      <p className="text-sm font-black text-white">
+                      <p className="text-[10px] text-zinc-500 font-bold">Servicios:</p>
+                      <p className="text-xs font-black text-white">
                         {new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(selectedAppt.total_price)}
                       </p>
                     </div>
-                    <div className="flex items-center justify-between gap-4">
-                      <p className="text-xs font-bold text-zinc-400">Bono / Descuento:</p>
-                      <div className="relative w-1/2">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">$</span>
+                    {extraProducts.length > 0 && (
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] text-zinc-500 font-bold">Productos:</p>
+                        <p className="text-xs font-black text-amber-400">
+                          + {new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(extraProducts.reduce((s, p) => s + p.price * p.qty, 0))}
+                        </p>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[10px] text-zinc-500 font-bold">Descuento:</p>
+                      <div className="relative w-32">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-xs font-bold">$</span>
                         <input
                           type="number"
                           value={discountAmount}
                           onChange={(e) => setDiscountAmount(e.target.value === "" ? "" : Number(e.target.value))}
                           placeholder="0"
-                          className="w-full pl-7 pr-3 py-2 bg-zinc-900 border border-white/10 rounded-lg text-right text-sm font-black text-emerald-400 outline-none focus:border-emerald-500/50 transition-colors"
+                          className="w-full pl-7 pr-3 py-1.5 bg-zinc-900 border border-white/10 rounded-lg text-right text-xs font-black text-rose-400 outline-none focus:border-rose-500/40 transition-colors"
                         />
                       </div>
                     </div>
                     <div className="flex items-center justify-between pt-2 border-t border-white/10">
-                      <p className="text-xs font-black uppercase tracking-widest text-emerald-500">Total a Cobrar:</p>
+                      <p className="text-xs font-black uppercase tracking-widest text-emerald-400">Total a Cobrar:</p>
                       <p className="text-xl font-black text-emerald-400">
-                        {new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(Math.max(0, selectedAppt.total_price - (Number(discountAmount) || 0)))}
+                        {new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(
+                          Math.max(0, selectedAppt.total_price + extraProducts.reduce((s, p) => s + p.price * p.qty, 0) - (Number(discountAmount) || 0))
+                        )}
                       </p>
                     </div>
                   </div>
 
-                  <div className="pt-2 grid gap-3 mt-4">
-                    <button 
-                      onClick={() => updateStatus(selectedAppt.id, 'completed', paymentMethod, Number(discountAmount) || 0)} 
-                      className="w-full py-3.5 rounded-2xl bg-emerald-500 text-white font-black uppercase tracking-widest text-xs hover:scale-[1.01] active:scale-[0.99] transition-transform"
-                    >
-                      Confirmar Cierre
-                    </button>
-                    <button 
-                      onClick={() => {
-                        setShowPaymentSelector(false);
-                        setPaymentMethod("cash");
-                      }} 
-                      className="w-full py-3.5 rounded-2xl bg-zinc-800 text-zinc-300 font-black uppercase tracking-widest text-xs hover:scale-[1.01] active:scale-[0.99] transition-transform"
-                    >
-                      Atrás
-                    </button>
-                  </div>
+                  {/* ── CONFIRM ── */}
+                  <button
+                    onClick={() => updateStatus(selectedAppt.id, "completed", paymentMethod, Number(discountAmount) || 0)}
+                    disabled={productLoading}
+                    className="w-full py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60 flex items-center justify-center gap-2"
+                    style={{ background: "linear-gradient(135deg, #10b981, #059669)", color: "#fff", boxShadow: "0 8px 24px -4px rgba(16,185,129,0.35)" }}
+                  >
+                    {productLoading
+                      ? <><RotateCw className="w-4 h-4 animate-spin" /> Procesando...</>
+                      : <><CheckCircle2 className="w-4 h-4" /> Confirmar Cierre</>}
+                  </button>
                 </>
               )}
             </div>

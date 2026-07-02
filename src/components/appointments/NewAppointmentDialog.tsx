@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Plus, X, Calendar as CalendarIcon, Clock, User, Scissors, Loader2, UserPlus, CheckCircle2, AlertCircle, Search } from "lucide-react";
+import { Plus, X, Calendar as CalendarIcon, Clock, User, Scissors, Loader2, UserPlus, CheckCircle2, AlertCircle, Search, Banknote, Smartphone, CreditCard, ArrowUpRight } from "lucide-react";
 import { createAppointmentAction, updateAppointmentDetailsAction } from "../../app/dashboard/appointments/actions";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -27,6 +27,8 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
   const [isNewClient, setIsNewClient] = useState(false);
   const [availability, setAvailability] = useState<{ status: 'idle' | 'checking' | 'available' | 'busy', message?: string }>({ status: 'idle' });
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
+  const [chargeMode, setChargeMode] = useState(false);
+  const [chargePaymentMethod, setChargePaymentMethod] = useState<"cash" | "nequi" | "card" | "daviplata" | "transfer">("cash");
 
   useEffect(() => {
     setMounted(true);
@@ -43,6 +45,8 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
 
   const handleClose = () => {
     setIsOpen(false);
+    setChargeMode(false);
+    setChargePaymentMethod("cash");
     if (onCloseExternal) onCloseExternal();
   };
 
@@ -194,6 +198,12 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
     
     // Append all selected service ids as JSON array
     fd.append("service_ids", JSON.stringify(formData.service_ids));
+
+    // Charge-and-complete mode: read from state (closure)
+    if (chargeMode && !editApptId) {
+      fd.append("initial_status", "completed");
+      fd.append("payment_method", chargePaymentMethod);
+    }
 
     if (isFragmentedValid) {
       const fragIdx = parseInt(formData.time.split("-")[1]);
@@ -523,16 +533,90 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
               </div>
 
               <div className={cn(
-                "p-8 border-t sticky bottom-0 z-10 shrink-0",
+                "p-6 border-t sticky bottom-0 z-10 shrink-0 space-y-3",
                 theme === "light" ? "bg-blue-50/80 border-blue-100" : "border-white/5 bg-zinc-900/50"
               )}>
-                <button 
-                  type="submit" 
-                  disabled={loading || (formData.time && !availableSlots.includes(formData.time) && !formData.time.startsWith("frag-") && availability.status !== 'checking')}
-                  className="w-full h-14 rounded-2xl bg-primary text-primary-foreground font-black uppercase tracking-widest text-xs hover:brightness-110 transition-all shadow-xl shadow-primary/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
-                >
-                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (editApptId ? "Guardar Cambios" : "Confirmar Cita")}
-                </button>
+                {/* Charge mode: payment method selector */}
+                {chargeMode && !editApptId && (
+                  <div className="animate-in fade-in slide-in-from-bottom-2 duration-200 space-y-2">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 ml-1">Método de pago</p>
+                    <div className="grid grid-cols-5 gap-1.5">
+                      {([
+                        { id: "cash",      label: "Efectivo",  icon: Banknote,     activeClass: "bg-emerald-500/20 border-emerald-500/50 text-emerald-400" },
+                        { id: "nequi",     label: "Nequi",     icon: Smartphone,   activeClass: "bg-indigo-500/20 border-indigo-500/50 text-indigo-400" },
+                        { id: "card",      label: "Tarjeta",   icon: CreditCard,   activeClass: "bg-cyan-500/20 border-cyan-500/50 text-cyan-400" },
+                        { id: "daviplata", label: "Daviplata", icon: Smartphone,   activeClass: "bg-red-500/20 border-red-500/50 text-red-400" },
+                        { id: "transfer",  label: "Transfer.", icon: ArrowUpRight,  activeClass: "bg-amber-500/20 border-amber-500/50 text-amber-400" },
+                      ] as const).map(({ id, label, icon: Icon, activeClass }) => (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => setChargePaymentMethod(id)}
+                          className={cn(
+                            "flex flex-col items-center gap-1 py-2 px-1 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all",
+                            chargePaymentMethod === id
+                              ? `${activeClass} scale-105`
+                              : "bg-zinc-900/50 border-white/5 text-zinc-500 hover:border-white/20 hover:text-zinc-300"
+                          )}
+                        >
+                          <Icon className="w-4 h-4" />
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {chargeMode && !editApptId ? (
+                  /* Confirm charge buttons */
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setChargeMode(false)}
+                      disabled={loading}
+                      className="h-12 px-4 rounded-2xl bg-zinc-800 border border-white/5 text-zinc-400 font-bold text-xs hover:bg-zinc-700 transition-all disabled:opacity-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading || (formData.time && !availableSlots.includes(formData.time) && !formData.time.startsWith("frag-") && availability.status !== 'checking')}
+                      className="flex-1 h-12 rounded-2xl bg-emerald-500 text-black font-black uppercase tracking-widest text-xs hover:brightness-110 transition-all shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+                    >
+                      {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle2 className="w-4 h-4" /> Confirmar y Cobrar</>}
+                    </button>
+                  </div>
+                ) : (
+                  /* Normal two-button row */
+                  !editApptId ? (
+                    <div className="flex gap-2">
+                      <button 
+                        type="submit"
+                        disabled={loading || (formData.time && !availableSlots.includes(formData.time) && !formData.time.startsWith("frag-") && availability.status !== 'checking')}
+                        className="flex-1 h-12 rounded-2xl bg-primary text-primary-foreground font-black uppercase tracking-widest text-xs hover:brightness-110 transition-all shadow-xl shadow-primary/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+                      >
+                        {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Confirmar Cita"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={loading}
+                        onClick={() => setChargeMode(true)}
+                        className="h-12 px-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-black text-xs uppercase tracking-wider hover:bg-emerald-500/20 hover:text-emerald-300 transition-all flex items-center gap-1.5 disabled:opacity-50 whitespace-nowrap active:scale-[0.98]"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        Agregar y Cobrar
+                      </button>
+                    </div>
+                  ) : (
+                    <button 
+                      type="submit" 
+                      disabled={loading || (formData.time && !availableSlots.includes(formData.time) && !formData.time.startsWith("frag-") && availability.status !== 'checking')}
+                      className="w-full h-14 rounded-2xl bg-primary text-primary-foreground font-black uppercase tracking-widest text-xs hover:brightness-110 transition-all shadow-xl shadow-primary/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+                    >
+                      {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Guardar Cambios"}
+                    </button>
+                  )
+                )}
               </div>
             </form>
           </div>
