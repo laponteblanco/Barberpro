@@ -41,7 +41,7 @@ export async function getBarberCredentialsAction(shopCode: string, pin: string) 
 
       if (linkError || !linkData?.properties?.action_link) return { error: `Error generateLink: ${linkError?.message || "No action link"}` };
 
-      return { magicLink: linkData.properties.action_link };
+      return { magicLink: linkData.properties.action_link, role: (staff as any).role };
     }
 
     const virtualEmail = `${cedula}@barberos.app`;

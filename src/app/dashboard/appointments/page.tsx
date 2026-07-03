@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Clock, LayoutList, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
-import { NewAppointmentDialog } from "@/components/appointments/NewAppointmentDialog";
+import { NewAppointmentButtonClient } from "@/components/appointments/NewAppointmentButtonClient";
 import { getSession } from "@/lib/supabase/session";
 import { createAdminClient } from "@/lib/supabase/server";
 import { CalendarView } from "@/components/appointments/CalendarView";
@@ -264,10 +264,10 @@ async function AppointmentsContent({
         </div>
 
         <div className="animate-float-delayed">
-          <NewAppointmentDialog 
-            clients={clients || []} 
-            staff={staff || []} 
-            services={services || []} 
+          <NewAppointmentButtonClient
+            clients={clients || []}
+            staff={staff || []}
+            services={services || []}
             appointments={appointments}
             startHour={startHour}
             endHour={endHour}

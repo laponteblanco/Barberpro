@@ -70,6 +70,9 @@ export function AuthModals() {
         document.cookie = "active_role=barber; path=/; max-age=31536000; SameSite=Lax; Secure";
 
         if (result.magicLink) {
+          // Use the actual staff role for the cookie (owner/admin should not get 'barber')
+          const cookieRole = result.role === 'owner' || result.role === 'admin' ? result.role : 'barber';
+          document.cookie = `active_role=${cookieRole}; path=/; max-age=31536000; SameSite=Lax; Secure`;
           window.location.href = result.magicLink;
           return;
         }
