@@ -28,6 +28,7 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
   const [availability, setAvailability] = useState<{ status: 'idle' | 'checking' | 'available' | 'busy', message?: string }>({ status: 'idle' });
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
   const [chargeMode, setChargeMode] = useState(false);
+  const [chargePaymentMethod, setChargePaymentMethod] = useState("cash");
 
   useEffect(() => {
     setMounted(true);
@@ -602,4 +603,9 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
       {mounted && portalContainer ? createPortal(modalContent, portalContainer) : null}
     </>
   );
+  }
+
+  return mounted && portalContainer ? createPortal(modalContent, portalContainer) : null;
 }
+
+export default NewAppointmentDialog;
