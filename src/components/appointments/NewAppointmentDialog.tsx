@@ -55,7 +55,8 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
     staff_id: defaultValues?.staff_id || "",
     service_ids: defaultValues?.service_id ? [defaultValues.service_id] : (defaultValues?.service_ids || []),
     date: defaultValues?.date || "",
-    time: defaultValues?.time || ""
+    time: defaultValues?.time || "",
+    client_name: ""
   });
 
   useEffect(() => {
