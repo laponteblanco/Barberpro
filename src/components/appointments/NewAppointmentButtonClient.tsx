@@ -79,10 +79,11 @@ export function NewAppointmentButtonClient({
       const dbPaymentMethod: PaymentMethod = pmMap[paymentMethod] ?? "cash";
       const completedStatus: AppointmentStatus = "completed";
 
-      await supabase.from("appointments").update({
-        status: completedStatus,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase.from("appointments") as any).update({
+        status: dbPaymentMethod ? completedStatus : completedStatus,
         payment_method: dbPaymentMethod,
-        discount_amount: discount || 0,
+        discount: discount || 0,
         total_price: finalTotal,
       }).eq("id", selectedAppt.id);
 
