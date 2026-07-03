@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { NewAppointmentDialog } from "./NewAppointmentDialog";
 import {
   X, ArrowLeft, DollarSign, Banknote, Smartphone, CreditCard, ArrowUpRight
 } from "lucide-react";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import type { PaymentMethod, AppointmentStatus } from "@/types/database";
 
 interface Props {
   clients: any[];
@@ -36,7 +37,7 @@ export function NewAppointmentButtonClient({
   const router = useRouter();
   const [selectedAppt, setSelectedAppt] = useState<any | null>(null);
   const [showPaymentSelector, setShowPaymentSelector] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [paymentMethod, setPaymentMethod] = useState<string>("cash");
   const [discountAmount, setDiscountAmount] = useState<number | "">("");
   const [cashGiven, setCashGiven] = useState<number | "">("");
   const [mounted, setMounted] = useState(false);
@@ -67,9 +68,20 @@ export function NewAppointmentButtonClient({
     if (!selectedAppt) return;
     try {
       const supabase = createClient();
+      // Map UI payment method IDs to DB enum values
+      const pmMap: Record<string, PaymentMethod> = {
+        cash: "cash",
+        card: "card",
+        transfer: "transfer",
+        nequi: "transfer",
+        daviplata: "transfer",
+      };
+      const dbPaymentMethod: PaymentMethod = pmMap[paymentMethod] ?? "cash";
+      const completedStatus: AppointmentStatus = "completed";
+
       await supabase.from("appointments").update({
-        status: "completed",
-        payment_method: paymentMethod,
+        status: completedStatus,
+        payment_method: dbPaymentMethod,
         discount_amount: discount || 0,
         total_price: finalTotal,
       }).eq("id", selectedAppt.id);
