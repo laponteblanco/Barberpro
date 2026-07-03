@@ -225,7 +225,7 @@ export async function createAppointmentAction(formData: FormData) {
     console.log(`[WhatsApp] Confirmación de cita enviada asincrónicamente para la cita ${firstApptId}`);
   });
 
-  return { success: true };
+  return { success: true, appointmentId: firstApptId };
 }
 
 export async function updateAppointmentTimeAction(appointmentId: string, newStartTime: string) {

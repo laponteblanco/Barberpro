@@ -35,9 +35,10 @@ interface StaffSummaryDialogProps {
   onClose: () => void;
   theme?: string;
   isBarber?: boolean;
+  date?: string;
 }
 
-export function StaffSummaryDialog({ barber, appointments, onClose, theme = "dark", isBarber = false }: StaffSummaryDialogProps) {
+export function StaffSummaryDialog({ barber, appointments, onClose, theme = "dark", isBarber = false, date }: StaffSummaryDialogProps) {
   const isLight = theme === "light";
   const [activeTab, setActiveTab] = useState<'arqueo' | 'services' | 'finance'>('arqueo');
   const [ledgerData, setLedgerData] = useState<any>(null);
@@ -154,14 +155,33 @@ export function StaffSummaryDialog({ barber, appointments, onClose, theme = "dar
     }
   };
 
-  const totals = ledgerData?.totals || {
-    totalAdvances: 0,
-    totalConsignments: 0,
-    totalPayments: 0,
-    pendingBalance: 0
-  };
+  const fullHistory = ledgerData?.history || [];
 
-  const history = ledgerData?.history || [];
+  const history = date
+    ? fullHistory.filter((item: any) => {
+        const bogota = getBogotaTime(item.created_at);
+        return `${bogota.yyyy}-${bogota.mm}-${bogota.dd}` === date;
+      })
+    : fullHistory;
+
+  const totals = date
+    ? history.reduce((acc: any, item: any) => {
+        const amt = Number(item.amount || 0);
+        if (item.type === "advance") acc.totalAdvances += amt;
+        else if (item.type === "consignment") acc.totalConsignments += amt;
+        else if (item.type === "payment") acc.totalPayments += amt;
+        return acc;
+      }, { totalAdvances: 0, totalConsignments: 0, totalPayments: 0 })
+    : (ledgerData?.totals || {
+        totalAdvances: 0,
+        totalConsignments: 0,
+        totalPayments: 0,
+        pendingBalance: 0
+      });
+
+  if (date) {
+    totals.pendingBalance = totals.totalAdvances + totals.totalConsignments - totals.totalPayments;
+  }
 
   return (
     <div className={cn(

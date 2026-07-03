@@ -53,16 +53,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
     : (staff?.role ?? authRole ?? "admin");
 
   // Si se inició sesión explícitamente como barbero usando PIN, aplicar el rol
-  if (activeRole === "barber" && (role === "admin" || role === "superadmin" || staff?.role === "barber")) {
+  if (activeRole === "barber" && (role === "admin" || role === "owner" || role === "superadmin" || staff?.role === "barber")) {
     role = "barber";
-  } else if (activeRole === "admin" && (authRole === "admin" || authRole === "superadmin")) {
+  } else if (activeRole === "admin" && (authRole === "admin" || authRole === "owner" || authRole === "superadmin")) {
     role = authRole;
   }
 
-  const isAdmin = role === "admin" || role === "superadmin";
+  const isAdmin = role === "admin" || role === "owner" || role === "superadmin";
   
-  // Allow admin/superadmin even if staff record is not yet created
-  if (!['admin', 'superadmin', 'barber'].includes(role)) {
+  // Allow admin/owner/superadmin even if staff record is not yet created
+  if (!['admin', 'owner', 'superadmin', 'barber'].includes(role)) {
     redirect("/");
   }
 

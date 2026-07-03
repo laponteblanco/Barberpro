@@ -60,7 +60,7 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
   const [appointmentsRes, staffRes] = await Promise.all([
     (adminSupabase as any)
       .from("appointments")
-      .select("total_price, payment_method, start_time, staff_id, staff:tenant_staff(id, profiles(full_name))")
+      .select("total_price, payment_method, start_time, staff_id, staff:tenant_staff(id, profiles(full_name)), service:services(name)")
       .eq("tenant_id", tenantId)
       .in("status", ["completed", "confirmed"])
       .gte("start_time", startOfDayISO),
@@ -102,22 +102,22 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
 
   const appointmentsTotal = appointmentsCashTotal + appointmentsDigitalTotal;
 
-  // 2. Calculate product sales total since opened_at
+  // 2. Calculate product sales total since startOfDayISO
   const { data: sales } = await (adminSupabase as any)
     .from("product_sales")
     .select("total_price")
     .eq("tenant_id", tenantId)
-    .gte("created_at", session.opened_at);
+    .gte("created_at", startOfDayISO);
 
   const salesTotal = sales?.reduce((sum: number, sale: any) => sum + Number(sale.total_price || 0), 0) || 0;
 
-  // 2.5 Calculate ledger cash movements (advances and payments) since opened_at
+  // 2.5 Calculate ledger cash movements (advances and payments) since startOfDayISO
   const { data: ledgerMoves } = await (adminSupabase as any)
     .from("staff_ledger")
     .select("type, amount")
     .eq("tenant_id", tenantId)
     .in("type", ["advance", "payment"])
-    .gte("created_at", session.opened_at);
+    .gte("created_at", startOfDayISO);
 
   let ledgerAdvances = 0;
   let ledgerPayments = 0;
@@ -139,7 +139,7 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
       .from("expenses")
       .select("*")
       .eq("tenant_id", tenantId)
-      .gte("created_at", session.opened_at);
+      .gte("created_at", startOfDayISO);
       
     if (!expError && expensesData) {
       expensesList = expensesData;
@@ -159,7 +159,7 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
     .from("staff_ledger")
     .select("staff_id, type, amount")
     .eq("tenant_id", tenantId)
-    .gte("created_at", session.opened_at);
+    .gte("created_at", startOfDayISO);
 
   const breakdownMap = new Map<string, { 
     id: string; 
@@ -176,6 +176,7 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
     net_expected_cash: number;
     total_commission: number;
     total_shop_profit: number;
+    services_breakdown: Record<string, number>;
   }>();
 
   staffMembers.forEach((s: any) => {
@@ -193,7 +194,8 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
       total_consignments: 0,
       net_expected_cash: 0,
       total_commission: 0,
-      total_shop_profit: 0
+      total_shop_profit: 0,
+      services_breakdown: {}
     });
   });
 
@@ -217,7 +219,8 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
         total_consignments: 0,
         net_expected_cash: 0,
         total_commission: 0,
-        total_shop_profit: 0
+        total_shop_profit: 0,
+        services_breakdown: {}
       });
     }
 
@@ -251,7 +254,8 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
         total_consignments: 0,
         net_expected_cash: 0,
         total_commission: 0,
-        total_shop_profit: 0
+        total_shop_profit: 0,
+        services_breakdown: {}
       });
     }
 
@@ -275,6 +279,10 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
       b.total_commission += commission;
       b.total_shop_profit += (price - commission);
     }
+    
+    // Add to services breakdown
+    const serviceName = app.service?.name || "Servicio Desconocido";
+    b.services_breakdown[serviceName] = (b.services_breakdown[serviceName] || 0) + 1;
   });
 
   // Compute final net_expected_cash for each staff member.
