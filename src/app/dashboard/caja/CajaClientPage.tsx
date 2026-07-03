@@ -621,28 +621,57 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
                       {delivery.isConfirmed && (
                         <button
                           type="button"
-                          onClick={() => {
-                            const totalServicios = (barber.appointments_count || 0) + (barber.appointments_digital_count || 0);
-                            const recaudoTotal = (barber.total_cash || 0) + (barber.total_digital || 0);
-                            const valesStr = barber.total_advances > 0 ? `\n🔻 Vales (Adelantos): -${formatCurrency(barber.total_advances)}` : "";
-                            const productosStr = barber.total_consignments > 0 ? `\n🛍️ Productos: -${formatCurrency(barber.total_consignments)}` : "";
-                            
-                            const breakdown = barber.services_breakdown || {};
-                            const servicesList = Object.entries(breakdown)
-                              .map(([name, qty]) => `• ${name} x${qty}`)
-                              .join('\n');
-                            const servicesStr = servicesList ? `\n📋 *Detalle de Servicios:*\n${servicesList}\n` : "";
-
-                            const message = `💈 *Resumen de Turno: ${barber.name}* 💈\n\n` +
-                              `✂️ Servicios Totales: ${totalServicios}\n` +
-                              servicesStr +
-                              `\n💵 Recaudo Total: ${formatCurrency(recaudoTotal)}\n` +
-                              `👤 Comisión Barbero: ${formatCurrency(barber.total_commission || 0)}` +
-                              valesStr + productosStr + `\n` +
-                              `💰 *Total a Entregar: ${formatCurrency(barber.net_expected_cash)}*\n\n` +
-                              `_Generado por BarberPro_`;
-                            
-                            window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+                          onClick={async () => {
+                            try {
+                              const { default: jsPDF } = await import("jspdf");
+                              const { default: autoTable } = await import("jspdf-autotable");
+                              const doc = new jsPDF();
+                              
+                              doc.setFontSize(18);
+                              doc.text(`Resumen de Turno: ${barber.name}`, 14, 22);
+                              
+                              doc.setFontSize(12);
+                              const totalServicios = (barber.appointments_count || 0) + (barber.appointments_digital_count || 0);
+                              const recaudoTotal = (barber.total_cash || 0) + (barber.total_digital || 0);
+                              
+                              const body = [
+                                ["Servicios Totales", totalServicios.toString()],
+                                ["Recaudo Total", formatCurrency(recaudoTotal)],
+                                ["Comisión Barbero", formatCurrency(barber.total_commission || 0)],
+                              ];
+                              
+                              if (barber.total_advances > 0) body.push(["Vales (Adelantos)", `-${formatCurrency(barber.total_advances)}`]);
+                              if (barber.total_payments > 0) body.push(["Abonos / Pagos Hoy", `+${formatCurrency(barber.total_payments)}`]);
+                              if (barber.total_consignments > 0) body.push(["Fiados / Consignación", `-${formatCurrency(barber.total_consignments)}`]);
+                              
+                              body.push(["Total a Entregar", formatCurrency(expectedNum)]);
+                              
+                              autoTable(doc, {
+                                startY: 30,
+                                head: [["Concepto", "Valor"]],
+                                body: body,
+                              });
+                              
+                              const breakdown = barber.services_breakdown || {};
+                              const servicesList = Object.entries(breakdown).map(([name, qty]) => [name, `x${qty}`]);
+                              
+                              if (servicesList.length > 0) {
+                                autoTable(doc, {
+                                  startY: (doc as any).lastAutoTable.finalY + 10,
+                                  head: [["Servicio", "Cantidad"]],
+                                  body: servicesList,
+                                });
+                              }
+                              
+                              const fileName = `resumen_${barber.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+                              doc.save(fileName);
+                              
+                              const textMsg = encodeURIComponent(`💈 *Resumen de Turno: ${barber.name}*\n\nHe descargado el resumen en PDF. Por favor, revisa tus archivos y adjúntalo aquí.`);
+                              window.open(`https://wa.me/?text=${textMsg}`, '_blank');
+                            } catch (error) {
+                              console.error("Error generando PDF:", error);
+                              alert("Error al generar el PDF. Verifica que la librería jspdf esté instalada.");
+                            }
                           }}
                           className="w-full h-10 mt-2 bg-[#25D366] hover:bg-[#128C7E] text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2"
                         >

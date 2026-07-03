@@ -31,7 +31,7 @@ export async function getBarberCredentialsAction(shopCode: string, pin: string) 
     if (!cedula) return { error: "No se pudo identificar el usuario." };
 
     if ((staff as any).role === 'owner' || (staff as any).role === 'admin') {
-      const { data: user, error: userError } = await adminSupabase.auth.admin.getUserById((staff as any).profile_id);
+      const { data: user, error: userError } = await adminSupabase.auth.admin.getUserById((staff as any).user_id || (staff as any).profile_id);
       if (userError || !user?.user?.email) return { error: `Error getUserById: ${userError?.message || "No email"}` };
       
       const { data: linkData, error: linkError } = await adminSupabase.auth.admin.generateLink({
