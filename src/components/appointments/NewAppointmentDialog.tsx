@@ -585,7 +585,7 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
             </form>
           </div>
         </div>
-    );
+    ) : null;
 
   if (triggerButton) {
     return (
