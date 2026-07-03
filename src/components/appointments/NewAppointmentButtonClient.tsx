@@ -87,7 +87,8 @@ export function NewAppointmentButtonClient({
         total_price: finalTotal,
       }).eq("id", selectedAppt.id);
 
-      await supabase.from("cash_register_entries").insert({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase.from("cash_register_entries") as any).insert({
         tenant_id: tenantId,
         appointment_id: selectedAppt.id,
         amount: finalTotal,
