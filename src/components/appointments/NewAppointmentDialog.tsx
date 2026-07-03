@@ -28,6 +28,7 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
   const [availability, setAvailability] = useState<{ status: 'idle' | 'checking' | 'available' | 'busy', message?: string }>({ status: 'idle' });
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
   const [chargeMode, setChargeMode] = useState(false);
+  const chargeModeRef = useRef(false);
   const [chargePaymentMethod, setChargePaymentMethod] = useState("cash");
 
   useEffect(() => {
@@ -222,7 +223,7 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
       
       handleClose();
 
-      if (!editApptId && chargeMode && res && 'appointmentId' in res && res.appointmentId && onAddAndCharge) {
+      if (!editApptId && chargeModeRef.current && res && 'appointmentId' in res && res.appointmentId && onAddAndCharge) {
         const dummyAppt = {
           id: res.appointmentId,
           start_time: formData.time.startsWith("frag-") ? new Date().toISOString() : `${formData.date}T${formData.time}:00-05:00`,
@@ -552,6 +553,7 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
                       type="button"
                       onClick={(e) => {
                         setChargeMode(false);
+                        chargeModeRef.current = false;
                         const form = e.currentTarget.closest("form");
                         if (form) form.requestSubmit();
                       }}
@@ -565,6 +567,7 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
                       disabled={loading || (formData.time && !availableSlots.includes(formData.time) && !formData.time.startsWith("frag-") && availability.status !== 'checking')}
                       onClick={(e) => {
                         setChargeMode(true);
+                        chargeModeRef.current = true;
                         const form = e.currentTarget.closest("form");
                         if (form) form.requestSubmit();
                       }}
