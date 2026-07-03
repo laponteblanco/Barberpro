@@ -306,7 +306,7 @@ export function CalendarView({
     setPaymentMethod("cash");
   };
 
-  const updateStatus = async (id: string, status: string, paymentMethod?: string, discount?: number) => {
+  const updateStatus = async (id: string, status: string, paymentMethod?: string, discount?: number, finalPriceOverride?: number) => {
     try {
       // Sell any extra products added to the bill
       for (const p of extraProducts) {
@@ -314,7 +314,7 @@ export function CalendarView({
         const res = await sellProductAction(p.id, p.qty);
         if (res?.error) throw new Error(`Error al vender ${p.name}: ${res.error}`);
       }
-      const res = await updateAppointmentStatusAction(id, status, paymentMethod, discount);
+      const res = await updateAppointmentStatusAction(id, status, paymentMethod, discount, finalPriceOverride);
       if (res?.error) throw new Error(res.error);
       resetPaymentModal();
       router.refresh();
@@ -983,10 +983,16 @@ export function CalendarView({
                       </p>
                     </div>
                     <div className="p-3 rounded-2xl border border-blue-100 bg-white shadow-sm">
-                      <p className="text-[9px] text-blue-600 uppercase tracking-widest font-black mb-1">Total</p>
-                      <p className="font-bold text-xs text-blue-600">
-                        {new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(selectedAppt.total_price)}
-                      </p>
+                      <p className="text-[9px] text-blue-500 uppercase tracking-widest font-black mb-1">Total</p>
+                      <div className="flex items-center text-blue-500 font-bold text-xs">
+                        <span>$</span>
+                        <input
+                          type="number"
+                          value={selectedAppt.total_price || 0}
+                          onChange={(e) => setSelectedAppt({ ...selectedAppt, total_price: Number(e.target.value) })}
+                          className="w-full bg-transparent outline-none pl-1"
+                        />
+                      </div>
                     </div>
                   </div>
                   <div className="p-3 rounded-2xl border border-blue-100 bg-white shadow-sm">
@@ -1002,7 +1008,7 @@ export function CalendarView({
                     {selectedAppt.status !== "completed" && (
                       <button
                         onClick={() => setShowPaymentSelector(true)}
-                        className="w-full py-3 rounded-2xl font-black uppercase tracking-widest text-xs transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 bg-blue-600 text-white shadow-[0_8px_24px_-4px_rgba(37,99,235,0.35)]"
+                        className="w-full py-3 rounded-2xl font-black uppercase tracking-widest text-xs transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-400 text-white shadow-[0_8px_24px_-4px_rgba(59,130,246,0.35)]"
                       >
                         <DollarSign className="w-4 h-4" /> Completar y Cobrar
                       </button>
@@ -1212,9 +1218,12 @@ export function CalendarView({
 
                   {/* ── CONFIRM ── */}
                   <button
-                    onClick={() => updateStatus(selectedAppt.id, "completed", paymentMethod, Number(discountAmount) || 0)}
+                    onClick={() => {
+                      const finalTotal = Math.max(0, selectedAppt.total_price + extraProducts.reduce((s, p) => s + p.price * p.qty, 0) - (Number(discountAmount) || 0));
+                      updateStatus(selectedAppt.id, "completed", paymentMethod, Number(discountAmount) || 0, finalTotal);
+                    }}
                     disabled={productLoading}
-                    className="w-full py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60 flex items-center justify-center gap-2 bg-blue-600 text-white shadow-[0_8px_24px_-4px_rgba(37,99,235,0.35)]"
+                    className="w-full py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60 flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-400 text-white shadow-[0_8px_24px_-4px_rgba(59,130,246,0.35)]"
                   >
                     {productLoading
                       ? <><RotateCw className="w-4 h-4 animate-spin" /> Procesando...</>

@@ -275,7 +275,7 @@ export async function updateAppointmentTimeAction(appointmentId: string, newStar
   return { success: true };
 }
 
-export async function updateAppointmentStatusAction(appointmentId: string, status: string, paymentMethod?: string, discountAmount: number = 0) {
+export async function updateAppointmentStatusAction(appointmentId: string, status: string, paymentMethod?: string, discountAmount: number = 0, finalPriceOverride?: number) {
   const { tenantId } = await getSession();
   if (!tenantId) return { error: "No hay sesión activa" };
 
@@ -311,16 +311,20 @@ export async function updateAppointmentStatusAction(appointmentId: string, statu
       updates.payment_method = paymentMethod;
     }
 
-    if (status === "completed" && discountAmount > 0) {
-      // Fetch current price to safely apply discount
-      const { data: appt } = await (adminSupabase as any)
-        .from("appointments")
-        .select("total_price")
-        .eq("id", appointmentId)
-        .single();
-      
-      if (appt) {
-        updates.total_price = Math.max(0, appt.total_price - discountAmount);
+    if (status === "completed") {
+      if (finalPriceOverride !== undefined && finalPriceOverride !== null) {
+        updates.total_price = finalPriceOverride;
+      } else if (discountAmount > 0) {
+        // Fetch current price to safely apply discount
+        const { data: appt } = await (adminSupabase as any)
+          .from("appointments")
+          .select("total_price")
+          .eq("id", appointmentId)
+          .single();
+        
+        if (appt) {
+          updates.total_price = Math.max(0, appt.total_price - discountAmount);
+        }
       }
     }
 
