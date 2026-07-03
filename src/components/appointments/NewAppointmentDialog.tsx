@@ -221,7 +221,7 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
       
       handleClose();
 
-      if (!editApptId && chargeMode && res?.appointmentId && onAddAndCharge) {
+      if (!editApptId && chargeMode && res && 'appointmentId' in res && res.appointmentId && onAddAndCharge) {
         const dummyAppt = {
           id: res.appointmentId,
           start_time: formData.time.startsWith("frag-") ? new Date().toISOString() : `${formData.date}T${formData.time}:00-05:00`,
