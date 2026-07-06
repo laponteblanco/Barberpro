@@ -1,19 +1,25 @@
 import { Calendar, DollarSign, TrendingUp, User, Scissors, Clock } from "lucide-react";
 import { getSession } from "@/lib/supabase/session";
 import { redirect } from "next/navigation";
+import { CopyLinkButton } from "@/components/ui/CopyLinkButton";
 
 export default async function BarberProfilePage() {
-  const { tenantId } = await getSession();
-  if (!tenantId) redirect("/");
+  const { tenantId, staff } = await getSession();
+  if (!tenantId || !staff) redirect("/");
+
+  // Construir enlace de reserva del barbero
+  const domain = process.env.NEXT_PUBLIC_SITE_URL || "https://shopbarberospro.netlify.app";
+  const bookLink = `${domain}/book/${staff.tenant?.slug}?barber_id=${staff.id}`;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black text-white tracking-tight">Mi Agenda <span className="text-gradient">Personal</span></h1>
-          <p className="text-zinc-500 text-sm font-medium">Controla tus citas y comisiones del día</p>
+          <p className="text-zinc-500 text-sm font-medium mb-3">Controla tus citas y comisiones del día</p>
+          <CopyLinkButton link={bookLink} />
         </div>
-        <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
+        <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0">
           <User className="w-7 h-7 text-indigo-500" />
         </div>
       </div>
