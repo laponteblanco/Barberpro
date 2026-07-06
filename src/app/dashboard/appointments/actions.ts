@@ -275,7 +275,16 @@ export async function updateAppointmentTimeAction(appointmentId: string, newStar
   return { success: true };
 }
 
-export async function updateAppointmentStatusAction(appointmentId: string, status: string, paymentMethod?: string, discountAmount: number = 0, finalPriceOverride?: number) {
+export async function updateAppointmentStatusAction(
+  appointmentId: string, 
+  status: string, 
+  paymentMethod?: string, 
+  discountAmount: number = 0, 
+  finalPriceOverride?: number,
+  splitCashAmount?: number,
+  splitDigitalAmount?: number,
+  splitDigitalMethod?: string
+) {
   const { tenantId } = await getSession();
   if (!tenantId) return { error: "No hay sesión activa" };
 
@@ -309,6 +318,15 @@ export async function updateAppointmentStatusAction(appointmentId: string, statu
     const updates: any = { status };
     if (paymentMethod) {
       updates.payment_method = paymentMethod;
+    }
+    if (paymentMethod === 'split') {
+      updates.split_cash_amount = splitCashAmount || 0;
+      updates.split_digital_amount = splitDigitalAmount || 0;
+      updates.split_digital_method = splitDigitalMethod || null;
+    } else {
+      updates.split_cash_amount = 0;
+      updates.split_digital_amount = 0;
+      updates.split_digital_method = null;
     }
 
     if (status === "completed") {

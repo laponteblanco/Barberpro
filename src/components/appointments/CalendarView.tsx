@@ -127,6 +127,9 @@ export function CalendarView({
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [discountAmount, setDiscountAmount] = useState<number | "">("");
   const [cashGiven, setCashGiven] = useState<number | "">("");
+  const [splitCashAmount, setSplitCashAmount] = useState<number | "">("");
+  const [splitDigitalAmount, setSplitDigitalAmount] = useState<number | "">("");
+  const [splitDigitalMethod, setSplitDigitalMethod] = useState("transfer");
   const [extraProducts, setExtraProducts] = useState<Array<{id: string; name: string; price: number; qty: number}>>([]);
   const [productSearch, setProductSearch] = useState("");
   const [productLoading, setProductLoading] = useState(false);
@@ -304,6 +307,9 @@ export function CalendarView({
     setExtraProducts([]);
     setProductSearch("");
     setPaymentMethod("cash");
+    setSplitCashAmount("");
+    setSplitDigitalAmount("");
+    setSplitDigitalMethod("transfer");
   };
 
   const updateStatus = async (id: string, status: string, paymentMethod?: string, discount?: number, finalPriceOverride?: number) => {
@@ -314,7 +320,7 @@ export function CalendarView({
         const res = await sellProductAction(p.id, p.qty);
         if (res?.error) throw new Error(`Error al vender ${p.name}: ${res.error}`);
       }
-      const res = await updateAppointmentStatusAction(id, status, paymentMethod, discount, finalPriceOverride);
+      const res = await updateAppointmentStatusAction(id, status, paymentMethod, discount, finalPriceOverride, Number(splitCashAmount)||0, Number(splitDigitalAmount)||0, splitDigitalMethod);
       if (res?.error) throw new Error(res.error);
       resetPaymentModal();
       router.refresh();
@@ -1051,13 +1057,14 @@ export function CalendarView({
                   {/* ── PAYMENT METHOD ── */}
                   <div className="space-y-2">
                     <p className="text-[9px] text-blue-600 uppercase tracking-widest font-black">Método de pago</p>
-                    <div className="grid grid-cols-5 gap-1.5">
+                    <div className="grid grid-cols-3 gap-1.5">
                       {([
                         { id: "cash",      label: "Efectivo",   Icon: Banknote },
                         { id: "card",      label: "Tarjeta",    Icon: CreditCard },
                         { id: "nequi",     label: "Nequi",      Icon: Smartphone },
                         { id: "daviplata", label: "Daviplata",  Icon: Smartphone },
                         { id: "transfer",  label: "Transfer.",  Icon: ArrowUpRight },
+                        { id: "split",     label: "Mixto",      Icon: Banknote },
                       ] as const).map(({ id, label, Icon }) => (
                         <button key={id} type="button" onClick={() => setPaymentMethod(id)}
                           className={cn(
@@ -1102,6 +1109,68 @@ export function CalendarView({
                             })()}
                           </div>
                         )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── SPLIT PAYMENT ── */}
+                  {paymentMethod === "split" && (
+                    <div className="p-3.5 rounded-2xl border border-blue-200 bg-blue-50 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                      <p className="text-[9px] text-blue-600 uppercase tracking-widest font-black flex items-center gap-1.5">
+                        <Banknote className="w-3 h-3" /> Pago Mixto
+                      </p>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <label className="text-[10px] font-bold text-blue-900 w-16">Efectivo:</label>
+                          <div className="relative flex-1">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400 text-xs font-bold">$</span>
+                            <input
+                              type="number"
+                              value={splitCashAmount}
+                              onChange={(e) => setSplitCashAmount(e.target.value === "" ? "" : Number(e.target.value))}
+                              placeholder="0"
+                              className="w-full pl-7 pr-3 py-1.5 bg-white border border-blue-200 rounded-lg text-right text-xs font-black text-blue-900 outline-none focus:border-blue-500 transition-colors"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label className="text-[10px] font-bold text-blue-900 w-16">Digital:</label>
+                          <div className="relative flex-1">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400 text-xs font-bold">$</span>
+                            <input
+                              type="number"
+                              value={splitDigitalAmount}
+                              onChange={(e) => setSplitDigitalAmount(e.target.value === "" ? "" : Number(e.target.value))}
+                              placeholder="0"
+                              className="w-full pl-7 pr-3 py-1.5 bg-white border border-blue-200 rounded-lg text-right text-xs font-black text-blue-900 outline-none focus:border-blue-500 transition-colors"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label className="text-[10px] font-bold text-blue-900 w-16">Medio:</label>
+                          <select
+                            value={splitDigitalMethod}
+                            onChange={(e) => setSplitDigitalMethod(e.target.value)}
+                            className="flex-1 bg-white border border-blue-200 rounded-lg px-2 py-1.5 text-xs font-bold text-blue-900 outline-none focus:border-blue-500 transition-colors"
+                          >
+                            <option value="nequi">Nequi</option>
+                            <option value="daviplata">Daviplata</option>
+                            <option value="transfer">Transferencia</option>
+                            <option value="card">Tarjeta</option>
+                          </select>
+                        </div>
+                        {(() => {
+                          const total = Math.max(0, selectedAppt.total_price + extraProducts.reduce((s, p) => s + p.price * p.qty, 0) - (Number(discountAmount) || 0));
+                          const sum = (Number(splitCashAmount)||0) + (Number(splitDigitalAmount)||0);
+                          if (sum !== total && (splitCashAmount !== "" || splitDigitalAmount !== "")) {
+                            return (
+                              <p className="text-[9px] font-bold text-red-500 text-right pt-1">
+                                La suma debe ser {new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(total)}
+                              </p>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
                     </div>
                   )}
@@ -1222,7 +1291,7 @@ export function CalendarView({
                       const finalTotal = Math.max(0, selectedAppt.total_price + extraProducts.reduce((s, p) => s + p.price * p.qty, 0) - (Number(discountAmount) || 0));
                       updateStatus(selectedAppt.id, "completed", paymentMethod, Number(discountAmount) || 0, finalTotal);
                     }}
-                    disabled={productLoading}
+                    disabled={productLoading || (paymentMethod === 'split' && ((Number(splitCashAmount)||0) + (Number(splitDigitalAmount)||0) !== Math.max(0, selectedAppt.total_price + extraProducts.reduce((s, p) => s + p.price * p.qty, 0) - (Number(discountAmount) || 0))))}
                     className="w-full py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60 flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-400 text-white shadow-[0_8px_24px_-4px_rgba(59,130,246,0.35)]"
                   >
                     {productLoading

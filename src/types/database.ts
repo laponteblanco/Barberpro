@@ -10,7 +10,7 @@ export type SubscriptionPlan = "basic" | "premium" | "pro";
 export type SubscriptionStatus = "active" | "trialing" | "past_due" | "canceled" | "suspended" | "paused";
 export type AppointmentStatus = "pending" | "confirmed" | "in_progress" | "completed" | "cancelled" | "no_show";
 export type StaffRole = "owner" | "admin" | "barber" | "receptionist";
-export type PaymentMethod = "cash" | "card" | "transfer" | "whatsapp_pay";
+export type PaymentMethod = "cash" | "card" | "transfer" | "whatsapp_pay" | "nequi" | "daviplata" | "split";
 export type PaymentStatus = "pending" | "paid" | "partial" | "refunded";
 export type NotificationChannel = "whatsapp" | "email" | "both";
 export type NotificationStatus = "pending" | "sent" | "failed" | "skipped";
@@ -171,6 +171,9 @@ export interface Database {
           reminder_sent: boolean;
           payment_status: PaymentStatus;
           payment_method: PaymentMethod | null;
+          split_cash_amount: number | null;
+          split_digital_amount: number | null;
+          split_digital_method: string | null;
           total_price: number;
           discount: number;
           created_at: string;

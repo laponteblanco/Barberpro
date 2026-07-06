@@ -65,9 +65,9 @@ async function AppointmentsContent({
     : (sessionStaff?.role ?? authRole ?? "admin");
 
   // Si se inició sesión explícitamente como barbero usando PIN, aplicar el rol
-  if (activeRole === "barber" && (role === "admin" || role === "superadmin" || sessionStaff?.role === "barber")) {
+  if (activeRole === "barber" && (role === "admin" || role === "owner" || role === "superadmin" || sessionStaff?.role === "barber" || sessionStaff?.role === "owner")) {
     role = "barber";
-  } else if (activeRole === "admin" && (authRole === "admin" || authRole === "superadmin")) {
+  } else if (activeRole === "admin" && (authRole === "admin" || authRole === "owner" || authRole === "superadmin")) {
     role = authRole;
   }
 

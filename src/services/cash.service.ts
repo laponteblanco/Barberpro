@@ -60,7 +60,7 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
   const [appointmentsRes, staffRes] = await Promise.all([
     (adminSupabase as any)
       .from("appointments")
-      .select("total_price, payment_method, start_time, staff_id, staff:tenant_staff(id, profiles(full_name)), service:services(name)")
+      .select("total_price, payment_method, split_cash_amount, split_digital_amount, split_digital_method, start_time, staff_id, staff:tenant_staff(id, profiles(full_name)), service:services(name)")
       .eq("tenant_id", tenantId)
       .in("status", ["completed", "confirmed"])
       .gte("start_time", startOfDayISO),
@@ -91,6 +91,17 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
 
     if (method === "cash") {
       appointmentsCashTotal += price;
+    } else if (method === "split") {
+      const splitCash = Number(app.split_cash_amount || 0);
+      const splitDigital = Number(app.split_digital_amount || 0);
+      appointmentsCashTotal += splitCash;
+      appointmentsDigitalTotal += splitDigital;
+      
+      const splitMethod = app.split_digital_method;
+      if (splitMethod === "card") digitalBreakdown.card += splitDigital;
+      else if (splitMethod === "nequi") digitalBreakdown.nequi += splitDigital;
+      else if (splitMethod === "daviplata") digitalBreakdown.daviplata += splitDigital;
+      else if (splitMethod === "transfer") digitalBreakdown.transfer += splitDigital;
     } else {
       appointmentsDigitalTotal += price;
       if (method === "card") digitalBreakdown.card += price;
@@ -263,6 +274,17 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
     if (method === "cash") {
       b.appointments_count++;
       b.total_cash += price;
+    } else if (method === "split") {
+      const splitCash = Number(app.split_cash_amount || 0);
+      const splitDigital = Number(app.split_digital_amount || 0);
+      if (splitCash > 0) {
+        b.appointments_count++;
+        b.total_cash += splitCash;
+      }
+      if (splitDigital > 0) {
+        b.appointments_digital_count++;
+        b.total_digital += splitDigital;
+      }
     } else {
       b.appointments_digital_count++;
       b.total_digital += price;
