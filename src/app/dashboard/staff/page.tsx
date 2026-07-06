@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { AddStaffDialog } from "@/components/staff/AddStaffDialog";
 import { EditStaffDialog } from "@/components/staff/EditStaffDialog";
 import { DeleteStaffButton } from "@/components/staff/DeleteStaffButton";
+import { CopyLinkButton } from "@/components/ui/CopyLinkButton";
 
 export default async function StaffPage() {
   const staffMembers = await getStaff();
@@ -15,7 +16,7 @@ export default async function StaffPage() {
   const adminSupabase = await createAdminClient();
   const { data: tenant } = await (adminSupabase as any)
     .from("tenants")
-    .select("short_code")
+    .select("short_code, slug")
     .eq("id", tenantId)
     .single();
 
@@ -124,8 +125,13 @@ export default async function StaffPage() {
                   </td>
                   <td className="px-8 py-6 text-center">
                     {member.access_pin ? (
-                      <div className="inline-flex items-center gap-2 bg-zinc-900 px-3 py-1.5 rounded-xl border border-white/10">
-                        <span className="text-lg font-mono font-black text-primary tracking-widest">{member.access_pin}</span>
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="inline-flex items-center gap-2 bg-zinc-900 px-3 py-1.5 rounded-xl border border-white/10">
+                          <span className="text-lg font-mono font-black text-primary tracking-widest">{member.access_pin}</span>
+                        </div>
+                        <div className="scale-90 origin-top">
+                          <CopyLinkButton link={`${process.env.NEXT_PUBLIC_SITE_URL || "https://shopbarberospro.netlify.app"}/book/${tenant?.slug}?barber_id=${member.id}`} />
+                        </div>
                       </div>
                     ) : (
                       <span className="text-zinc-600 text-xs italic">No asignado</span>
