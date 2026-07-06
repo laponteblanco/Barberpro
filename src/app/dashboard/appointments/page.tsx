@@ -5,6 +5,7 @@ import { NewAppointmentButtonClient } from "@/components/appointments/NewAppoint
 import { getSession } from "@/lib/supabase/session";
 import { createAdminClient } from "@/lib/supabase/server";
 import { CalendarView } from "@/components/appointments/CalendarView";
+import { DatePickerNav } from "@/components/appointments/DatePickerNav";
 import { Suspense } from "react";
 import { withTimeout } from "@/lib/performance";
 
@@ -239,28 +240,12 @@ async function AppointmentsContent({
         </div>
 
         <div className="lg:absolute lg:left-1/2 lg:-translate-x-1/2 animate-float-slow flex items-center gap-2">
-          <div className="glass-card p-1.5 rounded-2xl flex items-center gap-1 border-white/5 bg-zinc-900/20 backdrop-blur-3xl shadow-[0_0_50px_-12px_hsla(var(--primary-glow))]">
-            <Link 
-              href={`/dashboard/appointments?date=${prevStr}`}
-              className="p-2.5 hover:bg-white/10 rounded-xl transition-all text-zinc-400 hover:text-white active:scale-95"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </Link>
-            
-            <Link 
-              href={`/dashboard/appointments?date=${todayStr}`}
-              className="px-5 py-2.5 hover:bg-white/10 rounded-xl transition-all text-[11px] font-black uppercase tracking-widest text-zinc-400 hover:text-white active:scale-95 border border-white/5"
-            >
-              Hoy
-            </Link>
-
-            <Link 
-              href={`/dashboard/appointments?date=${nextStr}`}
-              className="p-2.5 hover:bg-white/10 rounded-xl transition-all text-zinc-400 hover:text-white active:scale-95"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </Link>
-          </div>
+          <DatePickerNav 
+            selectedDate={selectedDate} 
+            prevDate={prevStr} 
+            nextDate={nextStr} 
+            todayDate={todayStr} 
+          />
         </div>
 
         <div className="animate-float-delayed">
