@@ -9,7 +9,7 @@ import { DatePickerNav } from "@/components/appointments/DatePickerNav";
 import { Suspense } from "react";
 import { withTimeout } from "@/lib/performance";
 
-export default async function AppointmentsPage({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
+export default async function AppointmentsPage({ searchParams }: { searchParams: Promise<{ date?: string, view?: string }> }) {
   const { tenantId, staff: sessionStaff, user, activeRole } = await getSession();
   if (!tenantId) return <div>No se encontró la barbería. Por favor, inicia sesión.</div>;
 
@@ -27,9 +27,10 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
         </p>
       </div>
     }>
-      {searchParams.then(({ date }) => (
+      {searchParams.then(({ date, view }) => (
         <AppointmentsContent 
           dateParam={date} 
+          viewParam={view}
           tenantId={tenantId}
           sessionStaff={sessionStaff}
           user={user}
@@ -42,12 +43,14 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
 
 async function AppointmentsContent({
   dateParam,
+  viewParam,
   tenantId,
   sessionStaff,
   user,
   activeRole
 }: {
   dateParam?: string;
+  viewParam?: string;
   tenantId: string;
   sessionStaff: any;
   user: any;
@@ -70,6 +73,11 @@ async function AppointmentsContent({
     role = "barber";
   } else if (activeRole === "admin" && (authRole === "admin" || authRole === "owner" || authRole === "superadmin")) {
     role = authRole;
+  }
+
+  // Permitir forzar la vista personal si el usuario es dueño/admin y seleccionó la vista "personal"
+  if (viewParam === "personal" && (role === "owner" || role === "admin" || role === "superadmin")) {
+    role = "barber";
   }
 
   const isBarber = role === "barber";
@@ -239,13 +247,22 @@ async function AppointmentsContent({
           </div>
         </div>
 
-        <div className="lg:absolute lg:left-1/2 lg:-translate-x-1/2 animate-float-slow flex items-center gap-2">
+        <div className="lg:absolute lg:left-1/2 lg:-translate-x-1/2 animate-float-slow flex flex-col sm:flex-row items-center gap-2">
           <DatePickerNav 
             selectedDate={selectedDate} 
             prevDate={prevStr} 
             nextDate={nextStr} 
             todayDate={todayStr} 
           />
+          
+          {(sessionStaff?.role === "owner" || sessionStaff?.role === "admin" || authRole === "superadmin") && (
+            <Link 
+              href={`/dashboard/appointments?date=${selectedDate}${viewParam === 'personal' ? '' : '&view=personal'}`}
+              className="glass-card px-4 py-2.5 rounded-2xl flex items-center gap-2 border-white/5 bg-zinc-900/20 backdrop-blur-3xl hover:bg-white/10 transition-all text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-white"
+            >
+              {viewParam === 'personal' ? 'Ver Todos' : 'Mi Agenda'}
+            </Link>
+          )}
         </div>
 
         <div className="animate-float-delayed">
