@@ -60,7 +60,7 @@ export function AuthModals() {
         }
 
         const result = await getBarberCredentialsAction(shopCode, pin);
-        if (result.error || (!result.email && !result.magicLink) || (!result.password && !result.magicLink)) {
+        if (result.error || !result.email || !result.password) {
           setError(result.error || "Error al verificar el PIN.");
           setLoading(false);
           return;
@@ -68,13 +68,6 @@ export function AuthModals() {
 
         // Guardar el rol activo en cookies antes de redirigir como Barbero
         document.cookie = "active_role=barber; path=/; max-age=31536000; SameSite=Lax; Secure";
-
-        if (result.magicLink) {
-          // If logged in via PIN (exclusively for barbers to access agenda), set active_role to 'barber'
-          document.cookie = "active_role=barber; path=/; max-age=31536000; SameSite=Lax; Secure";
-          window.location.href = result.magicLink;
-          return;
-        }
 
         const supabase = createClient();
         const { data, error: signInError } = await supabase.auth.signInWithPassword({
