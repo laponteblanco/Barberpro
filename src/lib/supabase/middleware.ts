@@ -65,5 +65,32 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // --- Hybrid Role Routing (Owner + Barber) ---
+  if (user && isDashboardPage) {
+    const { data: staffRecord } = await supabase
+      .from("tenant_staff")
+      .select("id, role")
+      .eq("user_id", user.id)
+      .single();
+
+    const isOwner = staffRecord?.role === "owner";
+    const hasStaffProfile = !!staffRecord;
+
+    const pathname = url.pathname;
+
+    // Block non-owners from admin routes
+    if (pathname.startsWith("/dashboard/admin") && !isOwner) {
+      url.pathname = "/dashboard";
+      return NextResponse.redirect(url);
+    }
+
+    // Allow hybrid owners (owner + staff profile) to access staff routes
+    // Block users with no staff profile from staff-specific routes
+    if (pathname.startsWith("/dashboard/staff") && !hasStaffProfile) {
+      url.pathname = "/dashboard";
+      return NextResponse.redirect(url);
+    }
+  }
+
   return supabaseResponse;
 }
