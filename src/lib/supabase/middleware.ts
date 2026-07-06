@@ -71,7 +71,7 @@ export async function updateSession(request: NextRequest) {
       .from("tenant_staff")
       .select("id, role")
       .eq("user_id", user.id)
-      .single();
+      .single<{ id: string; role: string }>();
 
     const isOwner = staffRecord?.role === "owner";
     const hasStaffProfile = !!staffRecord;
