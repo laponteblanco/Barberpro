@@ -11,20 +11,23 @@ import BookingLoading from "./loading";
 import { getCachedTenantData } from "@/lib/cache/tenant";
 
 export default async function PublicBookingPage({ 
-  params 
+  params,
+  searchParams
 }: { 
-  params: Promise<{ slug: string }> 
+  params: Promise<{ slug: string }>,
+  searchParams: Promise<{ barber_id?: string }>
 }) {
   const { slug } = await params;
+  const { barber_id } = await searchParams;
 
   return (
     <Suspense fallback={<BookingLoading />}>
-      <BookingContent slug={slug} />
+      <BookingContent slug={slug} initialBarberId={barber_id} />
     </Suspense>
   );
 }
 
-async function BookingContent({ slug }: { slug: string }) {
+async function BookingContent({ slug, initialBarberId }: { slug: string, initialBarberId?: string }) {
   // adminSupabase client creation is now handled inside getCachedTenantData
 
   // Fetch tenant info using cache
@@ -68,6 +71,7 @@ async function BookingContent({ slug }: { slug: string }) {
         tenant={tenant}
         staff={activeStaff}
         services={activeServices}
+        initialBarberId={initialBarberId}
       />
     </main>
   );

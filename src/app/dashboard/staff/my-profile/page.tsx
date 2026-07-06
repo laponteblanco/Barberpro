@@ -9,7 +9,7 @@ export default async function BarberProfilePage() {
 
   // Construir enlace de reserva del barbero
   const domain = process.env.NEXT_PUBLIC_SITE_URL || "https://shopbarberospro.netlify.app";
-  const bookLink = `${domain}/book/${staff.tenant?.slug}?barber_id=${staff.id}`;
+  const bookLink = `${domain}/${staff.tenant?.slug}?barber_id=${staff.id}`;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">

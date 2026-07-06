@@ -130,7 +130,7 @@ export default async function StaffPage() {
                           <span className="text-lg font-mono font-black text-primary tracking-widest">{member.access_pin}</span>
                         </div>
                         <div className="scale-90 origin-top">
-                          <CopyLinkButton link={`${process.env.NEXT_PUBLIC_SITE_URL || "https://shopbarberospro.netlify.app"}/book/${tenant?.slug}?barber_id=${member.id}`} />
+                          <CopyLinkButton link={`${process.env.NEXT_PUBLIC_SITE_URL || "https://shopbarberospro.netlify.app"}/${tenant?.slug}?barber_id=${member.id}`} />
                         </div>
                       </div>
                     ) : (

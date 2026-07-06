@@ -28,6 +28,7 @@ interface BookingPortalProps {
   tenant: any;
   staff: any[];
   services: any[];
+  initialBarberId?: string;
 }
 
 type Step = "identify" | "register" | "history" | "select-staff" | "select-service" | "select-time" | "confirm" | "success";
@@ -43,7 +44,7 @@ const formatTo12Hour = (time24: string): string => {
   return `${displayHour}:${min} ${ampm}`;
 };
 
-export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
+export function BookingPortal({ tenant, staff, services, initialBarberId }: BookingPortalProps) {
   const [step, setStep] = useState<Step>("identify");
   const [idNumber, setIdNumber] = useState("");
   const [client, setClient] = useState<any>(null);
@@ -66,6 +67,21 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
   const [selectedStaff, setSelectedStaff] = useState<any>(null);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [selectedTime, setSelectedTime] = useState<string>("");
+
+  const startBooking = () => {
+    if (initialBarberId) {
+      const barber = staff.find(s => s.id === initialBarberId);
+      if (barber) {
+        setSelectedStaff(barber);
+        setSelectedServices([]);
+        setStep("select-service");
+        return;
+      }
+    }
+    setSelectedStaff(null);
+    setSelectedServices([]);
+    setStep("select-staff");
+  };
 
 
   const handleIdentify = async (e: React.FormEvent) => {
@@ -419,9 +435,7 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
               alert("Ya tienes una cita activa programada. Debes completar o cancelar tu cita actual antes de reservar una nueva.");
               return;
             }
-            setSelectedStaff(null);
-            setSelectedServices([]);
-            setStep("select-staff");
+            startBooking();
           }}
           disabled={upcomingAppointments.length > 0}
           className={cn(
@@ -449,7 +463,16 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
   const renderServiceSelection = () => (
     <div className="max-w-2xl mx-auto py-12 px-6 animate-in fade-in slide-in-from-bottom-8 duration-700 pb-20">
       <div className="flex items-center justify-between mb-12">
-        <button onClick={() => setStep("select-staff")} className="p-3 hover:bg-white/10 rounded-2xl text-zinc-400 transition-colors">
+        <button 
+          onClick={() => {
+            if (initialBarberId) {
+              setStep(client ? "history" : "identify");
+            } else {
+              setStep("select-staff");
+            }
+          }} 
+          className="p-3 hover:bg-white/10 rounded-2xl text-zinc-400 transition-colors"
+        >
           <ArrowLeft className="w-6 h-6" />
         </button>
         <div className="text-right">
@@ -974,7 +997,7 @@ export function BookingPortal({ tenant, staff, services }: BookingPortalProps) {
                   alert("Por favor completa los campos obligatorios (*)");
                   return;
                 }
-                setStep("select-staff");
+                startBooking();
               }}
               disabled={!newName || !newPhone}
               className="flex-1 h-14 bg-gradient-to-r from-amber-500 to-amber-600 text-black font-black uppercase tracking-widest text-xs rounded-2xl flex items-center justify-center gap-2 hover:brightness-110 transition-all shadow-xl shadow-amber-500/20 active:scale-[0.98] disabled:opacity-50"
