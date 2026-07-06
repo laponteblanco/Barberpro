@@ -1133,6 +1133,38 @@ export function CalendarView({
                             />
                           </div>
                         </div>
+
+                        {Number(splitCashAmount) > 0 && (
+                          <div className="flex items-center gap-2">
+                            <label className="text-[10px] font-bold text-blue-900 w-16">Recibido:</label>
+                            <div className="relative flex-1 flex gap-2">
+                              <div className="relative flex-1">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400 text-xs font-bold">$</span>
+                                <input
+                                  type="number"
+                                  placeholder="Entrega..."
+                                  value={cashGiven}
+                                  onChange={(e) => setCashGiven(e.target.value === "" ? "" : Number(e.target.value))}
+                                  className="w-full pl-7 pr-3 py-1.5 bg-white border border-blue-200 rounded-lg text-right text-xs font-black text-blue-900 outline-none focus:border-blue-500 transition-colors"
+                                />
+                              </div>
+                              {Number(cashGiven) > 0 && (
+                                <div className="flex items-center justify-end min-w-[70px]">
+                                  {(() => {
+                                    const change = Number(cashGiven) - Number(splitCashAmount);
+                                    return (
+                                      <p className={cn("text-[9px] font-black leading-tight text-right", change >= 0 ? "text-blue-600" : "text-red-500")}>
+                                        {change >= 0 ? "Vuelto:" : "Falta:"}<br />
+                                        {new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(Math.abs(change))}
+                                      </p>
+                                    );
+                                  })()}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
                         <div className="flex items-center gap-2">
                           <label className="text-[10px] font-bold text-blue-900 w-16">Digital:</label>
                           <div className="relative flex-1">
