@@ -23,6 +23,8 @@ import {
 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { publicCreateAppointmentAction, publicCancelAppointmentAction } from "@/app/[slug]/actions";
+import { TimeSlotPicker } from "@/components/booking/TimeSlotPicker";
+import type { SlotGroup } from "@/lib/scheduling";
 
 interface BookingPortalProps {
   tenant: any;
@@ -51,6 +53,7 @@ export function BookingPortal({ tenant, staff, services, initialBarberId }: Book
   const [clientHistory, setClientHistory] = useState<any[]>([]);
   
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [slotGroups, setSlotGroups] = useState<SlotGroup[]>([]);
   const [fragmentedOptions, setFragmentedOptions] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeHistoryTab, setActiveHistoryTab] = useState<"upcoming" | "completed">("upcoming");
@@ -148,21 +151,28 @@ export function BookingPortal({ tenant, staff, services, initialBarberId }: Book
   const fetchSlots = async () => {
     setLoading(true);
     try {
-      const serviceIdsStr = selectedServices.map(s => s.id).join(",");
-      const res = await fetch(`/api/tenants/${tenant.id}/staff/${selectedStaff.id}/availability?date=${selectedDate}&service_ids=${serviceIdsStr}`);
-      
+      const serviceIdsStr = selectedServices.map((s: any) => s.id).join(",");
+      const res = await fetch(
+        `/api/tenants/${tenant.id}/staff/${selectedStaff.id}/availability?date=${selectedDate}&service_ids=${serviceIdsStr}`
+      );
+
       if (!res.ok) throw new Error("Error fetching slots");
-      
+
       const contentType = res.headers.get("content-type");
       if (!contentType || !contentType.includes("application/json")) {
         throw new Error("Invalid response from server");
       }
 
       const data = await res.json();
-      setAvailableSlots(data.continuous || data.slots || []);
-      setFragmentedOptions(data.fragmented || []);
+
+      // Preferir la respuesta enriquecida (groups + slotDetails);
+      // caer al formato legacy si el API es más antiguo
+      setSlotGroups(data.groups ?? []);
+      setAvailableSlots(data.continuous ?? data.slots ?? []);
+      setFragmentedOptions(data.fragmented ?? []);
     } catch (err) {
       console.error("Fetch slots error:", err);
+      setSlotGroups([]);
       setAvailableSlots([]);
       setFragmentedOptions([]);
     } finally {
@@ -631,107 +641,124 @@ export function BookingPortal({ tenant, staff, services, initialBarberId }: Book
     </div>
   );
 
-  const renderTimeSelection = () => (
-    <div className="max-w-2xl mx-auto py-12 px-6 animate-in fade-in slide-in-from-bottom-8 duration-700 pb-20">
-      <div className="flex items-center justify-between mb-12">
-        <button onClick={() => setStep("select-service")} className="p-3 hover:bg-white/10 rounded-2xl text-zinc-400 transition-colors">
-          <ArrowLeft className="w-6 h-6" />
-        </button>
-        <div className="text-right">
-          <h2 className="text-2xl font-black uppercase tracking-tight">Elige Horario</h2>
-          <p className="text-[10px] text-zinc-500 font-black uppercase tracking-[0.2em]">Paso 3 de 3</p>
-        </div>
-      </div>
+  const renderTimeSelection = () => {
+    // Duración total de los servicios seleccionados
+    const totalDuration = selectedServices.reduce(
+      (acc: number, s: any) => acc + (Number(s.duration_minutes) || 0),
+      0
+    );
+    const hasSlots = slotGroups.length > 0 || availableSlots.length > 0;
 
-      <div className="space-y-10">
-        <div className="space-y-4">
-           <div className="flex items-center gap-3 ml-1">
+    return (
+      <div className="max-w-2xl mx-auto py-12 px-6 animate-in fade-in slide-in-from-bottom-8 duration-700 pb-20">
+        {/* ── Encabezado ── */}
+        <div className="flex items-center justify-between mb-12">
+          <button
+            onClick={() => setStep("select-service")}
+            className="p-3 hover:bg-white/10 rounded-2xl text-zinc-400 transition-colors"
+          >
+            <ArrowLeft className="w-6 h-6" />
+          </button>
+          <div className="text-right">
+            <h2 className="text-2xl font-black uppercase tracking-tight">Elige Horario</h2>
+            <p className="text-[10px] text-zinc-500 font-black uppercase tracking-[0.2em]">
+              Paso 3 de 3
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-10">
+          {/* ── Selector de fecha ── */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 ml-1">
               <CalendarDays className="w-5 h-5 text-primary" />
-              <h3 className="text-xs font-black uppercase tracking-[0.2em] text-zinc-500">Selecciona Fecha</h3>
-           </div>
-           <input 
-             type="date" 
-             min={new Date().toISOString().split('T')[0]}
-             value={selectedDate}
-             onChange={(e) => setSelectedDate(e.target.value)}
-             className="w-full bg-zinc-900/40 border border-white/5 rounded-2xl p-5 text-lg font-bold focus:border-primary/50 transition-all text-white color-scheme-dark"
-           />
-        </div>
+              <h3 className="text-xs font-black uppercase tracking-[0.2em] text-zinc-500">
+                Selecciona Fecha
+              </h3>
+            </div>
+            <input
+              type="date"
+              id="booking-date-picker"
+              min={new Date().toISOString().split("T")[0]}
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="w-full bg-zinc-900/40 border border-white/5 rounded-2xl p-5 text-lg font-bold focus:border-primary/50 transition-all text-white [color-scheme:dark]"
+            />
+          </div>
 
-        <div className="space-y-4">
-           <div className="flex items-center gap-3 ml-1">
-              <Clock className="w-5 h-5 text-primary" />
-              <h3 className="text-xs font-black uppercase tracking-[0.2em] text-zinc-500">Horas Disponibles</h3>
-           </div>
-           
-           {loading ? (
-             <div className="grid grid-cols-4 gap-3">
-               {[1,2,3,4,5,6,7,8].map(i => (
-                 <div key={i} className="h-14 rounded-xl bg-white/5 animate-pulse" />
-               ))}
-             </div>
-           ) : (availableSlots.length > 0 || fragmentedOptions.length > 0) ? (
-             <div className="space-y-6">
-               {availableSlots.length > 0 && (
-                 <div>
-                   <p className="text-[10px] uppercase font-black tracking-widest text-emerald-500 mb-2">Opciones Continuas</p>
-                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                     {availableSlots.map((slot) => (
-                       <button 
-                         key={slot}
-                         onClick={() => {
-                           setSelectedTime(slot);
-                           setStep("confirm");
-                         }}
-                         className={cn(
-                           "h-14 rounded-xl border-2 text-sm font-black transition-all",
-                           selectedTime === slot 
-                             ? "bg-primary border-primary text-primary-foreground shadow-lg shadow-primary/20 scale-105" 
-                             : "bg-white dark:bg-zinc-900 border-primary text-primary hover:bg-primary/10"
-                         )}
-                       >
-                         {formatTo12Hour(slot)}
-                       </button>
-                     ))}
-                   </div>
-                 </div>
-               )}
+          {/* ── Slots disponibles ── */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between ml-1 mr-1">
+              <div className="flex items-center gap-3">
+                <Clock className="w-5 h-5 text-primary" />
+                <h3 className="text-xs font-black uppercase tracking-[0.2em] text-zinc-500">
+                  Horas Disponibles
+                </h3>
+              </div>
+              {totalDuration > 0 && !loading && hasSlots && (
+                <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/15">
+                  {totalDuration} min por cita
+                </span>
+              )}
+            </div>
 
-               {fragmentedOptions.length > 0 && selectedServices.length > 1 && (
-                 <div className={availableSlots.length > 0 ? "pt-4 border-t border-border" : ""}>
-                   <p className="text-[10px] uppercase font-black tracking-widest text-amber-500 mb-2">Opciones Divididas</p>
-                   <div className="grid gap-2">
-                     {fragmentedOptions.map((opt: any, idx: number) => (
-                       <button
-                         key={`frag-${idx}`}
-                         onClick={() => {
-                           setSelectedTime(`frag-${idx}`);
-                           setStep("confirm");
-                         }}
-                         className={cn(
-                           "w-full text-left p-4 rounded-xl border-2 transition-all",
-                           selectedTime === `frag-${idx}`
-                             ? "bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-500/20"
-                             : "bg-white dark:bg-zinc-900 border-amber-500 text-amber-600 dark:text-amber-500 hover:bg-amber-500/10"
-                         )}
-                       >
-                         <p className="font-black text-sm">{opt.label}</p>
-                         <p className="text-xs font-bold opacity-80 mt-1">Tiempo de espera: {opt.waitTime} min</p>
-                       </button>
-                     ))}
-                   </div>
-                 </div>
-               )}
-             </div>
-           ) : (
-             <div className="p-10 text-center glass-card rounded-[32px] border-border bg-secondary/30">
-                <p className="text-muted-foreground text-sm font-bold uppercase tracking-widest">No hay espacios disponibles para este día</p>
-             </div>
-           )}
+            {/* TimeSlotPicker — maneja loading, vacío y agrupación internamente */}
+            <TimeSlotPicker
+              groups={slotGroups}
+              slots={availableSlots}
+              selected={selectedTime}
+              loading={loading}
+              serviceDuration={totalDuration || undefined}
+              onSelect={(time) => {
+                setSelectedTime(time);
+                setStep("confirm");
+              }}
+              emptyMessage="No hay horarios disponibles para este día. Intenta con otra fecha."
+            />
+
+            {/* ── Opciones divididas (multi-servicio sin bloque continuo) ── */}
+            {!loading && fragmentedOptions.length > 0 && selectedServices.length > 1 && availableSlots.length === 0 && (
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center gap-2 ml-1">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-400">
+                    Opciones Divididas
+                  </span>
+                  <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400/70 uppercase tracking-widest">
+                    {fragmentedOptions.length}
+                  </span>
+                </div>
+                <div className="grid gap-3">
+                  {fragmentedOptions.map((opt: any, idx: number) => (
+                    <button
+                      id={`frag-option-${idx}`}
+                      key={`frag-${idx}`}
+                      onClick={() => {
+                        setSelectedTime(`frag-${idx}`);
+                        setStep("confirm");
+                      }}
+                      className={cn(
+                        "w-full text-left p-4 rounded-2xl border-2 transition-all active:scale-[0.98]",
+                        selectedTime === `frag-${idx}`
+                          ? "bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-500/20"
+                          : "border-amber-500/30 text-amber-400 hover:border-amber-500/60 hover:bg-amber-500/10 bg-amber-500/5"
+                      )}
+                    >
+                      <p className="font-black text-sm">{opt.label}</p>
+                      {opt.waitTime > 0 && (
+                        <p className="text-xs font-bold opacity-70 mt-1">
+                          Espera entre servicios: {opt.waitTime} min
+                        </p>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderConfirm = () => (
     <div className="max-w-md mx-auto py-12 px-6 animate-in fade-in slide-in-from-bottom-8 duration-700 pb-20">
