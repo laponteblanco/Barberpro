@@ -24,7 +24,8 @@ import {
   Edit2,
   Trash2,
   Scissors,
-  Landmark
+  Landmark,
+  FileDown
 } from "lucide-react";
 import { formatCurrency, formatDate, formatTime } from "@/lib/utils";
 import { openCashAction, closeCashAction } from "./actions";
@@ -52,6 +53,7 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
   const [showHistory, setShowHistory] = useState(false);
   const [closedSessionReportUrl, setClosedSessionReportUrl] = useState<string | null>(null);
   const [isDownloadingReport, setIsDownloadingReport] = useState(false);
+  const [downloadingPdfSession, setDownloadingPdfSession] = useState<string | null>(null);
 
   // Barbers deliveries states
   const [barberDeliveries, setBarberDeliveries] = useState<Record<string, {
@@ -111,6 +113,68 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
       showNotification("Error al generar el informe PDF.", "error");
     } finally {
       setIsDownloadingReport(false);
+    }
+  };
+
+  /**
+   * Generates and downloads the PDF report for a CLOSED historical session.
+   * Uses the barbers_breakdown data that was saved at closing time.
+   */
+  const handleDownloadHistoryPDF = async (session: any) => {
+    setDownloadingPdfSession(session.id);
+    try {
+      const { generateCashClosingPDF } = await import("@/lib/pdf");
+
+      // Reconstruct a session-compatible object from the saved history record
+      const sessionLike = {
+        id: session.id,
+        opened_at: session.opened_at,
+        opening_balance: session.opening_balance ?? 0,
+        appointments_total: (session.expected_cash ?? 0) + (session.expected_digital ?? 0),
+        appointments_cash_total: session.expected_cash ?? 0,
+        appointments_digital_total: session.expected_digital ?? 0,
+        sales_total: 0,
+        digital_breakdown: { card: 0, nequi: 0, daviplata: 0, transfer: session.expected_digital ?? 0 },
+        expenses: [],
+        expenses_total: 0,
+        expenses_cash_total: 0,
+        expenses_digital_total: 0,
+        payouts_cash_total: 0,
+        payouts_digital_total: 0,
+        ledger_advances_cash: 0,
+        ledger_advances_digital: 0,
+        ledger_payments_cash: 0,
+        ledger_payments_digital: 0,
+        expected_cash: session.expected_cash ?? session.expected_balance ?? 0,
+        expected_digital: session.expected_digital ?? 0,
+        expected_balance: session.expected_balance ?? 0,
+        barbers_breakdown: session.barbers_breakdown ?? [],
+        status: "closed" as const,
+      };
+
+      const compiledBreakdown = (session.barbers_breakdown ?? []).map((b: any) => ({
+        ...b,
+        actual_cash: b.actual_cash ?? 0,
+        discrepancy: (b.actual_cash ?? 0) - (b.net_expected_cash ?? b.expected_cash ?? b.total_cash ?? 0),
+        is_verified: b.is_verified ?? false,
+      }));
+
+      const pdfBlob = await generateCashClosingPDF(sessionLike as any, compiledBreakdown);
+      const url = URL.createObjectURL(pdfBlob);
+      const link = document.createElement("a");
+      link.href = url;
+      const dateStr = new Date(session.closed_at).toISOString().split("T")[0];
+      link.download = `cierre_caja_${dateStr}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showNotification("PDF del cierre descargado.", "success");
+    } catch (e) {
+      console.error("Error generando PDF de historial:", e);
+      showNotification("Error al generar el PDF.", "error");
+    } finally {
+      setDownloadingPdfSession(null);
     }
   };
 
@@ -988,6 +1052,21 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
                         </td>
                         <td className="px-8 py-5 text-center">
                           <div className="flex items-center justify-center gap-2">
+                            {/* PDF Download */}
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadHistoryPDF(session)}
+                              disabled={downloadingPdfSession === session.id}
+                              className="p-2 bg-zinc-900 border border-zinc-800 hover:border-primary/50 hover:text-primary text-zinc-400 rounded-xl transition-all disabled:opacity-50 disabled:cursor-wait"
+                              title="Descargar PDF del Cierre"
+                            >
+                              {downloadingPdfSession === session.id ? (
+                                <span className="w-4 h-4 border-2 border-zinc-600 border-t-primary rounded-full animate-spin block" />
+                              ) : (
+                                <FileDown className="w-4 h-4" />
+                              )}
+                            </button>
+                            {/* Edit */}
                             <button
                               type="button"
                               onClick={() => {
@@ -1000,6 +1079,7 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
                             >
                               <Edit2 className="w-4 h-4" />
                             </button>
+                            {/* Delete */}
                             <button
                               type="button"
                               onClick={() => {
@@ -1012,10 +1092,11 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
+                            {/* Expand */}
                             <button
                               type="button"
                               onClick={() => toggleSessionExpand(session.id)}
-                              className="p-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-xl transition-all ml-2"
+                              className="p-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-xl transition-all ml-1"
                               title="Detalles"
                             >
                               {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -1029,13 +1110,29 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
                         <tr className="bg-black/30 animate-in fade-in duration-300">
                           <td colSpan={7} className="px-8 py-6 border-b border-white/5">
                             <div className="rounded-[24px] border border-white/5 bg-zinc-950/70 p-6 space-y-6">
-                              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-white/5 pb-3">
-                                <h4 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
-                                  <User className="w-4.5 h-4.5 text-primary" /> Arqueo Individual de Efectivo por Barbero
-                                </h4>
-                                <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">
-                                  Caja abierta con base: {formatCurrency(session.opening_balance)}
-                                </span>
+                              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-white/5 pb-4">
+                                <div>
+                                  <h4 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
+                                    <User className="w-4 h-4 text-primary" /> Arqueo Individual de Efectivo por Barbero
+                                  </h4>
+                                  <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-1 block">
+                                    Caja abierta con base: {formatCurrency(session.opening_balance)}
+                                  </span>
+                                </div>
+                                {/* PDF download inside the expanded panel */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadHistoryPDF(session)}
+                                  disabled={downloadingPdfSession === session.id}
+                                  id={`btn-download-history-${session.id}`}
+                                  className="shrink-0 h-10 px-4 bg-primary/10 hover:bg-primary text-primary hover:text-white border border-primary/30 font-bold rounded-xl transition-all flex items-center gap-2 text-xs uppercase tracking-wider disabled:opacity-50 disabled:cursor-wait"
+                                >
+                                  {downloadingPdfSession === session.id ? (
+                                    <><span className="w-3.5 h-3.5 border-2 border-primary/40 border-t-primary rounded-full animate-spin" /> Generando...</>
+                                  ) : (
+                                    <><FileDown className="w-3.5 h-3.5" /> Descargar PDF</>
+                                  )}
+                                </button>
                               </div>
 
                               {session.barbers_breakdown && session.barbers_breakdown.length > 0 ? (
