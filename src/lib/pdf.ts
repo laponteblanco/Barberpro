@@ -216,18 +216,18 @@ export async function generateCashClosingPDF(
     head: [["Método de Pago", "Monto Recibido", "% del Total"]],
     body: [
       // Cash
-      ["💵  Efectivo (Citas)", formatCurrency(session.appointments_cash_total),
+      ["Efectivo Físico (Citas)", formatCurrency(session.appointments_cash_total),
         `${session.appointments_total > 0 ? ((session.appointments_cash_total / (session.appointments_total + session.sales_total)) * 100).toFixed(1) : "0.0"}%`],
-      ["🛍️  Ventas de Productos", formatCurrency(session.sales_total),
+      ["Ventas de Productos", formatCurrency(session.sales_total),
         `${session.appointments_total > 0 ? ((session.sales_total / (session.appointments_total + session.sales_total)) * 100).toFixed(1) : "0.0"}%`],
       // Digital breakdown
-      ["💳  Tarjeta de Crédito/Débito", formatCurrency(session.digital_breakdown.card),
+      ["Tarjeta de Crédito/Débito", formatCurrency(session.digital_breakdown.card),
         `${session.appointments_total > 0 ? ((session.digital_breakdown.card / (session.appointments_total + session.sales_total)) * 100).toFixed(1) : "0.0"}%`],
-      ["📱  Nequi", formatCurrency(session.digital_breakdown.nequi),
+      ["Nequi", formatCurrency(session.digital_breakdown.nequi),
         `${session.appointments_total > 0 ? ((session.digital_breakdown.nequi / (session.appointments_total + session.sales_total)) * 100).toFixed(1) : "0.0"}%`],
-      ["📱  Daviplata", formatCurrency(session.digital_breakdown.daviplata),
+      ["Daviplata", formatCurrency(session.digital_breakdown.daviplata),
         `${session.appointments_total > 0 ? ((session.digital_breakdown.daviplata / (session.appointments_total + session.sales_total)) * 100).toFixed(1) : "0.0"}%`],
-      ["🏦  Transferencia Bancaria", formatCurrency(session.digital_breakdown.transfer),
+      ["Transferencia Bancaria", formatCurrency(session.digital_breakdown.transfer),
         `${session.appointments_total > 0 ? ((session.digital_breakdown.transfer / (session.appointments_total + session.sales_total)) * 100).toFixed(1) : "0.0"}%`],
     ],
     foot: [
@@ -407,7 +407,7 @@ export async function generateCashClosingPDF(
         exp.category,
         exp.description || "—",
         formatCurrency(exp.amount),
-        exp.payment_method === "cash" ? "💵 Efectivo" : "💳 Digital",
+        exp.payment_method === "cash" ? "Efectivo" : "Digital",
       ]),
       foot: [
         ["Total gastos en Efectivo", "", formatCurrency(session.expenses_cash_total), ""],
@@ -528,8 +528,8 @@ export async function generateCashClosingPDF(
         ["Efectivo físico contado al cierre", formatCurrency(actualBalance)],
         ["Efectivo esperado en caja", formatCurrency(session.expected_cash)],
         [
-          discrepancy === 0 ? "✅  CAJA CUADRADA" :
-            discrepancy < 0 ? "⚠️  FALTANTE DE EFECTIVO" : "ℹ️  SOBRANTE DE EFECTIVO",
+          discrepancy === 0 ? "CAJA CUADRADA" :
+            discrepancy < 0 ? "FALTANTE DE EFECTIVO" : "SOBRANTE DE EFECTIVO",
           discrepancy === 0 ? "—" : formatCurrency(Math.abs(discrepancy)),
         ],
       ],

@@ -118,39 +118,21 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
 
   /**
    * Generates and downloads the PDF report for a CLOSED historical session.
-   * Uses the barbers_breakdown data that was saved at closing time.
+   * Uses getCashSessionDetailsById to fetch the exact transactions that occurred
+   * during that specific shift time window.
    */
   const handleDownloadHistoryPDF = async (session: any) => {
     setDownloadingPdfSession(session.id);
     try {
-      const { generateCashClosingPDF } = await import("@/lib/pdf");
+      const { getCashSessionDetailsById } = await import("@/services/cash.service");
+      const fullSessionDetails = await getCashSessionDetailsById(session.id);
+      
+      if (!fullSessionDetails) {
+        showNotification("No se pudieron obtener los detalles completos del cierre.", "error");
+        return;
+      }
 
-      // Reconstruct a session-compatible object from the saved history record
-      const sessionLike = {
-        id: session.id,
-        opened_at: session.opened_at,
-        opening_balance: session.opening_balance ?? 0,
-        appointments_total: (session.expected_cash ?? 0) + (session.expected_digital ?? 0),
-        appointments_cash_total: session.expected_cash ?? 0,
-        appointments_digital_total: session.expected_digital ?? 0,
-        sales_total: 0,
-        digital_breakdown: { card: 0, nequi: 0, daviplata: 0, transfer: session.expected_digital ?? 0 },
-        expenses: [],
-        expenses_total: 0,
-        expenses_cash_total: 0,
-        expenses_digital_total: 0,
-        payouts_cash_total: 0,
-        payouts_digital_total: 0,
-        ledger_advances_cash: 0,
-        ledger_advances_digital: 0,
-        ledger_payments_cash: 0,
-        ledger_payments_digital: 0,
-        expected_cash: session.expected_cash ?? session.expected_balance ?? 0,
-        expected_digital: session.expected_digital ?? 0,
-        expected_balance: session.expected_balance ?? 0,
-        barbers_breakdown: session.barbers_breakdown ?? [],
-        status: "closed" as const,
-      };
+      const { generateCashClosingPDF } = await import("@/lib/pdf");
 
       const compiledBreakdown = (session.barbers_breakdown ?? []).map((b: any) => ({
         ...b,
@@ -159,7 +141,13 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
         is_verified: b.is_verified ?? false,
       }));
 
-      const pdfBlob = await generateCashClosingPDF(sessionLike as any, compiledBreakdown);
+      // Override the actual balance recorded at the time of closing
+      const sessionWithActualBalance = {
+        ...fullSessionDetails,
+        actual_balance: session.actual_balance || fullSessionDetails.expected_balance
+      };
+
+      const pdfBlob = await generateCashClosingPDF(sessionWithActualBalance as any, compiledBreakdown);
       const url = URL.createObjectURL(pdfBlob);
       const link = document.createElement("a");
       link.href = url;
