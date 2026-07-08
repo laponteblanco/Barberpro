@@ -11,10 +11,14 @@ export async function addExpenseAction(formData: FormData) {
   }
 
   const amountStr = formData.get("amount")?.toString() || "0";
-  // Remove non-numeric characters
   const amount = Number(amountStr.replace(/[^0-9]/g, ""));
   const category = formData.get("category")?.toString() || "Otros";
   const description = formData.get("description")?.toString() || "";
+  const paymentMethod = formData.get("payment_method")?.toString() || "cash";
+
+  // Validate payment_method value
+  const validPaymentMethods = ["cash", "digital"];
+  const resolvedMethod = validPaymentMethods.includes(paymentMethod) ? paymentMethod : "cash";
 
   if (amount <= 0) {
     return { error: "El monto debe ser mayor a 0." };
@@ -29,14 +33,17 @@ export async function addExpenseAction(formData: FormData) {
       category,
       description,
       amount,
-      created_by: user.id
+      payment_method: resolvedMethod,
+      created_by: user.id,
     });
 
   if (error) {
     console.error("Error al registrar gasto:", error);
-    // User friendly error if table is missing
-    if (error.code === '42P01') {
-      return { error: "La tabla de gastos no existe aún. Recuerda ejecutar el script SQL en Supabase." };
+    if (error.code === "42P01") {
+      return {
+        error:
+          "La tabla de gastos no existe aún. Recuerda ejecutar el script SQL 032 en Supabase.",
+      };
     }
     return { error: `Error al registrar el gasto: ${error.message}` };
   }

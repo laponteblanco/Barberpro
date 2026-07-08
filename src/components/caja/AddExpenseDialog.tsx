@@ -1,13 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { X, Receipt, DollarSign, Loader2, Tag, FileText } from "lucide-react";
+import { X, Receipt, DollarSign, Loader2, Tag, FileText, Coins, Smartphone } from "lucide-react";
 import { addExpenseAction } from "@/app/dashboard/caja/expenses.actions";
+
+type PaymentMethodType = "cash" | "digital";
 
 export function AddExpenseDialog() {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [amountDisplay, setAmountDisplay] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>("cash");
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value.replace(/[^0-9]/g, "");
@@ -30,6 +33,7 @@ export function AddExpenseDialog() {
 
     const formData = new FormData(e.currentTarget);
     formData.set("amount", amountDisplay);
+    formData.set("payment_method", paymentMethod);
 
     try {
       const result = await addExpenseAction(formData);
@@ -38,6 +42,7 @@ export function AddExpenseDialog() {
       } else {
         setIsOpen(false);
         setAmountDisplay("");
+        setPaymentMethod("cash");
       }
     } catch (err: any) {
       alert("Error inesperado al registrar el gasto.");
@@ -79,6 +84,7 @@ export function AddExpenseDialog() {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          {/* Category */}
           <div className="space-y-2">
             <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
               Categoría
@@ -101,6 +107,7 @@ export function AddExpenseDialog() {
             </div>
           </div>
 
+          {/* Description */}
           <div className="space-y-2">
             <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
               Descripción del Gasto
@@ -118,6 +125,7 @@ export function AddExpenseDialog() {
             </div>
           </div>
 
+          {/* Amount */}
           <div className="space-y-2">
             <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
               Monto a descontar
@@ -135,6 +143,44 @@ export function AddExpenseDialog() {
                 className="w-full h-12 pl-12 pr-4 bg-zinc-900/50 border border-white/5 rounded-2xl text-lg font-black tracking-tight outline-none focus:ring-2 focus:ring-rose-500/50 transition-all text-white placeholder:text-zinc-600"
               />
             </div>
+          </div>
+
+          {/* ── Fund selector (NEW) ── */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
+              Fondo del Gasto — ¿De dónde sale el dinero?
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setPaymentMethod("cash")}
+                className={`h-14 rounded-2xl border-2 flex flex-col items-center justify-center gap-1 transition-all text-xs font-bold ${
+                  paymentMethod === "cash"
+                    ? "border-emerald-500 bg-emerald-500/10 text-emerald-400"
+                    : "border-white/5 bg-zinc-900/50 text-zinc-500 hover:border-white/10 hover:text-white"
+                }`}
+              >
+                <Coins className="w-5 h-5" />
+                Efectivo Físico
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaymentMethod("digital")}
+                className={`h-14 rounded-2xl border-2 flex flex-col items-center justify-center gap-1 transition-all text-xs font-bold ${
+                  paymentMethod === "digital"
+                    ? "border-cyan-500 bg-cyan-500/10 text-cyan-400"
+                    : "border-white/5 bg-zinc-900/50 text-zinc-500 hover:border-white/10 hover:text-white"
+                }`}
+              >
+                <Smartphone className="w-5 h-5" />
+                Digital / Transferencia
+              </button>
+            </div>
+            <p className="text-[9px] text-zinc-600 ml-1 leading-relaxed">
+              {paymentMethod === "cash"
+                ? "💵 Este gasto resta del efectivo físico en la caja."
+                : "💳 Este gasto resta del saldo digital / bancario."}
+            </p>
           </div>
 
           <div className="pt-2">

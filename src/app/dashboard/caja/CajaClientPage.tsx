@@ -31,6 +31,7 @@ import { openCashAction, closeCashAction } from "./actions";
 import { useRouter } from "next/navigation";
 import { CashActionSecurityDialog } from "@/components/cash/CashActionSecurityDialog";
 import { AddExpenseDialog } from "@/components/caja/AddExpenseDialog";
+import { ReportPreviewPanel } from "@/components/caja/ReportPreviewPanel";
 
 interface CajaClientPageProps {
   activeSession: any;
@@ -50,6 +51,7 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
   const [actualBalance, setActualBalance] = useState("");
   const [showHistory, setShowHistory] = useState(false);
   const [closedSessionReportUrl, setClosedSessionReportUrl] = useState<string | null>(null);
+  const [isDownloadingReport, setIsDownloadingReport] = useState(false);
 
   // Barbers deliveries states
   const [barberDeliveries, setBarberDeliveries] = useState<Record<string, {
@@ -70,6 +72,46 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
     setTimeout(() => {
       setNotification(null);
     }, 5000);
+  };
+
+  /**
+   * Downloads the PDF report for the current open session WITHOUT closing the cash register.
+   * Uses the compiled barbers breakdown reflecting current delivery confirmations.
+   */
+  const handleDownloadReport = async () => {
+    if (!activeSession) return;
+    setIsDownloadingReport(true);
+    try {
+      const compiledBarbersBreakdown = (activeSession.barbers_breakdown || []).map((b: any) => {
+        const delivery = barberDeliveries[b.id];
+        const actualNum = delivery ? Number(delivery.actual.replace(/[^0-9]/g, "")) : 0;
+        const expectedNum = b.net_expected_cash ?? b.total_cash;
+        return {
+          ...b,
+          expected_cash: expectedNum,
+          actual_cash: actualNum,
+          discrepancy: actualNum - expectedNum,
+          is_verified: delivery?.isConfirmed || false,
+        };
+      });
+
+      const { generateCashClosingPDF } = await import("@/lib/pdf");
+      const pdfBlob = await generateCashClosingPDF(activeSession, compiledBarbersBreakdown);
+      const url = URL.createObjectURL(pdfBlob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `informe_caja_${new Date().toISOString().split("T")[0]}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showNotification("Informe PDF descargado correctamente.", "success");
+    } catch (e) {
+      console.error("Error generando PDF:", e);
+      showNotification("Error al generar el informe PDF.", "error");
+    } finally {
+      setIsDownloadingReport(false);
+    }
   };
 
   const handleOpenCaja = async (e: React.FormEvent) => {
@@ -692,6 +734,27 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
               )}
             </div>
           </div>
+
+          {/* ── Report Preview Panel ─────────────────────────────────────── */}
+          {activeSession && (
+            <ReportPreviewPanel
+              session={activeSession}
+              compiledBarbersBreakdown={(activeSession.barbers_breakdown || []).map((b: any) => {
+                const delivery = barberDeliveries[b.id];
+                const actualNum = delivery ? Number(delivery.actual.replace(/[^0-9]/g, "")) : 0;
+                const expectedNum = b.net_expected_cash ?? b.total_cash;
+                return {
+                  ...b,
+                  expected_cash: expectedNum,
+                  actual_cash: actualNum,
+                  discrepancy: actualNum - expectedNum,
+                  is_verified: delivery?.isConfirmed || false,
+                };
+              })}
+              onDownload={handleDownloadReport}
+              isDownloading={isDownloadingReport}
+            />
+          )}
 
           {/* Details split */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">

@@ -1,117 +1,583 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { formatCurrency, formatDate, formatTime } from "./utils";
+import type { ActiveSessionDetails } from "@/services/cash.service";
 
-export async function generateCashClosingPDF(session: any, compiledBarbersBreakdown: any[]) {
-  const doc = new jsPDF();
+// ─── Color palette ────────────────────────────────────────────────────────────
+const COLORS = {
+  black: [15, 15, 20] as [number, number, number],
+  darkGray: [35, 35, 40] as [number, number, number],
+  midGray: [90, 90, 100] as [number, number, number],
+  lightGray: [200, 200, 210] as [number, number, number],
+  offWhite: [245, 245, 248] as [number, number, number],
+  white: [255, 255, 255] as [number, number, number],
+  emerald: [16, 185, 129] as [number, number, number],
+  cyan: [6, 182, 212] as [number, number, number],
+  rose: [244, 63, 94] as [number, number, number],
+  amber: [245, 158, 11] as [number, number, number],
+  primary: [99, 102, 241] as [number, number, number],
+  primaryDark: [67, 56, 202] as [number, number, number],
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function drawSectionHeader(
+  doc: jsPDF,
+  title: string,
+  subtitle: string,
+  y: number,
+  accentColor: [number, number, number]
+): number {
+  // Accent bar
+  doc.setFillColor(...accentColor);
+  doc.roundedRect(14, y, 3, 10, 1.5, 1.5, "F");
+
+  doc.setFontSize(12);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...COLORS.black);
+  doc.text(title, 20, y + 7);
+
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...COLORS.midGray);
+  doc.text(subtitle, 20, y + 13);
+
+  return y + 20;
+}
+
+function drawKpiCard(
+  doc: jsPDF,
+  x: number,
+  y: number,
+  width: number,
+  label: string,
+  value: string,
+  accentColor: [number, number, number]
+): void {
+  // Card background
+  doc.setFillColor(...COLORS.offWhite);
+  doc.roundedRect(x, y, width, 22, 3, 3, "F");
+
+  // Top accent border
+  doc.setFillColor(...accentColor);
+  doc.roundedRect(x, y, width, 2, 1, 1, "F");
+
+  // Label
+  doc.setFontSize(7);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...COLORS.midGray);
+  doc.text(label.toUpperCase(), x + 5, y + 9);
+
+  // Value
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...COLORS.black);
+  doc.text(value, x + 5, y + 18);
+}
+
+function addPageBreakIfNeeded(
+  doc: jsPDF,
+  currentY: number,
+  neededSpace: number = 40
+): number {
+  const pageHeight = doc.internal.pageSize.getHeight();
+  if (currentY + neededSpace > pageHeight - 20) {
+    doc.addPage();
+    return 20;
+  }
+  return currentY;
+}
+
+function drawDivider(doc: jsPDF, y: number): number {
+  doc.setDrawColor(...COLORS.lightGray);
+  doc.setLineWidth(0.3);
+  doc.line(14, y, 196, y);
+  return y + 6;
+}
+
+// ─── Main PDF generator ───────────────────────────────────────────────────────
+
+export async function generateCashClosingPDF(
+  session: ActiveSessionDetails,
+  compiledBarbersBreakdown: any[],
+  tenantName = "BarberOS"
+): Promise<Blob> {
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const pageWidth = doc.internal.pageSize.getWidth();
   const dateStr = formatDate(new Date().toISOString());
   const timeStr = formatTime(new Date().toISOString());
 
-  // Header
+  // ── COVER / HEADER ──────────────────────────────────────────────────────────
+  // Dark header background
+  doc.setFillColor(...COLORS.darkGray);
+  doc.rect(0, 0, pageWidth, 52, "F");
+
+  // Primary accent gradient bar
+  doc.setFillColor(...COLORS.primary);
+  doc.rect(0, 48, pageWidth, 4, "F");
+
+  // Logo placeholder and title
+  doc.setFillColor(...COLORS.primary);
+  doc.roundedRect(14, 12, 12, 12, 2, 2, "F");
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...COLORS.white);
+  doc.text("B", 18.5, 20.5);
+
   doc.setFontSize(18);
-  doc.setTextColor(0, 0, 0);
-  doc.text("Arqueo y Cierre de Caja", 14, 22);
-  
-  doc.setFontSize(10);
-  doc.setTextColor(100, 100, 100);
-  doc.text(`Fecha de Cierre: ${dateStr} a las ${timeStr}`, 14, 28);
-  doc.text(`ID de Sesión: ${session.id}`, 14, 33);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...COLORS.white);
+  doc.text("Arqueo y Cierre de Caja", 30, 20);
 
-  // General Summary
-  doc.setFontSize(14);
-  doc.setTextColor(0, 0, 0);
-  doc.text("Resumen General", 14, 45);
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...COLORS.lightGray);
+  doc.text(`${tenantName}  ·  Generado el ${dateStr} a las ${timeStr}`, 30, 27);
+  doc.text(`ID de Sesión: ${session.id}`, 30, 33);
+  doc.text(`Apertura: ${formatDate(session.opened_at)} a las ${formatTime(session.opened_at)}`, 30, 39);
 
-  const summaryData = [
-    ["Base de Apertura", formatCurrency(session.opening_balance || 0)],
-    ["Total Citas (Efectivo)", formatCurrency(session.appointments_cash_total || 0)],
-    ["Total Ventas de Productos", formatCurrency(session.sales_total || 0)],
-    ["Gastos Registrados", `-${formatCurrency(session.expenses_total || 0)}`],
-    ["Total Efectivo Esperado", formatCurrency(session.expected_cash || 0)],
-    ["Total Digital Recaudado", formatCurrency(session.expected_digital || 0)],
-    ["Total General de Caja", formatCurrency(session.expected_balance || 0)]
-  ];
+  let currentY = 62;
+
+  // ── KPI CARDS ───────────────────────────────────────────────────────────────
+  const cardW = 54;
+  const gap = 7;
+  const startX = 14;
+
+  drawKpiCard(doc, startX, currentY, cardW, "Ingresos Totales",
+    formatCurrency(session.appointments_total + session.sales_total), COLORS.primary);
+
+  drawKpiCard(doc, startX + cardW + gap, currentY, cardW, "Efectivo Esperado en Caja",
+    formatCurrency(session.expected_cash), COLORS.emerald);
+
+  drawKpiCard(doc, startX + (cardW + gap) * 2, currentY, cardW, "Saldo Digital Esperado",
+    formatCurrency(session.expected_digital), COLORS.cyan);
+
+  currentY += 30;
+
+  // ── SECCIÓN 1: RESUMEN GLOBAL DE SERVICIOS ──────────────────────────────────
+  currentY = drawSectionHeader(
+    doc,
+    "1. Resumen Global de Servicios e Ingresos",
+    "Consolidado de todas las transacciones del día.",
+    currentY,
+    COLORS.primary
+  );
+
+  const totalServices = compiledBarbersBreakdown.reduce(
+    (sum, b) => sum + (b.appointments_count || 0) + (b.appointments_digital_count || 0),
+    0
+  );
 
   autoTable(doc, {
-    startY: 50,
-    head: [["Concepto", "Monto"]],
-    body: summaryData,
-    theme: 'grid',
-    headStyles: { fillColor: [41, 128, 185], textColor: 255 },
-    columnStyles: { 0: { fontStyle: 'bold' }, 1: { halign: 'right' } }
+    startY: currentY,
+    head: [["Concepto", "Cantidad / Monto"]],
+    body: [
+      ["Total de servicios realizados", `${totalServices} servicio(s)`],
+      ["Ingresos por citas (bruto)", formatCurrency(session.appointments_total)],
+      ["Ingresos por venta de productos", formatCurrency(session.sales_total)],
+      ["TOTAL INGRESOS DEL DÍA", formatCurrency(session.appointments_total + session.sales_total)],
+    ],
+    theme: "grid",
+    headStyles: {
+      fillColor: COLORS.primary,
+      textColor: COLORS.white,
+      fontStyle: "bold",
+      fontSize: 8,
+    },
+    bodyStyles: { fontSize: 9, textColor: COLORS.black },
+    columnStyles: {
+      0: { fontStyle: "bold", cellWidth: 120 },
+      1: { halign: "right", fontStyle: "bold" },
+    },
+    didParseCell(data) {
+      if (data.section === "body" && data.row.index === 3) {
+        data.cell.styles.fillColor = COLORS.offWhite;
+        data.cell.styles.fontStyle = "bold";
+        data.cell.styles.textColor = COLORS.primaryDark;
+      }
+    },
+    margin: { left: 14, right: 14 },
   });
 
-  // Barbers Breakdown
-  let currentY = (doc as any).lastAutoTable.finalY + 15;
-  
-  doc.setFontSize(14);
-  doc.setTextColor(0, 0, 0);
-  doc.text("Detalle por Barbero", 14, currentY);
-  
-  currentY += 5;
+  currentY = (doc as any).lastAutoTable.finalY + 10;
 
-  compiledBarbersBreakdown.forEach(b => {
-    if (currentY > 250) {
-      doc.addPage();
-      currentY = 20;
-    }
+  // ── SECCIÓN 2: INGRESOS POR MÉTODO DE PAGO ──────────────────────────────────
+  currentY = addPageBreakIfNeeded(doc, currentY, 60);
+  currentY = drawSectionHeader(
+    doc,
+    "2. Ingresos por Método de Pago",
+    "Discriminación entre dinero físico y digital recibido.",
+    currentY,
+    COLORS.emerald
+  );
 
-    doc.setFontSize(12);
-    doc.setTextColor(41, 128, 185);
-    doc.text(b.name, 14, currentY + 5);
+  autoTable(doc, {
+    startY: currentY,
+    head: [["Método de Pago", "Monto Recibido", "% del Total"]],
+    body: [
+      // Cash
+      ["💵  Efectivo (Citas)", formatCurrency(session.appointments_cash_total),
+        `${session.appointments_total > 0 ? ((session.appointments_cash_total / (session.appointments_total + session.sales_total)) * 100).toFixed(1) : "0.0"}%`],
+      ["🛍️  Ventas de Productos", formatCurrency(session.sales_total),
+        `${session.appointments_total > 0 ? ((session.sales_total / (session.appointments_total + session.sales_total)) * 100).toFixed(1) : "0.0"}%`],
+      // Digital breakdown
+      ["💳  Tarjeta de Crédito/Débito", formatCurrency(session.digital_breakdown.card),
+        `${session.appointments_total > 0 ? ((session.digital_breakdown.card / (session.appointments_total + session.sales_total)) * 100).toFixed(1) : "0.0"}%`],
+      ["📱  Nequi", formatCurrency(session.digital_breakdown.nequi),
+        `${session.appointments_total > 0 ? ((session.digital_breakdown.nequi / (session.appointments_total + session.sales_total)) * 100).toFixed(1) : "0.0"}%`],
+      ["📱  Daviplata", formatCurrency(session.digital_breakdown.daviplata),
+        `${session.appointments_total > 0 ? ((session.digital_breakdown.daviplata / (session.appointments_total + session.sales_total)) * 100).toFixed(1) : "0.0"}%`],
+      ["🏦  Transferencia Bancaria", formatCurrency(session.digital_breakdown.transfer),
+        `${session.appointments_total > 0 ? ((session.digital_breakdown.transfer / (session.appointments_total + session.sales_total)) * 100).toFixed(1) : "0.0"}%`],
+    ],
+    foot: [
+      ["SUBTOTAL EFECTIVO FÍSICO",
+        formatCurrency(session.appointments_cash_total + session.sales_total), ""],
+      ["SUBTOTAL DIGITAL",
+        formatCurrency(session.appointments_digital_total), ""],
+    ],
+    theme: "grid",
+    headStyles: {
+      fillColor: COLORS.emerald,
+      textColor: COLORS.white,
+      fontStyle: "bold",
+      fontSize: 8,
+    },
+    footStyles: {
+      fillColor: COLORS.offWhite,
+      textColor: COLORS.black,
+      fontStyle: "bold",
+      fontSize: 9,
+    },
+    bodyStyles: { fontSize: 9, textColor: COLORS.black },
+    columnStyles: {
+      0: { cellWidth: 90 },
+      1: { halign: "right" },
+      2: { halign: "right", textColor: COLORS.midGray },
+    },
+    margin: { left: 14, right: 14 },
+  });
 
-    const detailData = [
-      ["Servicios Realizados", b.appointments_count.toString()],
-      ["Recaudo Total (Efectivo + Digital)", formatCurrency((b.total_cash || 0) + (b.total_digital || 0))],
-      ["Comisión del Barbero", formatCurrency(b.total_commission || 0)],
-      ["Utilidad de la Barbería", formatCurrency(b.total_shop_profit || 0)],
-      ["Efectivo Físico de Citas", formatCurrency(b.total_cash || 0)],
-      ["Digital Recaudado", formatCurrency(b.total_digital || 0)]
-    ];
+  currentY = (doc as any).lastAutoTable.finalY + 10;
 
-    if (b.total_advances > 0) detailData.push(["Vales de Caja Hoy", `-${formatCurrency(b.total_advances)}`]);
-    if (b.total_payments > 0) detailData.push(["Abonos / Pagos Hoy", `+${formatCurrency(b.total_payments)}`]);
-    if (b.total_consignments > 0) detailData.push(["Fiados / Consignación Hoy", formatCurrency(b.total_consignments)]);
-    
-    detailData.push(
-      ["Efectivo Neto Esperado", formatCurrency(b.expected_cash || 0)],
-      ["Efectivo Físico Entregado", formatCurrency(b.actual_cash || 0)],
-      ["Diferencia (Descuadre)", formatCurrency(b.discrepancy || 0)]
-    );
+  // ── SECCIÓN 3: LIQUIDACIÓN DIARIA DE BARBEROS ────────────────────────────────
+  currentY = addPageBreakIfNeeded(doc, currentY, 50);
+  currentY = drawSectionHeader(
+    doc,
+    "3. Liquidación Diaria de Barberos",
+    "Comisiones calculadas y discriminación de pago por fondo (físico vs. digital).",
+    currentY,
+    COLORS.cyan
+  );
+
+  if (compiledBarbersBreakdown.length === 0) {
+    doc.setFontSize(9);
+    doc.setTextColor(...COLORS.midGray);
+    doc.text("No hay barberos con movimientos en este turno.", 14, currentY + 5);
+    currentY += 15;
+  } else {
+    compiledBarbersBreakdown.forEach((barber, index) => {
+      currentY = addPageBreakIfNeeded(doc, currentY, 55);
+
+      // Barber name header
+      doc.setFillColor(...COLORS.offWhite);
+      doc.roundedRect(14, currentY, 182, 8, 2, 2, "F");
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...COLORS.black);
+      doc.text(`Barbero ${index + 1}: ${barber.name}`, 18, currentY + 5.5);
+
+      const totalServicios = (barber.appointments_count || 0) + (barber.appointments_digital_count || 0);
+      const recaudoTotal = (barber.total_cash || 0) + (barber.total_digital || 0);
+      const commissionRate = barber.commission_rate || 0;
+
+      const barberBody: string[][] = [
+        ["Servicios realizados (efectivo)", `${barber.appointments_count || 0}`],
+        ["Servicios realizados (digital)", `${barber.appointments_digital_count || 0}`],
+        ["Total servicios del turno", `${totalServicios}`],
+        ["Recaudo en Efectivo (citas)", formatCurrency(barber.total_cash || 0)],
+        ["Recaudo en Digital (citas)", formatCurrency(barber.total_digital || 0)],
+        ["Recaudo Total", formatCurrency(recaudoTotal)],
+        [`Comisión (${commissionRate}% sobre recaudo total)`, formatCurrency(barber.total_commission || 0)],
+        ["Utilidad de la Barbería", formatCurrency(barber.total_shop_profit || 0)],
+      ];
+
+      if ((barber.total_advances || 0) > 0) {
+        barberBody.push(["Vales / Adelantos tomados hoy (−)", `-${formatCurrency(barber.total_advances)}`]);
+      }
+      if ((barber.total_payments || 0) > 0) {
+        barberBody.push(["Abonos / Pagos devueltos (+)", `+${formatCurrency(barber.total_payments)}`]);
+      }
+
+      // The key discriminated rows
+      barberBody.push(
+        ["PAGO AL BARBERO — Sale de CAJA FÍSICA", formatCurrency(barber.payout_cash || 0)],
+        ["PAGO AL BARBERO — Sale de FONDO DIGITAL", formatCurrency(barber.payout_digital || 0)],
+        ["TOTAL NETO A LIQUIDAR AL BARBERO", formatCurrency(barber.expected_cash || barber.net_expected_cash || 0)],
+      );
+
+      const payoutCashIdx = barberBody.length - 3;
+      const payoutDigitalIdx = barberBody.length - 2;
+      const totalNetIdx = barberBody.length - 1;
+
+      autoTable(doc, {
+        startY: currentY + 10,
+        body: barberBody,
+        theme: "grid",
+        bodyStyles: { fontSize: 8.5, textColor: COLORS.black },
+        columnStyles: {
+          0: { fontStyle: "normal", cellWidth: 120 },
+          1: { halign: "right", fontStyle: "bold" },
+        },
+        didParseCell(data) {
+          if (data.section === "body") {
+            if (data.row.index === payoutCashIdx) {
+              data.cell.styles.fillColor = [230, 250, 240];
+              data.cell.styles.textColor = [5, 120, 80];
+              data.cell.styles.fontStyle = "bold";
+            }
+            if (data.row.index === payoutDigitalIdx) {
+              data.cell.styles.fillColor = [225, 245, 255];
+              data.cell.styles.textColor = [5, 100, 170];
+              data.cell.styles.fontStyle = "bold";
+            }
+            if (data.row.index === totalNetIdx) {
+              data.cell.styles.fillColor = COLORS.offWhite;
+              data.cell.styles.fontStyle = "bold";
+              data.cell.styles.fontSize = 9.5;
+              data.cell.styles.textColor = COLORS.black;
+            }
+          }
+        },
+        margin: { left: 14, right: 14 },
+      });
+
+      // Services breakdown sub-table
+      const serviceEntries = Object.entries(barber.services_breakdown || {});
+      if (serviceEntries.length > 0) {
+        const serviceY = (doc as any).lastAutoTable.finalY + 3;
+        autoTable(doc, {
+          startY: serviceY,
+          head: [["Desglose de Servicios Realizados", "Cantidad"]],
+          body: serviceEntries.map(([name, qty]) => [name, `× ${qty}`]),
+          theme: "plain",
+          headStyles: {
+            fillColor: COLORS.offWhite,
+            textColor: COLORS.midGray,
+            fontStyle: "bold",
+            fontSize: 7,
+          },
+          bodyStyles: { fontSize: 8, textColor: COLORS.midGray },
+          columnStyles: {
+            0: { cellWidth: 120 },
+            1: { halign: "right" },
+          },
+          margin: { left: 14, right: 14 },
+        });
+      }
+
+      currentY = (doc as any).lastAutoTable.finalY + 8;
+    });
+  }
+
+  // ── SECCIÓN 4: GASTOS OPERATIVOS ─────────────────────────────────────────────
+  currentY = addPageBreakIfNeeded(doc, currentY, 50);
+  currentY = drawSectionHeader(
+    doc,
+    "4. Gastos Operativos del Día (Egresos)",
+    "Salidas de dinero registradas, discriminadas por fondo de origen.",
+    currentY,
+    COLORS.rose
+  );
+
+  if (!session.expenses || session.expenses.length === 0) {
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...COLORS.midGray);
+    doc.text("No se registraron gastos operativos en este período.", 14, currentY + 5);
+    currentY += 15;
+  } else {
+    const expensesCashRows = session.expenses.filter((e) => e.payment_method === "cash");
+    const expensesDigitalRows = session.expenses.filter((e) => e.payment_method === "digital");
 
     autoTable(doc, {
-      startY: currentY + 8,
-      body: detailData,
-      theme: 'grid',
-      columnStyles: { 
-        0: { fontStyle: 'bold', cellWidth: 110 }, 
-        1: { halign: 'right' } 
+      startY: currentY,
+      head: [["Categoría", "Descripción", "Monto", "Fondo"]],
+      body: session.expenses.map((exp) => [
+        exp.category,
+        exp.description || "—",
+        formatCurrency(exp.amount),
+        exp.payment_method === "cash" ? "💵 Efectivo" : "💳 Digital",
+      ]),
+      foot: [
+        ["Total gastos en Efectivo", "", formatCurrency(session.expenses_cash_total), ""],
+        ["Total gastos en Digital", "", formatCurrency(session.expenses_digital_total), ""],
+        ["TOTAL EGRESOS", "", formatCurrency(session.expenses_total), ""],
+      ],
+      theme: "grid",
+      headStyles: {
+        fillColor: COLORS.rose,
+        textColor: COLORS.white,
+        fontStyle: "bold",
+        fontSize: 8,
       },
-      didParseCell: function(data) {
-        if (data.section === 'body' && data.row.index === detailData.length - 1 && data.column.index === 1) {
-          const val = b.discrepancy;
-          if (val < 0) {
-            data.cell.styles.textColor = [231, 76, 60]; // Red
-          } else if (val > 0) {
-            data.cell.styles.textColor = [220, 160, 0]; // Yellow-orange for visibility
+      footStyles: {
+        fillColor: COLORS.offWhite,
+        fontStyle: "bold",
+        textColor: COLORS.black,
+        fontSize: 9,
+      },
+      bodyStyles: { fontSize: 8.5, textColor: COLORS.black },
+      columnStyles: {
+        0: { cellWidth: 40 },
+        1: { cellWidth: 75 },
+        2: { halign: "right", fontStyle: "bold", cellWidth: 35 },
+        3: { halign: "center", cellWidth: 30 },
+      },
+      didParseCell(data) {
+        if (data.section === "body" && data.column.index === 3) {
+          const method = session.expenses[data.row.index]?.payment_method;
+          if (method === "cash") {
+            data.cell.styles.textColor = [5, 120, 80];
           } else {
-            data.cell.styles.textColor = [46, 204, 113]; // Green
+            data.cell.styles.textColor = [5, 100, 170];
           }
         }
-        if (data.section === 'body' && (data.row.index === detailData.length - 2 || data.row.index === detailData.length - 3) && data.column.index === 1) {
-           data.cell.styles.fontStyle = 'bold';
-        }
-      }
+      },
+      margin: { left: 14, right: 14 },
     });
 
     currentY = (doc as any).lastAutoTable.finalY + 10;
+  }
+
+  // ── SECCIÓN 5: BALANCE FINAL — CUADRE DE CAJA ────────────────────────────────
+  currentY = addPageBreakIfNeeded(doc, currentY, 80);
+  currentY = drawSectionHeader(
+    doc,
+    "5. Balance Final — Cuadre de Caja",
+    "Fórmula exacta del dinero esperado en cada fondo al cierre del día.",
+    currentY,
+    COLORS.amber
+  );
+
+  // Two-column balance table
+  autoTable(doc, {
+    startY: currentY,
+    head: [["CÁLCULO", "FONDO FÍSICO (Efectivo)", "FONDO DIGITAL"]],
+    body: [
+      ["(+) Base inicial de apertura", formatCurrency(session.opening_balance), "—"],
+      ["(+) Ingresos por citas",
+        formatCurrency(session.appointments_cash_total),
+        formatCurrency(session.appointments_digital_total)],
+      ["(+) Ingresos por productos", formatCurrency(session.sales_total), "—"],
+      ["(−) Gastos operativos",
+        `−${formatCurrency(session.expenses_cash_total)}`,
+        `−${formatCurrency(session.expenses_digital_total)}`],
+      ["(−) Vales / Adelantos a barberos",
+        `−${formatCurrency(session.ledger_advances_cash || 0)}`,
+        `−${formatCurrency(session.ledger_advances_digital || 0)}`],
+      ["(+) Devoluciones a caja",
+        `+${formatCurrency(session.ledger_payments_cash || 0)}`,
+        `+${formatCurrency(session.ledger_payments_digital || 0)}`],
+    ],
+    foot: [
+      ["= BALANCE ESPERADO AL CIERRE",
+        formatCurrency(session.expected_cash),
+        formatCurrency(session.expected_digital)],
+      ["= TOTAL CONSOLIDADO DE CAJA",
+        formatCurrency(session.expected_balance), ""],
+    ],
+    theme: "grid",
+    headStyles: {
+      fillColor: COLORS.amber,
+      textColor: COLORS.white,
+      fontStyle: "bold",
+      fontSize: 8,
+    },
+    footStyles: {
+      fillColor: COLORS.darkGray,
+      textColor: COLORS.white,
+      fontStyle: "bold",
+      fontSize: 10,
+    },
+    bodyStyles: { fontSize: 9, textColor: COLORS.black },
+    columnStyles: {
+      0: { fontStyle: "bold", cellWidth: 85 },
+      1: { halign: "right", textColor: [5, 120, 80] as [number, number, number] },
+      2: { halign: "right", textColor: [5, 100, 170] as [number, number, number] },
+    },
+    margin: { left: 14, right: 14 },
   });
 
-  currentY = (doc as any).lastAutoTable.finalY + 15;
-  doc.setFontSize(10);
-  doc.setTextColor(150, 150, 150);
-  doc.text("Documento generado automáticamente por BarberOS", 14, currentY);
+  currentY = (doc as any).lastAutoTable.finalY + 12;
 
-  // Return the PDF as a Blob
+  // ── ACTUAL BALANCE (if provided) ─────────────────────────────────────────────
+  const hasActual = compiledBarbersBreakdown.some(
+    (b) => typeof b.actual_cash === "number" && b.actual_cash > 0
+  );
+  const actualBalance = compiledBarbersBreakdown.reduce(
+    (sum, b) => sum + (b.actual_cash || 0),
+    0
+  );
+
+  if (hasActual) {
+    const discrepancy = actualBalance - session.expected_cash;
+    autoTable(doc, {
+      startY: currentY,
+      body: [
+        ["Efectivo físico contado al cierre", formatCurrency(actualBalance)],
+        ["Efectivo esperado en caja", formatCurrency(session.expected_cash)],
+        [
+          discrepancy === 0 ? "✅  CAJA CUADRADA" :
+            discrepancy < 0 ? "⚠️  FALTANTE DE EFECTIVO" : "ℹ️  SOBRANTE DE EFECTIVO",
+          discrepancy === 0 ? "—" : formatCurrency(Math.abs(discrepancy)),
+        ],
+      ],
+      theme: "grid",
+      bodyStyles: { fontSize: 10, fontStyle: "bold" },
+      columnStyles: {
+        0: { cellWidth: 120 },
+        1: { halign: "right" },
+      },
+      didParseCell(data) {
+        if (data.section === "body" && data.row.index === 2) {
+          if (discrepancy === 0) {
+            data.cell.styles.fillColor = [230, 250, 240];
+            data.cell.styles.textColor = [5, 120, 80];
+          } else if (discrepancy < 0) {
+            data.cell.styles.fillColor = [255, 235, 235];
+            data.cell.styles.textColor = [180, 30, 30];
+          } else {
+            data.cell.styles.fillColor = [255, 248, 225];
+            data.cell.styles.textColor = [120, 80, 0];
+          }
+        }
+      },
+      margin: { left: 14, right: 14 },
+    });
+    currentY = (doc as any).lastAutoTable.finalY + 12;
+  }
+
+  // ── FOOTER ───────────────────────────────────────────────────────────────────
+  const totalPages = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    const footerY = doc.internal.pageSize.getHeight() - 10;
+
+    doc.setDrawColor(...COLORS.lightGray);
+    doc.setLineWidth(0.3);
+    doc.line(14, footerY - 4, 196, footerY - 4);
+
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...COLORS.midGray);
+    doc.text(
+      `Documento generado automáticamente por BarberOS  ·  ${dateStr} ${timeStr}`,
+      14,
+      footerY
+    );
+    doc.text(`Página ${i} de ${totalPages}`, 196, footerY, { align: "right" });
+  }
+
   return doc.output("blob");
 }

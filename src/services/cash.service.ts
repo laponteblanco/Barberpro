@@ -1,39 +1,187 @@
 import { getSession } from "@/lib/supabase/session";
 import { createAdminClient } from "@/lib/supabase/server";
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface ExpenseRecord {
+  id: string;
+  category: string;
+  description: string | null;
+  amount: number;
+  /** 'cash' = salió de la caja física | 'digital' = transferencia/digital */
+  payment_method: "cash" | "digital";
+  created_at: string;
+}
+
+export interface BarberBreakdown {
+  id: string;
+  name: string;
+  commission_rate: number;
+  daily_commission_rates: Record<string, number>;
+  /** Número de servicios cobrados en efectivo */
+  appointments_count: number;
+  /** Monto cobrado en efectivo por citas */
+  total_cash: number;
+  /** Número de servicios cobrados en digital */
+  appointments_digital_count: number;
+  /** Monto cobrado en digital por citas */
+  total_digital: number;
+  /** Suma de vales/adelantos descontados de la caja física */
+  total_advances: number;
+  /** Suma de pagos recibidos de vuelta a la caja */
+  total_payments: number;
+  /** Fiados / consignaciones */
+  total_consignments: number;
+  /** Comisión total calculada (cash + digital) */
+  total_commission: number;
+  /** Utilidad de la barbería en este barbero */
+  total_shop_profit: number;
+  /** Pago neto esperado en EFECTIVO (comisión − vales en cash) */
+  net_expected_cash: number;
+  /** Cuánto del pago al barbero sale del fondo CASH */
+  payout_cash: number;
+  /** Cuánto del pago al barbero sale del fondo DIGITAL */
+  payout_digital: number;
+  /** Desglose de servicios realizados { nombre: cantidad } */
+  services_breakdown: Record<string, number>;
+}
+
 export interface ActiveSessionDetails {
   id: string;
   opened_at: string;
   opening_balance: number;
-  expected_balance: number;
-  expected_cash: number;
-  expected_digital: number;
+
+  // ── Ingresos brutos por método de pago ──────────────────────────
   appointments_total: number;
   appointments_cash_total: number;
   appointments_digital_total: number;
   sales_total: number;
-  expenses_total: number;
-  expenses: any[];
-  status: 'open' | 'closed';
+
+  // ── Desglose digital por plataforma ─────────────────────────────
   digital_breakdown: {
     card: number;
     nequi: number;
     daviplata: number;
     transfer: number;
   };
-  barbers_breakdown: Array<{
-    id: string;
-    name: string;
-    appointments_count: number;
-    total_cash: number;
-    appointments_digital_count: number;
-    total_digital: number;
-  }>;
+
+  // ── Gastos operativos separados por fondo ───────────────────────
+  expenses: ExpenseRecord[];
+  expenses_total: number;
+  /** Gastos pagados en efectivo físico */
+  expenses_cash_total: number;
+  /** Gastos pagados mediante transferencia/digital */
+  expenses_digital_total: number;
+
+  // ── Pagos a barberos separados por fondo ─────────────────────────
+  /** Total neto pagado a barberos en efectivo */
+  payouts_cash_total: number;
+  /** Total neto pagado a barberos en digital */
+  payouts_digital_total: number;
+
+  // ── Movimientos del ledger (vales / pagos) ───────────────────────
+  ledger_advances_cash: number;
+  ledger_advances_digital: number;
+  ledger_payments_cash: number;
+  ledger_payments_digital: number;
+
+  // ── Balance final cuadrado ────────────────────────────────────────
+  /**
+   * Efectivo esperado en caja =
+   *   opening_balance
+   *   + appointments_cash_total
+   *   + sales_total
+   *   − expenses_cash_total
+   *   − ledger_advances_cash
+   *   + ledger_payments_cash
+   */
+  expected_cash: number;
+  /**
+   * Saldo digital esperado =
+   *   appointments_digital_total
+   *   − expenses_digital_total
+   *   − ledger_advances_digital
+   *   + ledger_payments_digital
+   */
+  expected_digital: number;
+  /** Suma total de ambos fondos */
+  expected_balance: number;
+
+  // ── Breakdown por barbero ─────────────────────────────────────────
+  barbers_breakdown: BarberBreakdown[];
+
+  status: "open" | "closed";
 }
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Calcula el inicio del día local a partir de una fecha UTC.
+ * Se asume UTC-5 (Colombia/Bogotá) como zona horaria base.
+ */
+function getStartOfDayISO(referenceDate: Date): string {
+  const utcDate = new Date(referenceDate.getTime() - 5 * 3600000);
+  const startOfDay = new Date(
+    Date.UTC(
+      utcDate.getUTCFullYear(),
+      utcDate.getUTCMonth(),
+      utcDate.getUTCDate(),
+      5, 0, 0, 0 // 05:00 UTC = 00:00 Bogotá
+    )
+  );
+  return startOfDay.toISOString();
+}
+
+/**
+ * Normaliza el método de pago de una cita a 'cash' o 'digital'.
+ * Para pagos split, retorna ambos montos discriminados.
+ */
+function resolveAppointmentPayment(app: any): {
+  cashAmount: number;
+  digitalAmount: number;
+  cardAmount: number;
+  nequiAmount: number;
+  daviplataAmount: number;
+  transferAmount: number;
+} {
+  const price = Number(app.total_price || 0);
+  const method = app.payment_method || "cash";
+
+  if (method === "cash") {
+    return { cashAmount: price, digitalAmount: 0, cardAmount: 0, nequiAmount: 0, daviplataAmount: 0, transferAmount: 0 };
+  }
+
+  if (method === "split") {
+    const splitCash = Number(app.split_cash_amount || 0);
+    const splitDigital = Number(app.split_digital_amount || 0);
+    const splitMethod = app.split_digital_method || "";
+    return {
+      cashAmount: splitCash,
+      digitalAmount: splitDigital,
+      cardAmount: splitMethod === "card" ? splitDigital : 0,
+      nequiAmount: splitMethod === "nequi" ? splitDigital : 0,
+      daviplataAmount: splitMethod === "daviplata" ? splitDigital : 0,
+      transferAmount: splitMethod === "transfer" ? splitDigital : 0,
+    };
+  }
+
+  // Fully digital payment
+  return {
+    cashAmount: 0,
+    digitalAmount: price,
+    cardAmount: method === "card" ? price : 0,
+    nequiAmount: method === "nequi" ? price : 0,
+    daviplataAmount: method === "daviplata" ? price : 0,
+    transferAmount: method === "transfer" ? price : 0,
+  };
+}
+
+// ─── Main service functions ────────────────────────────────────────────────────
 
 /**
  * Gets the currently open cash session for the active tenant,
  * calculating dynamic revenues from appointments and product sales.
+ * Fully discriminates expenses and barber payouts by fund (cash vs digital).
  */
 export async function getActiveCashSession(): Promise<ActiveSessionDetails | null> {
   const { tenantId } = await getSession();
@@ -50,146 +198,127 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
 
   if (error || !session) return null;
 
-  // 1. Calculate appointments total since opened_at
-  // Helper to get start of day in local time (UTC-5 for Colombia)
-  const sessionDate = new Date(session.opened_at);
-  const utcDate = new Date(sessionDate.getTime() - (5 * 3600000));
-  const startOfDayUtc = new Date(Date.UTC(utcDate.getUTCFullYear(), utcDate.getUTCMonth(), utcDate.getUTCDate(), 5, 0, 0, 0)); // 5:00 UTC is 00:00 local time
-  const startOfDayISO = startOfDayUtc.toISOString();
+  const startOfDayISO = getStartOfDayISO(new Date(session.opened_at));
 
-  const [appointmentsRes, staffRes] = await Promise.all([
+  // ── Parallel data fetching ───────────────────────────────────────────────────
+  const [appointmentsRes, staffRes, salesRes, ledgerRes, expensesRes] = await Promise.all([
+    // 1. Appointments for the day
     (adminSupabase as any)
       .from("appointments")
-      .select("total_price, payment_method, split_cash_amount, split_digital_amount, split_digital_method, start_time, staff_id, staff:tenant_staff(id, profiles(full_name)), service:services(name)")
+      .select(
+        "total_price, payment_method, split_cash_amount, split_digital_amount, split_digital_method, start_time, staff_id, staff:tenant_staff(id, profiles(full_name)), service:services(name)"
+      )
       .eq("tenant_id", tenantId)
       .in("status", ["completed", "confirmed"])
       .gte("start_time", startOfDayISO),
+
+    // 2. Active barbers (not admin) for commission calculation
     (adminSupabase as any)
       .from("tenant_staff")
       .select("id, role, commission_rate, daily_commission_rates, profiles(full_name)")
       .eq("tenant_id", tenantId)
       .eq("is_active", true)
-      .neq("role", "admin")
+      .neq("role", "admin"),
+
+    // 3. Product sales
+    (adminSupabase as any)
+      .from("product_sales")
+      .select("total_price")
+      .eq("tenant_id", tenantId)
+      .gte("created_at", startOfDayISO),
+
+    // 4. Staff ledger (advances, payments, consignments) — now with payment_method
+    (adminSupabase as any)
+      .from("staff_ledger")
+      .select("staff_id, type, amount, payment_method")
+      .eq("tenant_id", tenantId)
+      .gte("created_at", startOfDayISO),
+
+    // 5. Operating expenses — now with payment_method
+    (adminSupabase as any)
+      .from("expenses")
+      .select("id, category, description, amount, payment_method, created_at")
+      .eq("tenant_id", tenantId)
+      .gte("created_at", startOfDayISO)
+      .order("created_at", { ascending: false }),
   ]);
 
   const appointments = appointmentsRes.data || [];
   const staffMembers = staffRes.data || [];
+  const sales = salesRes.data || [];
+  const ledgerEntries = ledgerRes.data || [];
+  const expensesRaw = expensesRes.data || [];
 
+  // ── 1. Process appointments ──────────────────────────────────────────────────
   let appointmentsCashTotal = 0;
   let appointmentsDigitalTotal = 0;
-
-  const digitalBreakdown = {
-    card: 0,
-    nequi: 0,
-    daviplata: 0,
-    transfer: 0
-  };
+  const digitalBreakdown = { card: 0, nequi: 0, daviplata: 0, transfer: 0 };
 
   appointments.forEach((app: any) => {
-    const price = Number(app.total_price || 0);
-    const method = app.payment_method || "cash";
-
-    if (method === "cash") {
-      appointmentsCashTotal += price;
-    } else if (method === "split") {
-      const splitCash = Number(app.split_cash_amount || 0);
-      const splitDigital = Number(app.split_digital_amount || 0);
-      appointmentsCashTotal += splitCash;
-      appointmentsDigitalTotal += splitDigital;
-      
-      const splitMethod = app.split_digital_method;
-      if (splitMethod === "card") digitalBreakdown.card += splitDigital;
-      else if (splitMethod === "nequi") digitalBreakdown.nequi += splitDigital;
-      else if (splitMethod === "daviplata") digitalBreakdown.daviplata += splitDigital;
-      else if (splitMethod === "transfer") digitalBreakdown.transfer += splitDigital;
-    } else {
-      appointmentsDigitalTotal += price;
-      if (method === "card") digitalBreakdown.card += price;
-      else if (method === "nequi") digitalBreakdown.nequi += price;
-      else if (method === "daviplata") digitalBreakdown.daviplata += price;
-      else if (method === "transfer") digitalBreakdown.transfer += price;
-    }
+    const { cashAmount, digitalAmount, cardAmount, nequiAmount, daviplataAmount, transferAmount } =
+      resolveAppointmentPayment(app);
+    appointmentsCashTotal += cashAmount;
+    appointmentsDigitalTotal += digitalAmount;
+    digitalBreakdown.card += cardAmount;
+    digitalBreakdown.nequi += nequiAmount;
+    digitalBreakdown.daviplata += daviplataAmount;
+    digitalBreakdown.transfer += transferAmount;
   });
 
   const appointmentsTotal = appointmentsCashTotal + appointmentsDigitalTotal;
 
-  // 2. Calculate product sales total since startOfDayISO
-  const { data: sales } = await (adminSupabase as any)
-    .from("product_sales")
-    .select("total_price")
-    .eq("tenant_id", tenantId)
-    .gte("created_at", startOfDayISO);
+  // ── 2. Product sales (always cash for now) ───────────────────────────────────
+  const salesTotal = sales.reduce(
+    (sum: number, sale: any) => sum + Number(sale.total_price || 0),
+    0
+  );
 
-  const salesTotal = sales?.reduce((sum: number, sale: any) => sum + Number(sale.total_price || 0), 0) || 0;
+  // ── 3. Process expenses by fund ──────────────────────────────────────────────
+  const expensesList: ExpenseRecord[] = expensesRaw.map((e: any) => ({
+    id: e.id,
+    category: e.category || "Otros",
+    description: e.description || null,
+    amount: Number(e.amount || 0),
+    payment_method: (e.payment_method as "cash" | "digital") || "cash",
+    created_at: e.created_at,
+  }));
 
-  // 2.5 Calculate ledger cash movements (advances and payments) since startOfDayISO
-  const { data: ledgerMoves } = await (adminSupabase as any)
-    .from("staff_ledger")
-    .select("type, amount")
-    .eq("tenant_id", tenantId)
-    .in("type", ["advance", "payment"])
-    .gte("created_at", startOfDayISO);
+  let expensesCashTotal = 0;
+  let expensesDigitalTotal = 0;
 
-  let ledgerAdvances = 0;
-  let ledgerPayments = 0;
-
-  ledgerMoves?.forEach((move: any) => {
-    const amt = Number(move.amount || 0);
-    if (move.type === "advance") {
-      ledgerAdvances += amt;
-    } else if (move.type === "payment") {
-      ledgerPayments += amt;
+  expensesList.forEach((exp) => {
+    if (exp.payment_method === "cash") {
+      expensesCashTotal += exp.amount;
+    } else {
+      expensesDigitalTotal += exp.amount;
     }
   });
 
-  // 2.7 Calculate Expenses
-  let expensesTotal = 0;
-  let expensesList: any[] = [];
-  try {
-    const { data: expensesData, error: expError } = await (adminSupabase as any)
-      .from("expenses")
-      .select("*")
-      .eq("tenant_id", tenantId)
-      .gte("created_at", startOfDayISO);
-      
-    if (!expError && expensesData) {
-      expensesList = expensesData;
-      expensesTotal = expensesData.reduce((sum: number, exp: any) => sum + Number(exp.amount || 0), 0);
+  const expensesTotal = expensesCashTotal + expensesDigitalTotal;
+
+  // ── 4. Process staff ledger by type and fund ─────────────────────────────────
+  let ledgerAdvancesCash = 0;
+  let ledgerAdvancesDigital = 0;
+  let ledgerPaymentsCash = 0;
+  let ledgerPaymentsDigital = 0;
+
+  ledgerEntries.forEach((entry: any) => {
+    const amt = Number(entry.amount || 0);
+    const method: "cash" | "digital" = entry.payment_method === "digital" ? "digital" : "cash";
+
+    if (entry.type === "advance") {
+      if (method === "cash") ledgerAdvancesCash += amt;
+      else ledgerAdvancesDigital += amt;
+    } else if (entry.type === "payment") {
+      if (method === "cash") ledgerPaymentsCash += amt;
+      else ledgerPaymentsDigital += amt;
     }
-  } catch (e) {
-    // Ignore if table doesn't exist yet
-  }
+  });
 
-  const openingBalance = Number(session.opening_balance || 0);
-  const expectedCash = openingBalance + appointmentsCashTotal + salesTotal - ledgerAdvances + ledgerPayments - expensesTotal;
-  const expectedDigital = appointmentsDigitalTotal;
-  const expectedBalance = expectedCash + expectedDigital;
+  // ── 5. Build barbers breakdown map ───────────────────────────────────────────
+  const breakdownMap = new Map<string, BarberBreakdown>();
 
-  // 3. Build the barbers cash and digital breakdown
-  const { data: sessionLedger } = await (adminSupabase as any)
-    .from("staff_ledger")
-    .select("staff_id, type, amount")
-    .eq("tenant_id", tenantId)
-    .gte("created_at", startOfDayISO);
-
-  const breakdownMap = new Map<string, { 
-    id: string; 
-    name: string; 
-    commission_rate: number;
-    daily_commission_rates: any;
-    appointments_count: number; 
-    total_cash: number;
-    appointments_digital_count: number;
-    total_digital: number;
-    total_advances: number;
-    total_payments: number;
-    total_consignments: number;
-    net_expected_cash: number;
-    total_commission: number;
-    total_shop_profit: number;
-    services_breakdown: Record<string, number>;
-  }>();
-
+  // Initialize from active staff list
   staffMembers.forEach((s: any) => {
     breakdownMap.set(s.id, {
       id: s.id,
@@ -203,15 +332,17 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
       total_advances: 0,
       total_payments: 0,
       total_consignments: 0,
-      net_expected_cash: 0,
       total_commission: 0,
       total_shop_profit: 0,
-      services_breakdown: {}
+      net_expected_cash: 0,
+      payout_cash: 0,
+      payout_digital: 0,
+      services_breakdown: {},
     });
   });
 
-  // Populate ledger data into breakdown map
-  sessionLedger?.forEach((item: any) => {
+  // Populate ledger data (advances, payments, consignments) per barber
+  ledgerEntries.forEach((item: any) => {
     const staffId = item.staff_id;
     const amt = Number(item.amount || 0);
 
@@ -228,27 +359,25 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
         total_advances: 0,
         total_payments: 0,
         total_consignments: 0,
-        net_expected_cash: 0,
         total_commission: 0,
         total_shop_profit: 0,
-        services_breakdown: {}
+        net_expected_cash: 0,
+        payout_cash: 0,
+        payout_digital: 0,
+        services_breakdown: {},
       });
     }
 
     const b = breakdownMap.get(staffId)!;
-    if (item.type === "advance") {
-      b.total_advances += amt;
-    } else if (item.type === "payment") {
-      b.total_payments += amt;
-    } else if (item.type === "consignment") {
-      b.total_consignments += amt;
-    }
+    if (item.type === "advance") b.total_advances += amt;
+    else if (item.type === "payment") b.total_payments += amt;
+    else if (item.type === "consignment") b.total_consignments += amt;
   });
 
+  // Populate appointment revenue data per barber
   appointments.forEach((app: any) => {
     const staffId = app.staff_id;
     const price = Number(app.total_price || 0);
-    const method = app.payment_method || "cash";
 
     if (!breakdownMap.has(staffId)) {
       breakdownMap.set(staffId, {
@@ -263,88 +392,129 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
         total_advances: 0,
         total_payments: 0,
         total_consignments: 0,
-        net_expected_cash: 0,
         total_commission: 0,
         total_shop_profit: 0,
-        services_breakdown: {}
+        net_expected_cash: 0,
+        payout_cash: 0,
+        payout_digital: 0,
+        services_breakdown: {},
       });
     }
 
     const b = breakdownMap.get(staffId)!;
-    if (method === "cash") {
+    const { cashAmount, digitalAmount } = resolveAppointmentPayment(app);
+
+    if (cashAmount > 0) {
       b.appointments_count++;
-      b.total_cash += price;
-    } else if (method === "split") {
-      const splitCash = Number(app.split_cash_amount || 0);
-      const splitDigital = Number(app.split_digital_amount || 0);
-      if (splitCash > 0) {
-        b.appointments_count++;
-        b.total_cash += splitCash;
-      }
-      if (splitDigital > 0) {
-        b.appointments_digital_count++;
-        b.total_digital += splitDigital;
-      }
-    } else {
+      b.total_cash += cashAmount;
+    }
+    if (digitalAmount > 0) {
       b.appointments_digital_count++;
-      b.total_digital += price;
+      b.total_digital += digitalAmount;
     }
 
+    // Calculate commission based on day-specific rate if available
     if (app.start_time) {
-      const d = new Date(app.start_time);
-      const utc = d.getTime();
-      const bogotaDate = new Date(utc - (5 * 3600000));
+      const bogotaDate = new Date(new Date(app.start_time).getTime() - 5 * 3600000);
       const dayIndex = bogotaDate.getUTCDay();
-      
       const rate = b.daily_commission_rates?.[String(dayIndex)] ?? b.commission_rate ?? 0;
       const commission = price * (rate / 100);
       b.total_commission += commission;
-      b.total_shop_profit += (price - commission);
+      b.total_shop_profit += price - commission;
     }
-    
-    // Add to services breakdown
+
+    // Track services breakdown
     const serviceName = app.service?.name || "Servicio Desconocido";
     b.services_breakdown[serviceName] = (b.services_breakdown[serviceName] || 0) + 1;
   });
 
-  // Compute final net_expected_cash for each staff member.
-  // The barber must hand over their full commission (on cash + digital)
-  // minus any advances (vales) taken from the register today.
+  // Compute per-barber final expected payout (net of advances)
+  // and discriminate how much comes from each fund
+  let payoutsCashTotal = 0;
+  let payoutsDigitalTotal = 0;
+
   breakdownMap.forEach((b) => {
+    // Net cash expected = commission earned − advances taken from cash register + payments returned to cash
     b.net_expected_cash = b.total_commission - b.total_advances + b.total_payments;
+
+    // The barber's payout can be split: if they earned from cash appointments,
+    // they return cash; if from digital, they consign digitally.
+    // Simplified rule: payout proportional to cash/digital revenue split.
+    const totalRevenue = b.total_cash + b.total_digital;
+    if (totalRevenue > 0) {
+      const cashRatio = b.total_cash / totalRevenue;
+      b.payout_cash = Math.round(b.total_commission * cashRatio * 100) / 100;
+      b.payout_digital = Math.round((b.total_commission - b.payout_cash) * 100) / 100;
+    } else {
+      b.payout_cash = 0;
+      b.payout_digital = 0;
+    }
+
+    payoutsCashTotal += b.payout_cash;
+    payoutsDigitalTotal += b.payout_digital;
   });
 
-  const barbersBreakdown = Array.from(breakdownMap.values()).sort((a, b) => b.net_expected_cash - a.net_expected_cash);
+  const barbersBreakdown = Array.from(breakdownMap.values()).sort(
+    (a, b) => b.net_expected_cash - a.net_expected_cash
+  );
+
+  // ── 6. Final balance calculation ─────────────────────────────────────────────
+  const openingBalance = Number(session.opening_balance || 0);
+
+  const expectedCash =
+    openingBalance +
+    appointmentsCashTotal +
+    salesTotal -
+    expensesCashTotal -
+    ledgerAdvancesCash +
+    ledgerPaymentsCash;
+
+  const expectedDigital =
+    appointmentsDigitalTotal -
+    expensesDigitalTotal -
+    ledgerAdvancesDigital +
+    ledgerPaymentsDigital;
+
+  const expectedBalance = expectedCash + expectedDigital;
 
   return {
     id: session.id,
     opened_at: session.opened_at,
     opening_balance: openingBalance,
-    expected_balance: expectedBalance,
-    expected_cash: expectedCash,
-    expected_digital: expectedDigital,
     appointments_total: appointmentsTotal,
     appointments_cash_total: appointmentsCashTotal,
     appointments_digital_total: appointmentsDigitalTotal,
     sales_total: salesTotal,
-    expenses_total: expensesTotal,
-    expenses: expensesList,
-    status: session.status,
     digital_breakdown: digitalBreakdown,
+    expenses: expensesList,
+    expenses_total: expensesTotal,
+    expenses_cash_total: expensesCashTotal,
+    expenses_digital_total: expensesDigitalTotal,
+    payouts_cash_total: payoutsCashTotal,
+    payouts_digital_total: payoutsDigitalTotal,
+    ledger_advances_cash: ledgerAdvancesCash,
+    ledger_advances_digital: ledgerAdvancesDigital,
+    ledger_payments_cash: ledgerPaymentsCash,
+    ledger_payments_digital: ledgerPaymentsDigital,
+    expected_cash: expectedCash,
+    expected_digital: expectedDigital,
+    expected_balance: expectedBalance,
     barbers_breakdown: barbersBreakdown,
+    status: session.status,
   };
 }
 
 /**
  * Opens a new cash session with a custom starting balance.
  */
-export async function openCashSession(openingBalance: number): Promise<{ success: boolean; error?: string }> {
+export async function openCashSession(
+  openingBalance: number
+): Promise<{ success: boolean; error?: string }> {
   const { user, tenantId } = await getSession();
   if (!user || !tenantId) return { success: false, error: "No autorizado" };
 
   const adminSupabase = await createAdminClient();
 
-  // Check if there is already an active session
   const active = await getActiveCashSession();
   if (active) return { success: false, error: "Ya hay una sesión de caja abierta" };
 
@@ -354,7 +524,7 @@ export async function openCashSession(openingBalance: number): Promise<{ success
       tenant_id: tenantId,
       opened_by: user.id,
       opening_balance: openingBalance,
-      status: 'open',
+      status: "open",
     } as any);
 
   if (error) {
@@ -381,7 +551,7 @@ export async function closeCashSession(
   if (!active) return { success: false, error: "No hay ninguna sesión de caja activa para cerrar" };
 
   const updatePayload: any = {
-    status: 'closed',
+    status: "closed",
     closed_at: new Date().toISOString(),
     expected_balance: active.expected_balance,
     expected_cash: active.expected_cash,
@@ -401,17 +571,15 @@ export async function closeCashSession(
   if (error) {
     console.warn("Failed to save full closing details, falling back to basic close:", error);
     const fallbackPayload = {
-      status: 'closed',
+      status: "closed",
       closed_at: new Date().toISOString(),
       expected_balance: active.expected_balance,
       actual_balance: actualBalance,
     };
-
     const fallbackRes = await (adminSupabase as any)
       .from("cash_sessions")
       .update(fallbackPayload)
       .eq("id", active.id);
-    
     error = fallbackRes.error;
   }
 
@@ -446,14 +614,15 @@ export async function getCashSessionHistory() {
 
   if (!sessions || sessions.length === 0) return [];
 
-  // Fetch profiles for the users who opened these sessions in parallel
   const userIds = [...new Set(sessions.map((s: any) => s.opened_by))];
   const { data: profiles } = await (adminSupabase as any)
     .from("profiles")
     .select("id, full_name")
     .in("id", userIds);
 
-  const profileMap = new Map(profiles?.map((p: any) => [p.id, p.full_name]) || []);
+  const profileMap = new Map(
+    profiles?.map((p: any) => [p.id, p.full_name]) || []
+  );
 
   return sessions.map((session: any) => ({
     id: session.id,
@@ -465,7 +634,9 @@ export async function getCashSessionHistory() {
     expected_digital: Number(session.expected_digital ?? 0),
     actual_balance: Number(session.actual_balance || 0),
     closed_by_name: profileMap.get(session.opened_by) || "Desconocido",
-    discrepancy: Number(session.actual_balance || 0) - Number(session.expected_cash ?? session.expected_balance ?? 0),
+    discrepancy:
+      Number(session.actual_balance || 0) -
+      Number(session.expected_cash ?? session.expected_balance ?? 0),
     barbers_breakdown: session.barbers_breakdown || [],
   }));
 }
@@ -473,7 +644,9 @@ export async function getCashSessionHistory() {
 /**
  * Verifies if the provided PIN matches the tenant's security pin.
  */
-export async function verifySecurityPin(pin: string): Promise<{ success: boolean; error?: string }> {
+export async function verifySecurityPin(
+  pin: string
+): Promise<{ success: boolean; error?: string }> {
   const { tenantId } = await getSession();
   if (!tenantId) return { success: false, error: "No autorizado" };
 
@@ -488,15 +661,8 @@ export async function verifySecurityPin(pin: string): Promise<{ success: boolean
   if (!tenant) return { success: false, error: "Tenant no encontrado" };
 
   const savedPin = tenant.settings?.security_pin;
-  if (!savedPin) {
-    // If no pin is configured, allow it? Let's say yes, or maybe fail?
-    // If they want to use this feature, they should set a PIN.
-    return { success: true };
-  }
-
-  if (savedPin !== pin) {
-    return { success: false, error: "PIN incorrecto" };
-  }
+  if (!savedPin) return { success: true };
+  if (savedPin !== pin) return { success: false, error: "PIN incorrecto" };
 
   return { success: true };
 }
@@ -504,7 +670,9 @@ export async function verifySecurityPin(pin: string): Promise<{ success: boolean
 /**
  * Permanently deletes a closed cash session from history.
  */
-export async function deleteCashSession(sessionId: string): Promise<{ success: boolean; error?: string }> {
+export async function deleteCashSession(
+  sessionId: string
+): Promise<{ success: boolean; error?: string }> {
   const { tenantId } = await getSession();
   if (!tenantId) return { success: false, error: "No autorizado" };
 
@@ -537,13 +705,8 @@ export async function updateClosedCashSession(
 
   const adminSupabase = await createAdminClient();
 
-  const updatePayload: any = {
-    actual_balance: actualBalance,
-  };
-
-  if (barbersBreakdown) {
-    updatePayload.barbers_breakdown = barbersBreakdown;
-  }
+  const updatePayload: any = { actual_balance: actualBalance };
+  if (barbersBreakdown) updatePayload.barbers_breakdown = barbersBreakdown;
 
   const { error } = await (adminSupabase as any)
     .from("cash_sessions")
@@ -558,4 +721,3 @@ export async function updateClosedCashSession(
 
   return { success: true };
 }
-
