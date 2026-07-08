@@ -9,6 +9,7 @@ import { User, Clock, LayoutList, CheckCircle2, DollarSign, Calendar, Ban, Trash
 import { NewAppointmentDialog } from "./NewAppointmentDialog";
 import { StaffSummaryDialog } from "./StaffSummaryDialog";
 import { useRouter } from "next/navigation";
+import { generateInvoicePDF } from "@/lib/invoice";
 
 interface CalendarViewProps {
   appointments: any[];
@@ -23,6 +24,7 @@ interface CalendarViewProps {
   viewMode?: "staff" | "days";
   theme?: string;
   tenantId?: string;
+  tenant?: any;
   appointmentInterval?: number;
 }
 
@@ -105,6 +107,7 @@ export function CalendarView({
   viewMode = "staff",
   theme = "dark",
   tenantId,
+  tenant,
   appointmentInterval = 15
 }: CalendarViewProps) {
   const router = useRouter();
@@ -299,6 +302,8 @@ export function CalendarView({
     }, { total: 0, completed: 0, earnings: 0 });
   }, [appointments, selectedDate, viewMode, calendarColumns, staff]);
 
+  const [completedInvoiceData, setCompletedInvoiceData] = useState<any | null>(null);
+
   const resetPaymentModal = () => {
     setSelectedAppt(null);
     setShowPaymentSelector(false);
@@ -320,8 +325,30 @@ export function CalendarView({
         const res = await sellProductAction(p.id, p.qty);
         if (res?.error) throw new Error(`Error al vender ${p.name}: ${res.error}`);
       }
+      
       const res = await updateAppointmentStatusAction(id, status, paymentMethod, discount, finalPriceOverride, Number(splitCashAmount)||0, Number(splitDigitalAmount)||0, splitDigitalMethod);
       if (res?.error) throw new Error(res.error);
+      
+      if (status === "completed" && selectedAppt) {
+        const servicesList = selectedAppt.services?.length 
+          ? selectedAppt.services.map((s:any) => ({ name: s.name, price: s.price }))
+          : [{ name: selectedAppt.service?.name || "Servicio", price: selectedAppt.service?.price || selectedAppt.total_price }];
+          
+        setCompletedInvoiceData({
+          appointmentId: selectedAppt.id,
+          date: new Date().toISOString(),
+          customerName: selectedAppt.client?.full_name || "Cliente Final",
+          customerDocument: selectedAppt.client?.phone || "",
+          barberName: staff.find(s => s.id === selectedAppt.staff_id)?.display_name || "Barbero",
+          services: servicesList,
+          products: extraProducts.map(p => ({ name: p.name, price: p.price, qty: p.qty })),
+          subtotal: selectedAppt.total_price + extraProducts.reduce((s, p) => s + p.price * p.qty, 0),
+          discount: discount || 0,
+          total: finalPriceOverride || (selectedAppt.total_price + extraProducts.reduce((s, p) => s + p.price * p.qty, 0) - (discount || 0)),
+          paymentMethod: paymentMethod || "cash"
+        });
+      }
+      
       resetPaymentModal();
       router.refresh();
     } catch (err: any) {
@@ -1377,7 +1404,13 @@ export function CalendarView({
             </button>
             <button
               onClick={() => {
+                const [hStr, mStr] = slotMenu.time.split(':');
+                const startMins = parseInt(hStr, 10) * 60 + parseInt(mStr, 10);
+                const maxMins = (endHour * 60) - startMins;
+                const defaultDuration = maxMins > 0 && maxMins < 60 ? String(maxMins) : "60";
+                
                 setBlockData({ staffId: slotMenu.staffId, date: slotMenu.date, time: slotMenu.time });
+                setBlockDuration(defaultDuration);
                 setShowBlockDialog(true);
                 setSlotMenu(null);
               }}
@@ -1420,14 +1453,42 @@ export function CalendarView({
                   onChange={e => setBlockDuration(e.target.value)}
                   className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-red-500/50"
                 >
-                  <option value="15">15 Minutos</option>
-                  <option value="30">30 Minutos</option>
-                  <option value="45">45 Minutos</option>
-                  <option value="60">1 Hora</option>
-                  <option value="90">1.5 Horas</option>
-                  <option value="120">2 Horas</option>
-                  <option value="240">4 Horas</option>
-                  <option value="480">Día Completo (8H)</option>
+                  {(() => {
+                    if (!blockData) return null;
+                    const [hStr, mStr] = blockData.time.split(':');
+                    const startMins = parseInt(hStr, 10) * 60 + parseInt(mStr, 10);
+                    const endMins = endHour * 60;
+                    const maxMins = endMins - startMins;
+                    
+                    const options = [
+                      { value: 15, label: "15 Minutos" },
+                      { value: 30, label: "30 Minutos" },
+                      { value: 45, label: "45 Minutos" },
+                      { value: 60, label: "1 Hora" },
+                      { value: 90, label: "1.5 Horas" },
+                      { value: 120, label: "2 Horas" },
+                      { value: 180, label: "3 Horas" },
+                      { value: 240, label: "4 Horas" },
+                    ];
+
+                    const validOptions = options.filter(opt => opt.value < maxMins);
+                    
+                    if (maxMins > 0) {
+                      const maxH = Math.floor(maxMins / 60);
+                      const maxM = maxMins % 60;
+                      let maxLabel = "";
+                      if (maxH === 0) maxLabel = `${maxM} Minutos (Cierre)`;
+                      else if (maxH === 1 && maxM === 0) maxLabel = `1 Hora (Cierre)`;
+                      else if (maxM === 0) maxLabel = `${maxH} Horas (Cierre)`;
+                      else maxLabel = `${maxH}h ${maxM}m (Cierre)`;
+                      
+                      validOptions.push({ value: maxMins, label: maxLabel });
+                    }
+
+                    return validOptions.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ));
+                  })()}
                 </select>
               </div>
               <div className="space-y-1.5">
@@ -1492,6 +1553,68 @@ export function CalendarView({
                 >
                   <Trash2 className="w-4 h-4" />
                   Desbloquear
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        portalContainer
+      )}
+      {mounted && portalContainer && completedInvoiceData && createPortal(
+        <div className={cn(
+          theme === "light" ? "theme-light" : "theme-dark",
+          "fixed inset-0 z-[220] flex justify-center items-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200"
+        )}>
+          <div className={cn(
+            "w-full max-w-sm border rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200",
+            theme === "light" ? "theme-light bg-white border-blue-200" : "bg-zinc-950 border-white/10"
+          )}>
+            <div className={cn(
+              "flex items-center justify-between px-6 py-5 border-b",
+              theme === "light" ? "bg-emerald-50/80 border-emerald-100" : "border-white/5"
+            )}>
+              <h3 className="font-bold text-white tracking-tight flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                Cita Completada
+              </h3>
+              <button onClick={() => setCompletedInvoiceData(null)} className="p-2 hover:bg-white/10 rounded-xl text-zinc-400">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-6">
+              <div className="text-center space-y-2">
+                <p className="text-sm text-zinc-300">
+                  La cita ha sido marcada como cumplida y el pago registrado exitosamente.
+                </p>
+                <p className="text-xs text-zinc-400">
+                  ¿Desea generar la factura para esta transacción?
+                </p>
+              </div>
+              <div className="pt-2 flex flex-col gap-3">
+                <button 
+                  onClick={() => {
+                    const businessInfo = tenant ? {
+                      name: tenant.name || "BARBERÍA",
+                      nit: tenant.settings?.business_nit || "NIT NO REGISTRADO",
+                      address: tenant.settings?.business_address || "Dirección no registrada",
+                      phone: tenant.settings?.business_phone || "Teléfono no registrado",
+                      regime: tenant.settings?.business_regime || "Régimen no especificado",
+                      footerMessage: tenant.settings?.invoice_footer || "¡Gracias por preferirnos! Vuelve pronto."
+                    } : undefined;
+                    
+                    generateInvoicePDF(completedInvoiceData, businessInfo);
+                    setCompletedInvoiceData(null);
+                  }} 
+                  className="w-full flex justify-center items-center gap-2 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-widest text-xs transition-colors shadow-lg shadow-emerald-500/20"
+                >
+                  <DollarSign className="w-4 h-4" />
+                  Generar Factura PDF
+                </button>
+                <button 
+                  onClick={() => setCompletedInvoiceData(null)} 
+                  className="w-full flex justify-center items-center gap-2 py-3.5 rounded-xl border border-white/10 text-zinc-300 hover:bg-white/5 font-black uppercase tracking-widest text-xs transition-colors"
+                >
+                  Cerrar
                 </button>
               </div>
             </div>
