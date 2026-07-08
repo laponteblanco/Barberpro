@@ -124,8 +124,8 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
   const handleDownloadHistoryPDF = async (session: any) => {
     setDownloadingPdfSession(session.id);
     try {
-      const { getCashSessionDetailsById } = await import("@/services/cash.service");
-      const fullSessionDetails = await getCashSessionDetailsById(session.id);
+      const { getCashSessionDetailsByIdAction } = await import("./actions");
+      const fullSessionDetails = await getCashSessionDetailsByIdAction(session.id);
       
       if (!fullSessionDetails) {
         showNotification("No se pudieron obtener los detalles completos del cierre.", "error");

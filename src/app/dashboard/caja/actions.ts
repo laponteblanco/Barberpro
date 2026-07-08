@@ -4,6 +4,7 @@ import { openCashSession, closeCashSession, verifySecurityPin, deleteCashSession
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/supabase/session";
 import { createAdminClient } from "@/lib/supabase/server";
+import { getCashSessionDetailsById } from "@/services/cash.service";
 
 export async function openCashAction(openingBalance: number) {
   try {
@@ -85,5 +86,15 @@ export async function uploadClosingReportAction(formData: FormData) {
     return { success: true, url: publicUrl };
   } catch (err: any) {
     return { success: false, error: err.message || "Error desconocido" };
+  }
+}
+
+export async function getCashSessionDetailsByIdAction(sessionId: string) {
+  try {
+    const details = await getCashSessionDetailsById(sessionId);
+    return details;
+  } catch (err: any) {
+    console.error("Error in getCashSessionDetailsByIdAction:", err);
+    return null;
   }
 }
