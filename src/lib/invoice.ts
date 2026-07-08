@@ -42,6 +42,12 @@ const formatCurrency = (amount: number) => {
   }).format(amount);
 };
 
+const removeEmojis = (str: string) => {
+  if (!str) return "";
+  // Strip emojis and other non-standard jsPDF helvetica characters.
+  return str.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2B50}\u{2500}-\u{257F}]/gu, '').trim();
+};
+
 export const generateInvoicePDF = (data: InvoiceData, businessInfo: BusinessInfo = DEFAULT_BUSINESS_INFO) => {
   // Configuración de tirilla de impresión (ancho típico de 80mm)
   const doc = new jsPDF({
@@ -110,7 +116,7 @@ export const generateInvoicePDF = (data: InvoiceData, businessInfo: BusinessInfo
   doc.setFont("helvetica", "normal");
   
   data.services.forEach(service => {
-    const name = doc.splitTextToSize(`1x ${service.name}`, pageWidth - 30);
+    const name = doc.splitTextToSize(`1x ${removeEmojis(service.name)}`, pageWidth - 30);
     doc.text(name, 5, yPos);
     
     const price = formatCurrency(service.price);
@@ -121,7 +127,7 @@ export const generateInvoicePDF = (data: InvoiceData, businessInfo: BusinessInfo
   });
 
   data.products.forEach(product => {
-    const name = doc.splitTextToSize(`${product.qty}x ${product.name}`, pageWidth - 30);
+    const name = doc.splitTextToSize(`${product.qty}x ${removeEmojis(product.name)}`, pageWidth - 30);
     doc.text(name, 5, yPos);
     
     const price = formatCurrency(product.price * product.qty);

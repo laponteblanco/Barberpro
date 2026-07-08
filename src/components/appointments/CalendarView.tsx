@@ -1596,8 +1596,8 @@ export function CalendarView({
                     const businessInfo = tenant ? {
                       name: tenant.name || "BARBERÍA",
                       nit: tenant.settings?.business_nit || "NIT NO REGISTRADO",
-                      address: tenant.settings?.business_address || "Dirección no registrada",
-                      phone: tenant.settings?.business_phone || "Teléfono no registrado",
+                      address: tenant.settings?.business_address || tenant.address || "Dirección no registrada",
+                      phone: tenant.settings?.business_phone || tenant.phone || "Teléfono no registrado",
                       regime: tenant.settings?.business_regime || "Régimen no especificado",
                       footerMessage: tenant.settings?.invoice_footer || "¡Gracias por preferirnos! Vuelve pronto."
                     } : undefined;
