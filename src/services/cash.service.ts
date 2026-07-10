@@ -18,29 +18,43 @@ export interface BarberBreakdown {
   name: string;
   commission_rate: number;
   daily_commission_rates: Record<string, number>;
-  /** Número de servicios cobrados en efectivo */
+  /** Número total de citas únicas (sin doble conteo de splits) */
+  appointments_total_count: number;
+  /** Número de servicios cobrados en efectivo (o parcialmente en efectivo) */
   appointments_count: number;
   /** Monto cobrado en efectivo por citas */
   total_cash: number;
-  /** Número de servicios cobrados en digital */
+  /** Número de servicios cobrados en digital (o parcialmente en digital) */
   appointments_digital_count: number;
   /** Monto cobrado en digital por citas */
   total_digital: number;
-  /** Suma de vales/adelantos descontados de la caja física */
+  /** Suma de vales/adelantos totales (cash + digital) */
   total_advances: number;
-  /** Suma de pagos recibidos de vuelta a la caja */
+  /** Vales entregados desde la caja física */
+  total_advances_cash: number;
+  /** Vales entregados desde el fondo digital */
+  total_advances_digital: number;
+  /** Suma de pagos devueltos a la caja totales */
   total_payments: number;
+  /** Pagos devueltos a la caja física */
+  total_payments_cash: number;
+  /** Pagos devueltos al fondo digital */
+  total_payments_digital: number;
   /** Fiados / consignaciones */
   total_consignments: number;
   /** Comisión total calculada (cash + digital) */
   total_commission: number;
   /** Utilidad de la barbería en este barbero */
   total_shop_profit: number;
-  /** Pago neto esperado en EFECTIVO (comisión − vales en cash) */
+  /** Pago neto esperado en EFECTIVO (payout_cash − advances_cash + payments_cash) */
   net_expected_cash: number;
-  /** Cuánto del pago al barbero sale del fondo CASH */
+  /** Pago neto desde fondo CASH después de descontar vales cash */
+  net_payout_cash: number;
+  /** Pago neto desde fondo DIGITAL después de descontar vales digital */
+  net_payout_digital: number;
+  /** Cuánto del pago al barbero sale del fondo CASH (bruto, antes de vales) */
   payout_cash: number;
-  /** Cuánto del pago al barbero sale del fondo DIGITAL */
+  /** Cuánto del pago al barbero sale del fondo DIGITAL (bruto, antes de vales) */
   payout_digital: number;
   /** Desglose de servicios realizados { nombre: cantidad } */
   services_breakdown: Record<string, number>;
@@ -200,9 +214,13 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
 
   const startOfDayISO = getStartOfDayISO(new Date(session.opened_at));
 
+  // End of business day: same day at 05:00 UTC next day = 00:00 Bogotá next day
+  const startOfDayDate = new Date(startOfDayISO);
+  const endOfDayISO = new Date(startOfDayDate.getTime() + 24 * 3600000).toISOString();
+
   // ── Parallel data fetching ───────────────────────────────────────────────────
   const [appointmentsRes, staffRes, salesRes, ledgerRes, expensesRes] = await Promise.all([
-    // 1. Appointments for the day
+    // 1. Appointments for the day — bounded to the business day window
     (adminSupabase as any)
       .from("appointments")
       .select(
@@ -210,7 +228,8 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
       )
       .eq("tenant_id", tenantId)
       .in("status", ["completed", "confirmed"])
-      .gte("start_time", startOfDayISO),
+      .gte("start_time", startOfDayISO)
+      .lt("start_time", endOfDayISO),
 
     // 2. Active barbers (not admin) for commission calculation
     (adminSupabase as any)
@@ -325,16 +344,23 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
       name: s.profiles?.full_name || "Desconocido",
       commission_rate: Number(s.commission_rate || 0),
       daily_commission_rates: s.daily_commission_rates || {},
+      appointments_total_count: 0,
       appointments_count: 0,
       total_cash: 0,
       appointments_digital_count: 0,
       total_digital: 0,
       total_advances: 0,
+      total_advances_cash: 0,
+      total_advances_digital: 0,
       total_payments: 0,
+      total_payments_cash: 0,
+      total_payments_digital: 0,
       total_consignments: 0,
       total_commission: 0,
       total_shop_profit: 0,
       net_expected_cash: 0,
+      net_payout_cash: 0,
+      net_payout_digital: 0,
       payout_cash: 0,
       payout_digital: 0,
       services_breakdown: {},
@@ -345,6 +371,7 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
   ledgerEntries.forEach((item: any) => {
     const staffId = item.staff_id;
     const amt = Number(item.amount || 0);
+    const ledgerMethod: "cash" | "digital" = item.payment_method === "digital" ? "digital" : "cash";
 
     if (!breakdownMap.has(staffId)) {
       breakdownMap.set(staffId, {
@@ -352,16 +379,23 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
         name: "Staff Inactivo",
         commission_rate: 0,
         daily_commission_rates: {},
+        appointments_total_count: 0,
         appointments_count: 0,
         total_cash: 0,
         appointments_digital_count: 0,
         total_digital: 0,
         total_advances: 0,
+        total_advances_cash: 0,
+        total_advances_digital: 0,
         total_payments: 0,
+        total_payments_cash: 0,
+        total_payments_digital: 0,
         total_consignments: 0,
         total_commission: 0,
         total_shop_profit: 0,
         net_expected_cash: 0,
+        net_payout_cash: 0,
+        net_payout_digital: 0,
         payout_cash: 0,
         payout_digital: 0,
         services_breakdown: {},
@@ -369,9 +403,17 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
     }
 
     const b = breakdownMap.get(staffId)!;
-    if (item.type === "advance") b.total_advances += amt;
-    else if (item.type === "payment") b.total_payments += amt;
-    else if (item.type === "consignment") b.total_consignments += amt;
+    if (item.type === "advance") {
+      b.total_advances += amt;
+      if (ledgerMethod === "cash") b.total_advances_cash += amt;
+      else b.total_advances_digital += amt;
+    } else if (item.type === "payment") {
+      b.total_payments += amt;
+      if (ledgerMethod === "cash") b.total_payments_cash += amt;
+      else b.total_payments_digital += amt;
+    } else if (item.type === "consignment") {
+      b.total_consignments += amt;
+    }
   });
 
   // Populate appointment revenue data per barber
@@ -385,16 +427,23 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
         name: app.staff?.profiles?.full_name || "Staff Inactivo",
         commission_rate: 0,
         daily_commission_rates: {},
+        appointments_total_count: 0,
         appointments_count: 0,
         total_cash: 0,
         appointments_digital_count: 0,
         total_digital: 0,
         total_advances: 0,
+        total_advances_cash: 0,
+        total_advances_digital: 0,
         total_payments: 0,
+        total_payments_cash: 0,
+        total_payments_digital: 0,
         total_consignments: 0,
         total_commission: 0,
         total_shop_profit: 0,
         net_expected_cash: 0,
+        net_payout_cash: 0,
+        net_payout_digital: 0,
         payout_cash: 0,
         payout_digital: 0,
         services_breakdown: {},
@@ -404,6 +453,8 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
     const b = breakdownMap.get(staffId)!;
     const { cashAmount, digitalAmount } = resolveAppointmentPayment(app);
 
+    // Count each appointment exactly once (avoid double-counting splits)
+    b.appointments_total_count++;
     if (cashAmount > 0) {
       b.appointments_count++;
       b.total_cash += cashAmount;
@@ -434,12 +485,7 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
   let payoutsDigitalTotal = 0;
 
   breakdownMap.forEach((b) => {
-    // Net cash expected = commission earned − advances taken from cash register + payments returned to cash
-    b.net_expected_cash = b.total_commission - b.total_advances + b.total_payments;
-
-    // The barber's payout can be split: if they earned from cash appointments,
-    // they return cash; if from digital, they consign digitally.
-    // Simplified rule: payout proportional to cash/digital revenue split.
+    // Gross payout per fund: proportional to cash/digital revenue earned
     const totalRevenue = b.total_cash + b.total_digital;
     if (totalRevenue > 0) {
       const cashRatio = b.total_cash / totalRevenue;
@@ -449,6 +495,13 @@ export async function getActiveCashSession(): Promise<ActiveSessionDetails | nul
       b.payout_cash = 0;
       b.payout_digital = 0;
     }
+
+    // Net payout per fund after discounting advances and adding back payments for each fund
+    b.net_payout_cash = b.payout_cash - b.total_advances_cash + b.total_payments_cash;
+    b.net_payout_digital = b.payout_digital - b.total_advances_digital + b.total_payments_digital;
+
+    // Legacy field: net expected from cash register (kept for backwards compatibility)
+    b.net_expected_cash = b.net_payout_cash;
 
     payoutsCashTotal += b.payout_cash;
     payoutsDigitalTotal += b.payout_digital;
@@ -655,16 +708,23 @@ export async function getCashSessionDetailsById(sessionId: string): Promise<Acti
       name: s.profiles?.full_name || "Desconocido",
       commission_rate: Number(s.commission_rate || 0),
       daily_commission_rates: s.daily_commission_rates || {},
+      appointments_total_count: 0,
       appointments_count: 0,
       total_cash: 0,
       appointments_digital_count: 0,
       total_digital: 0,
       total_advances: 0,
+      total_advances_cash: 0,
+      total_advances_digital: 0,
       total_payments: 0,
+      total_payments_cash: 0,
+      total_payments_digital: 0,
       total_consignments: 0,
       total_commission: 0,
       total_shop_profit: 0,
       net_expected_cash: 0,
+      net_payout_cash: 0,
+      net_payout_digital: 0,
       payout_cash: 0,
       payout_digital: 0,
       services_breakdown: {},
@@ -675,6 +735,7 @@ export async function getCashSessionDetailsById(sessionId: string): Promise<Acti
   ledgerEntries.forEach((item: any) => {
     const staffId = item.staff_id;
     const amt = Number(item.amount || 0);
+    const ledgerMethod: "cash" | "digital" = item.payment_method === "digital" ? "digital" : "cash";
 
     if (!breakdownMap.has(staffId)) {
       breakdownMap.set(staffId, {
@@ -682,16 +743,23 @@ export async function getCashSessionDetailsById(sessionId: string): Promise<Acti
         name: "Staff Inactivo",
         commission_rate: 0,
         daily_commission_rates: {},
+        appointments_total_count: 0,
         appointments_count: 0,
         total_cash: 0,
         appointments_digital_count: 0,
         total_digital: 0,
         total_advances: 0,
+        total_advances_cash: 0,
+        total_advances_digital: 0,
         total_payments: 0,
+        total_payments_cash: 0,
+        total_payments_digital: 0,
         total_consignments: 0,
         total_commission: 0,
         total_shop_profit: 0,
         net_expected_cash: 0,
+        net_payout_cash: 0,
+        net_payout_digital: 0,
         payout_cash: 0,
         payout_digital: 0,
         services_breakdown: {},
@@ -699,9 +767,17 @@ export async function getCashSessionDetailsById(sessionId: string): Promise<Acti
     }
 
     const b = breakdownMap.get(staffId)!;
-    if (item.type === "advance") b.total_advances += amt;
-    else if (item.type === "payment") b.total_payments += amt;
-    else if (item.type === "consignment") b.total_consignments += amt;
+    if (item.type === "advance") {
+      b.total_advances += amt;
+      if (ledgerMethod === "cash") b.total_advances_cash += amt;
+      else b.total_advances_digital += amt;
+    } else if (item.type === "payment") {
+      b.total_payments += amt;
+      if (ledgerMethod === "cash") b.total_payments_cash += amt;
+      else b.total_payments_digital += amt;
+    } else if (item.type === "consignment") {
+      b.total_consignments += amt;
+    }
   });
 
   // Populate appointment revenue data per barber
@@ -715,16 +791,23 @@ export async function getCashSessionDetailsById(sessionId: string): Promise<Acti
         name: app.staff?.profiles?.full_name || "Staff Inactivo",
         commission_rate: 0,
         daily_commission_rates: {},
+        appointments_total_count: 0,
         appointments_count: 0,
         total_cash: 0,
         appointments_digital_count: 0,
         total_digital: 0,
         total_advances: 0,
+        total_advances_cash: 0,
+        total_advances_digital: 0,
         total_payments: 0,
+        total_payments_cash: 0,
+        total_payments_digital: 0,
         total_consignments: 0,
         total_commission: 0,
         total_shop_profit: 0,
         net_expected_cash: 0,
+        net_payout_cash: 0,
+        net_payout_digital: 0,
         payout_cash: 0,
         payout_digital: 0,
         services_breakdown: {},
@@ -734,6 +817,8 @@ export async function getCashSessionDetailsById(sessionId: string): Promise<Acti
     const b = breakdownMap.get(staffId)!;
     const { cashAmount, digitalAmount } = resolveAppointmentPayment(app);
 
+    // Count each appointment exactly once (avoid double-counting splits)
+    b.appointments_total_count++;
     if (cashAmount > 0) {
       b.appointments_count++;
       b.total_cash += cashAmount;
@@ -760,7 +845,7 @@ export async function getCashSessionDetailsById(sessionId: string): Promise<Acti
   let payoutsDigitalTotal = 0;
 
   breakdownMap.forEach((b) => {
-    b.net_expected_cash = b.total_commission - b.total_advances + b.total_payments;
+    // Gross payout per fund: proportional to cash/digital revenue earned
     const totalRevenue = b.total_cash + b.total_digital;
     if (totalRevenue > 0) {
       const cashRatio = b.total_cash / totalRevenue;
@@ -770,6 +855,14 @@ export async function getCashSessionDetailsById(sessionId: string): Promise<Acti
       b.payout_cash = 0;
       b.payout_digital = 0;
     }
+
+    // Net payout per fund after discounting advances and adding back payments for each fund
+    b.net_payout_cash = b.payout_cash - b.total_advances_cash + b.total_payments_cash;
+    b.net_payout_digital = b.payout_digital - b.total_advances_digital + b.total_payments_digital;
+
+    // Legacy field: net expected from cash register (kept for backwards compatibility)
+    b.net_expected_cash = b.net_payout_cash;
+
     payoutsCashTotal += b.payout_cash;
     payoutsDigitalTotal += b.payout_digital;
   });

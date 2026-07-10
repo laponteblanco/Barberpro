@@ -108,7 +108,7 @@ export function ReportPreviewPanel({
   isDownloading = false,
 }: ReportPreviewPanelProps) {
   const totalServices = compiledBarbersBreakdown.reduce(
-    (sum, b) => sum + (b.appointments_count || 0) + (b.appointments_digital_count || 0),
+    (sum, b) => sum + (b.appointments_total_count ?? (b.appointments_count || 0)),
     0
   );
 
@@ -282,8 +282,7 @@ export function ReportPreviewPanel({
         ) : (
           <div className="space-y-6 mt-3">
             {compiledBarbersBreakdown.map((barber) => {
-              const totalSvcs =
-                (barber.appointments_count || 0) + (barber.appointments_digital_count || 0);
+              const totalSvcs = barber.appointments_total_count ?? (barber.appointments_count || 0);
               const totalRevenue = (barber.total_cash || 0) + (barber.total_digital || 0);
               return (
                 <div key={barber.id} className="rounded-xl bg-zinc-950/60 border border-white/5 overflow-hidden">
@@ -330,7 +329,7 @@ export function ReportPreviewPanel({
                       />
                     )}
 
-                    {/* Fund discrimination — the core new feature */}
+                    {/* Fund discrimination */}
                     <div className="mt-2 pt-2 border-t border-white/5 space-y-1">
                       <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 pb-1">
                         ¿De qué fondo sale el pago?
@@ -340,7 +339,7 @@ export function ReportPreviewPanel({
                           <Coins className="w-3.5 h-3.5" /> Sale de CAJA FÍSICA
                         </span>
                         <span className="text-xs font-black text-emerald-400 tabular-nums">
-                          {formatCurrency(barber.payout_cash || 0)}
+                          {formatCurrency(barber.net_payout_cash ?? barber.payout_cash ?? 0)}
                         </span>
                       </div>
                       <div className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-cyan-500/5 border border-cyan-500/10">
@@ -348,12 +347,15 @@ export function ReportPreviewPanel({
                           <Smartphone className="w-3.5 h-3.5" /> Sale de FONDO DIGITAL
                         </span>
                         <span className="text-xs font-black text-cyan-400 tabular-nums">
-                          {formatCurrency(barber.payout_digital || 0)}
+                          {formatCurrency(barber.net_payout_digital ?? barber.payout_digital ?? 0)}
                         </span>
                       </div>
                       <Row
                         label={<span className="font-black text-zinc-200">Total Neto a Liquidar</span>}
-                        value={formatCurrency(barber.net_expected_cash || barber.expected_cash || 0)}
+                        value={formatCurrency(
+                          (barber.net_payout_cash ?? barber.payout_cash ?? 0) +
+                          (barber.net_payout_digital ?? barber.payout_digital ?? 0)
+                        )}
                         valueClass="text-primary"
                         bold
                       />

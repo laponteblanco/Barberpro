@@ -592,7 +592,7 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
                           <span className="font-semibold text-zinc-500 flex items-center gap-1.5">
                             <Scissors className="w-3.5 h-3.5 text-primary" /> Servicios Totales:
                           </span>
-                          <span className="font-bold text-white">{barber.appointments_count + barber.appointments_digital_count}</span>
+                          <span className="font-bold text-white">{barber.appointments_total_count ?? (barber.appointments_count + barber.appointments_digital_count)}</span>
                         </div>
                         <div className="flex justify-between items-center text-xs">
                           <span className="font-semibold text-zinc-500 flex items-center gap-1.5">
@@ -725,7 +725,7 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
                               doc.text(`Resumen de Turno: ${barber.name}`, 14, 22);
                               
                               doc.setFontSize(12);
-                              const totalServicios = (barber.appointments_count || 0) + (barber.appointments_digital_count || 0);
+                              const totalServicios = barber.appointments_total_count ?? ((barber.appointments_count || 0) + (barber.appointments_digital_count || 0));
                               const recaudoTotal = (barber.total_cash || 0) + (barber.total_digital || 0);
                               
                               const body = [

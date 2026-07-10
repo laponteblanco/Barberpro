@@ -164,7 +164,7 @@ export async function generateCashClosingPDF(
   );
 
   const totalServices = compiledBarbersBreakdown.reduce(
-    (sum, b) => sum + (b.appointments_count || 0) + (b.appointments_digital_count || 0),
+    (sum, b) => sum + (b.appointments_total_count ?? (b.appointments_count || 0)),
     0
   );
 
@@ -287,7 +287,7 @@ export async function generateCashClosingPDF(
       doc.setTextColor(...COLORS.black);
       doc.text(`Barbero ${index + 1}: ${barber.name}`, 18, currentY + 5.5);
 
-      const totalServicios = (barber.appointments_count || 0) + (barber.appointments_digital_count || 0);
+      const totalServicios = barber.appointments_total_count ?? (barber.appointments_count || 0);
       const recaudoTotal = (barber.total_cash || 0) + (barber.total_digital || 0);
       const commissionRate = barber.commission_rate || 0;
 
@@ -302,18 +302,34 @@ export async function generateCashClosingPDF(
         ["Utilidad de la Barbería", formatCurrency(barber.total_shop_profit || 0)],
       ];
 
-      if ((barber.total_advances || 0) > 0) {
-        barberBody.push(["Vales / Adelantos tomados hoy (−)", `-${formatCurrency(barber.total_advances)}`]);
+      if ((barber.total_advances_cash || 0) > 0) {
+        barberBody.push(["Vales / Adelantos en CAJA FÍSICA (\u2212)", `\u2212${formatCurrency(barber.total_advances_cash)}`]);
       }
-      if ((barber.total_payments || 0) > 0) {
+      if ((barber.total_advances_digital || 0) > 0) {
+        barberBody.push(["Vales / Adelantos en DIGITAL (\u2212)", `\u2212${formatCurrency(barber.total_advances_digital)}`]);
+      }
+      if ((barber.total_advances || 0) > 0 && !(barber.total_advances_cash || 0) && !(barber.total_advances_digital || 0)) {
+        // Fallback for legacy records that don't have per-fund data
+        barberBody.push(["Vales / Adelantos tomados hoy (\u2212)", `\u2212${formatCurrency(barber.total_advances)}`]);
+      }
+      if ((barber.total_payments_cash || 0) > 0) {
+        barberBody.push(["Abonos devueltos a CAJA FÍSICA (+)", `+${formatCurrency(barber.total_payments_cash)}`]);
+      }
+      if ((barber.total_payments_digital || 0) > 0) {
+        barberBody.push(["Abonos devueltos a DIGITAL (+)", `+${formatCurrency(barber.total_payments_digital)}`]);
+      }
+      if ((barber.total_payments || 0) > 0 && !(barber.total_payments_cash || 0) && !(barber.total_payments_digital || 0)) {
+        // Fallback for legacy records
         barberBody.push(["Abonos / Pagos devueltos (+)", `+${formatCurrency(barber.total_payments)}`]);
       }
 
-      // The key discriminated rows
+      // The key discriminated rows — show NET values after advances per fund
+      const netPayoutCash = barber.net_payout_cash ?? barber.payout_cash ?? 0;
+      const netPayoutDigital = barber.net_payout_digital ?? barber.payout_digital ?? 0;
       barberBody.push(
-        ["PAGO AL BARBERO — Sale de CAJA FÍSICA", formatCurrency(barber.payout_cash || 0)],
-        ["PAGO AL BARBERO — Sale de FONDO DIGITAL", formatCurrency(barber.payout_digital || 0)],
-        ["TOTAL NETO A LIQUIDAR AL BARBERO", formatCurrency(barber.expected_cash || barber.net_expected_cash || 0)],
+        ["PAGO AL BARBERO \u2014 Sale de CAJA FÍSICA", formatCurrency(netPayoutCash)],
+        ["PAGO AL BARBERO \u2014 Sale de FONDO DIGITAL", formatCurrency(netPayoutDigital)],
+        ["TOTAL NETO A LIQUIDAR AL BARBERO", formatCurrency(netPayoutCash + netPayoutDigital)],
       );
 
       const payoutCashIdx = barberBody.length - 3;
