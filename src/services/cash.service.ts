@@ -535,8 +535,8 @@ export async function getCashSessionDetailsById(sessionId: string): Promise<Acti
     b.net_payout_cash = b.payout_cash - b.total_advances_cash + b.total_payments_cash;
     b.net_payout_digital = b.payout_digital - b.total_advances_digital + b.total_payments_digital;
 
-    // Legacy field: net expected from cash register (kept for backwards compatibility)
-    b.net_expected_cash = b.net_payout_cash;
+    // Legacy field: net expected from cash register (updated to represent total payout: cash + digital)
+    b.net_expected_cash = b.net_payout_cash + b.net_payout_digital;
 
     payoutsCashTotal += b.payout_cash;
     payoutsDigitalTotal += b.payout_digital;
