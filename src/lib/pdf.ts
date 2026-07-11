@@ -21,6 +21,32 @@ const COLORS = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+export function sanitizeText(str: string | null | undefined): string {
+  if (!str) return "";
+  
+  // Replace minus sign unicode character with standard hyphen
+  let cleaned = str.replace(/\u2212/g, "-");
+  
+  // Replace em-dash or en-dash with standard hyphen
+  cleaned = cleaned.replace(/[\u2013\u2014]/g, "-");
+  
+  // Strip emojis and pictographs using Unicode Property Escapes if supported
+  try {
+    cleaned = cleaned.replace(/\p{Extended_Pictographic}/gu, "");
+  } catch (e) {
+    // Fallback if environment doesn't support Extended_Pictographic property escape
+    cleaned = cleaned.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2B50}]/gu, "");
+  }
+
+  // Remove any character that is not in the basic printable ASCII or Spanish / Latin-1 range (U+0020 to U+00FF)
+  cleaned = cleaned.split("").filter(char => {
+    const code = char.charCodeAt(0);
+    return (code >= 32 && code <= 255) || code === 10 || code === 13;
+  }).join("");
+
+  return cleaned.trim().replace(/\s+/g, " ");
+}
+
 function drawSectionHeader(
   doc: jsPDF,
   title: string,
@@ -132,7 +158,7 @@ export async function generateCashClosingPDF(
   doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(...COLORS.lightGray);
-  doc.text(`${tenantName}  ·  Generado el ${dateStr} a las ${timeStr}`, 30, 27);
+  doc.text(`${sanitizeText(tenantName)}  ·  Generado el ${dateStr} a las ${timeStr}`, 30, 27);
   doc.text(`ID de Sesión: ${session.id}`, 30, 33);
   doc.text(`Apertura: ${formatDate(session.opened_at)} a las ${formatTime(session.opened_at)}`, 30, 39);
 
@@ -285,11 +311,14 @@ export async function generateCashClosingPDF(
       doc.setFontSize(9);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(...COLORS.black);
-      doc.text(`Barbero ${index + 1}: ${barber.name}`, 18, currentY + 5.5);
+      doc.text(`Barbero ${index + 1}: ${sanitizeText(barber.name)}`, 18, currentY + 5.5);
 
       const totalServicios = barber.appointments_total_count ?? (barber.appointments_count || 0);
       const recaudoTotal = (barber.total_cash || 0) + (barber.total_digital || 0);
-      const commissionRate = barber.commission_rate || 0;
+      let commissionRate = barber.commission_rate || 0;
+      if (commissionRate === 0 && recaudoTotal > 0 && (barber.total_commission || 0) > 0) {
+        commissionRate = Math.round(((barber.total_commission || 0) / recaudoTotal) * 100);
+      }
 
       const barberBody: string[][] = [
         ["Servicios realizados (efectivo)", `${barber.appointments_count || 0}`],
@@ -303,14 +332,14 @@ export async function generateCashClosingPDF(
       ];
 
       if ((barber.total_advances_cash || 0) > 0) {
-        barberBody.push(["Vales / Adelantos en CAJA FÍSICA (\u2212)", `\u2212${formatCurrency(barber.total_advances_cash)}`]);
+        barberBody.push(["Vales / Adelantos en CAJA FÍSICA (-)", `-${formatCurrency(barber.total_advances_cash)}`]);
       }
       if ((barber.total_advances_digital || 0) > 0) {
-        barberBody.push(["Vales / Adelantos en DIGITAL (\u2212)", `\u2212${formatCurrency(barber.total_advances_digital)}`]);
+        barberBody.push(["Vales / Adelantos en DIGITAL (-)", `-${formatCurrency(barber.total_advances_digital)}`]);
       }
       if ((barber.total_advances || 0) > 0 && !(barber.total_advances_cash || 0) && !(barber.total_advances_digital || 0)) {
         // Fallback for legacy records that don't have per-fund data
-        barberBody.push(["Vales / Adelantos tomados hoy (\u2212)", `\u2212${formatCurrency(barber.total_advances)}`]);
+        barberBody.push(["Vales / Adelantos tomados hoy (-)", `-${formatCurrency(barber.total_advances)}`]);
       }
       if ((barber.total_payments_cash || 0) > 0) {
         barberBody.push(["Abonos devueltos a CAJA FÍSICA (+)", `+${formatCurrency(barber.total_payments_cash)}`]);
@@ -327,8 +356,8 @@ export async function generateCashClosingPDF(
       const netPayoutCash = barber.net_payout_cash ?? barber.payout_cash ?? 0;
       const netPayoutDigital = barber.net_payout_digital ?? barber.payout_digital ?? 0;
       barberBody.push(
-        ["PAGO AL BARBERO \u2014 Sale de CAJA FÍSICA", formatCurrency(netPayoutCash)],
-        ["PAGO AL BARBERO \u2014 Sale de FONDO DIGITAL", formatCurrency(netPayoutDigital)],
+        ["PAGO AL BARBERO - Sale de CAJA FÍSICA", formatCurrency(netPayoutCash)],
+        ["PAGO AL BARBERO - Sale de FONDO DIGITAL", formatCurrency(netPayoutDigital)],
         ["TOTAL NETO A LIQUIDAR AL BARBERO", formatCurrency(netPayoutCash + netPayoutDigital)],
       );
 
@@ -375,7 +404,7 @@ export async function generateCashClosingPDF(
         autoTable(doc, {
           startY: serviceY,
           head: [["Desglose de Servicios Realizados", "Cantidad"]],
-          body: serviceEntries.map(([name, qty]) => [name, `× ${qty}`]),
+          body: serviceEntries.map(([name, qty]) => [sanitizeText(name), `× ${qty}`]),
           theme: "plain",
           headStyles: {
             fillColor: COLORS.offWhite,
@@ -420,8 +449,8 @@ export async function generateCashClosingPDF(
       startY: currentY,
       head: [["Categoría", "Descripción", "Monto", "Fondo"]],
       body: session.expenses.map((exp) => [
-        exp.category,
-        exp.description || "—",
+        sanitizeText(exp.category),
+        sanitizeText(exp.description) || "-",
         formatCurrency(exp.amount),
         exp.payment_method === "cash" ? "Efectivo" : "Digital",
       ]),
@@ -466,11 +495,11 @@ export async function generateCashClosingPDF(
     currentY = (doc as any).lastAutoTable.finalY + 10;
   }
 
-  // ── SECCIÓN 5: BALANCE FINAL — CUADRE DE CAJA ────────────────────────────────
+  // ── SECCIÓN 5: BALANCE FINAL - CUADRE DE CAJA ────────────────────────────────
   currentY = addPageBreakIfNeeded(doc, currentY, 80);
   currentY = drawSectionHeader(
     doc,
-    "5. Balance Final — Cuadre de Caja",
+    "5. Balance Final - Cuadre de Caja",
     "Fórmula exacta del dinero esperado en cada fondo al cierre del día.",
     currentY,
     COLORS.amber
@@ -481,17 +510,17 @@ export async function generateCashClosingPDF(
     startY: currentY,
     head: [["CÁLCULO", "FONDO FÍSICO (Efectivo)", "FONDO DIGITAL"]],
     body: [
-      ["(+) Base inicial de apertura", formatCurrency(session.opening_balance), "—"],
+      ["(+) Base inicial de apertura", formatCurrency(session.opening_balance), "-"],
       ["(+) Ingresos por citas",
         formatCurrency(session.appointments_cash_total),
         formatCurrency(session.appointments_digital_total)],
-      ["(+) Ingresos por productos", formatCurrency(session.sales_total), "—"],
-      ["(−) Gastos operativos",
-        `−${formatCurrency(session.expenses_cash_total)}`,
-        `−${formatCurrency(session.expenses_digital_total)}`],
-      ["(−) Vales / Adelantos a barberos",
-        `−${formatCurrency(session.ledger_advances_cash || 0)}`,
-        `−${formatCurrency(session.ledger_advances_digital || 0)}`],
+      ["(+) Ingresos por productos", formatCurrency(session.sales_total), "-"],
+      ["(-) Gastos operativos",
+        `-${formatCurrency(session.expenses_cash_total)}`,
+        `-${formatCurrency(session.expenses_digital_total)}`],
+      ["(-) Vales / Adelantos a barberos",
+        `-${formatCurrency(session.ledger_advances_cash || 0)}`,
+        `-${formatCurrency(session.ledger_advances_digital || 0)}`],
       ["(+) Devoluciones a caja",
         `+${formatCurrency(session.ledger_payments_cash || 0)}`,
         `+${formatCurrency(session.ledger_payments_digital || 0)}`],
@@ -546,7 +575,7 @@ export async function generateCashClosingPDF(
         [
           discrepancy === 0 ? "CAJA CUADRADA" :
             discrepancy < 0 ? "FALTANTE DE EFECTIVO" : "SOBRANTE DE EFECTIVO",
-          discrepancy === 0 ? "—" : formatCurrency(Math.abs(discrepancy)),
+          discrepancy === 0 ? "-" : formatCurrency(Math.abs(discrepancy)),
         ],
       ],
       theme: "grid",
@@ -571,6 +600,84 @@ export async function generateCashClosingPDF(
       },
       margin: { left: 14, right: 14 },
     });
+    currentY = (doc as any).lastAutoTable.finalY + 12;
+  }
+
+  // ── SECCIÓN 6: REGISTRO DETALLADO DE TRANSACCIONES ───────────────────────────
+  currentY = addPageBreakIfNeeded(doc, currentY, 50);
+  currentY = drawSectionHeader(
+    doc,
+    "6. Registro Detallado de Transacciones",
+    "Listado de todas las citas y servicios completados en el período.",
+    currentY,
+    COLORS.primary
+  );
+
+  const appointmentsList = session.appointments || [];
+
+  if (appointmentsList.length === 0) {
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...COLORS.midGray);
+    doc.text("No se registraron transacciones en este período.", 14, currentY + 5);
+    currentY += 15;
+  } else {
+    autoTable(doc, {
+      startY: currentY,
+      head: [["Hora", "Barbero", "Cliente", "Servicio", "Monto", "Medio de Pago"]],
+      body: appointmentsList.map((appt: any) => {
+        const timeStr = appt.start_time ? formatTime(appt.start_time) : "-";
+        const barberName = sanitizeText(appt.staff?.profiles?.full_name) || "-";
+        const clientName = sanitizeText(appt.client?.full_name) || "-";
+        const serviceName = sanitizeText(appt.service?.name) || "-";
+        const amount = formatCurrency(appt.total_price || 0);
+        
+        const method = appt.payment_method;
+        let paymentMethodLabel = method || "Otro";
+        if (method === "cash") paymentMethodLabel = "Efectivo";
+        else if (method === "card") paymentMethodLabel = "Tarjeta";
+        else if (method === "nequi") paymentMethodLabel = "Nequi";
+        else if (method === "daviplata") paymentMethodLabel = "Daviplata";
+        else if (method === "transfer") paymentMethodLabel = "Transferencia";
+        else if (method === "split") {
+          const cash = Number(appt.split_cash_amount || 0);
+          const dig = Number(appt.split_digital_amount || 0);
+          const digMethod = appt.split_digital_method || "Digital";
+          const cleanDigMethod = digMethod === "card" ? "Tarjeta" : 
+                                 digMethod === "nequi" ? "Nequi" : 
+                                 digMethod === "daviplata" ? "Daviplata" : 
+                                 digMethod === "transfer" ? "Transferencia" : digMethod;
+          paymentMethodLabel = `Mixto (${formatCurrency(cash)} Efe. / ${formatCurrency(dig)} ${cleanDigMethod})`;
+        }
+
+        return [
+          timeStr,
+          barberName,
+          clientName,
+          serviceName,
+          amount,
+          paymentMethodLabel
+        ];
+      }),
+      theme: "grid",
+      headStyles: {
+        fillColor: COLORS.primary,
+        textColor: COLORS.white,
+        fontStyle: "bold",
+        fontSize: 8,
+      },
+      bodyStyles: { fontSize: 8, textColor: COLORS.black },
+      columnStyles: {
+        0: { cellWidth: 18 },
+        1: { cellWidth: 28, fontStyle: "bold" },
+        2: { cellWidth: 28 },
+        3: { cellWidth: 38 },
+        4: { halign: "right", fontStyle: "bold", cellWidth: 23, textColor: [5, 120, 80] },
+        5: { halign: "right", cellWidth: 35, fontSize: 7 }
+      },
+      margin: { left: 14, right: 14 },
+    });
+
     currentY = (doc as any).lastAutoTable.finalY + 12;
   }
 

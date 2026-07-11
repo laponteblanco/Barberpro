@@ -100,6 +100,26 @@ function Row({
   );
 }
 
+function getPaymentMethodLabel(appt: any): string {
+  const method = appt.payment_method;
+  if (method === "cash") return "Efectivo";
+  if (method === "card") return "Tarjeta";
+  if (method === "nequi") return "Nequi";
+  if (method === "daviplata") return "Daviplata";
+  if (method === "transfer") return "Transferencia";
+  if (method === "split") {
+    const cash = Number(appt.split_cash_amount || 0);
+    const dig = Number(appt.split_digital_amount || 0);
+    const digMethod = appt.split_digital_method || "Digital";
+    const cleanDigMethod = digMethod === "card" ? "Tarjeta" : 
+                           digMethod === "nequi" ? "Nequi" : 
+                           digMethod === "daviplata" ? "Daviplata" : 
+                           digMethod === "transfer" ? "Transferencia" : digMethod;
+    return `Mixto (${formatCurrency(cash)} Efe. / ${formatCurrency(dig)} ${cleanDigMethod})`;
+  }
+  return method || "Otro";
+}
+
 export function ReportPreviewPanel({
   session,
   compiledBarbersBreakdown,
@@ -500,6 +520,58 @@ export function ReportPreviewPanel({
           <span className="text-2xl font-black text-primary tabular-nums">
             {formatCurrency(session.expected_balance)}
           </span>
+        </div>
+      </SectionCard>
+
+      {/* ── Sección 6: Registro Detallado de Transacciones ─────────────────── */}
+      <SectionCard
+        title="6. Registro Detallado de Transacciones"
+        accentClass="bg-indigo-500/10 text-indigo-400"
+        icon={<Receipt className="w-4 h-4" />}
+        defaultOpen={false}
+      >
+        <div className="mt-3 overflow-x-auto">
+          {(!session.appointments || session.appointments.length === 0) ? (
+            <p className="text-zinc-500 text-xs font-medium mt-3">
+              No se registraron transacciones en este período.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-white/10 text-[9px] font-black uppercase tracking-widest text-zinc-500">
+                    <th className="py-2">Hora</th>
+                    <th className="py-2">Barbero</th>
+                    <th className="py-2">Cliente</th>
+                    <th className="py-2">Servicio</th>
+                    <th className="py-2 text-right">Monto</th>
+                    <th className="py-2 text-right">Medio de Pago</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/[0.04]">
+                  {session.appointments.map((appt: any) => {
+                    const timeStr = appt.start_time ? formatTime(appt.start_time) : "—";
+                    const barberName = appt.staff?.profiles?.full_name || "—";
+                    const clientName = appt.client?.full_name || "—";
+                    const serviceName = appt.service?.name || "—";
+                    const amount = formatCurrency(appt.total_price || 0);
+                    const paymentMethodLabel = getPaymentMethodLabel(appt);
+                    
+                    return (
+                      <tr key={appt.id} className="text-zinc-300 hover:bg-white/[0.01]">
+                        <td className="py-2.5 font-medium tabular-nums">{timeStr}</td>
+                        <td className="py-2.5 font-bold text-white">{barberName}</td>
+                        <td className="py-2.5">{clientName}</td>
+                        <td className="py-2.5 max-w-[150px] truncate" title={serviceName}>{serviceName}</td>
+                        <td className="py-2.5 text-right font-black text-emerald-400 tabular-nums">{amount}</td>
+                        <td className="py-2.5 text-right font-semibold text-zinc-400">{paymentMethodLabel}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </SectionCard>
     </div>

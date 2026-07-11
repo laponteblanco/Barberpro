@@ -215,20 +215,11 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
         const discrepancy = actualNum - expectedNum;
         
         return {
-          id: b.id,
-          name: b.name,
-          appointments_count: b.appointments_count,
+          ...b,
           expected_cash: expectedNum,
           actual_cash: actualNum,
           discrepancy: discrepancy,
           is_verified: delivery?.isConfirmed || false,
-          total_advances: b.total_advances || 0,
-          total_payments: b.total_payments || 0,
-          total_consignments: b.total_consignments || 0,
-          total_cash: b.total_cash || 0,
-          total_digital: b.total_digital || 0,
-          total_commission: b.total_commission || 0,
-          total_shop_profit: b.total_shop_profit || 0
         };
       });
 

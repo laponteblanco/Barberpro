@@ -54,11 +54,11 @@ export function StaffSummaryDialog({ barber, appointments, onClose, theme = "dar
 
   const completedAppts = appointments.filter(a => a.status === 'completed' || a.status === 'confirmed');
   
-  const totalValue = completedAppts.reduce((acc, a) => acc + (a.service?.price || 0), 0);
+  const totalValue = completedAppts.reduce((acc, a) => acc + (a.total_price || 0), 0);
   
   // Calculate exact commissions based on day of week for each appointment
   const commissionValue = completedAppts.reduce((acc, appt) => {
-    const price = Number(appt.service?.price || 0);
+    const price = Number(appt.total_price || 0);
     const dayIndex = getBogotaTime(appt.start_time).dayIndex;
     const rate = barber.daily_commission_rates?.[String(dayIndex)] ?? barber.commission_rate ?? 0;
     return acc + (price * (rate / 100));
@@ -337,13 +337,13 @@ export function StaffSummaryDialog({ barber, appointments, onClose, theme = "dar
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-black text-emerald-500">{formatter.format(appt.service?.price || 0)}</p>
+                        <p className="text-sm font-black text-emerald-500">{formatter.format(appt.total_price || 0)}</p>
                         {(() => {
                           const dayIndex = getBogotaTime(appt.start_time).dayIndex;
                           const rate = barber.daily_commission_rates?.[String(dayIndex)] ?? barber.commission_rate ?? 0;
                           return (
                             <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-tighter">
-                              Comisión ({rate}%): {formatter.format((appt.service?.price || 0) * (rate / 100))}
+                              Comisión ({rate}%): {formatter.format((appt.total_price || 0) * (rate / 100))}
                             </p>
                           );
                         })()}
