@@ -93,6 +93,8 @@ export async function publicCreateAppointmentAction(
   }
 
   // 1.5. Validate that client doesn't already have an active appointment (pending or confirmed)
+  // Disabled to allow multiple service scheduling at different times
+  /*
   const { data: activeAppointment, error: activeError } = await (adminSupabase as any)
     .from("appointments")
     .select("id")
@@ -108,6 +110,7 @@ export async function publicCreateAppointmentAction(
   if (activeAppointment) {
     throw new Error("Ya tienes una cita activa programada. Completa o cancela tu cita antes de agendar otra.");
   }
+  */
 
   if (!appointmentData.serviceIds || appointmentData.serviceIds.length === 0) {
     throw new Error("Debe seleccionar al menos un servicio");
@@ -272,6 +275,171 @@ export async function publicCancelAppointmentAction(
 
   if (updateError) {
     throw new Error("No pudimos cancelar tu cita: " + updateError.message);
+  }
+
+  revalidatePath("/dashboard/appointments");
+  revalidatePath(`/${tenantId}`);
+
+  return { success: true };
+}
+
+export async function publicCreateMultipleAppointmentsAction(
+  tenantId: string,
+  clientData: { 
+    id: string | null; 
+    name: string; 
+    phone: string; 
+    cedula: string; 
+    birthDate?: string; 
+    email?: string; 
+    notes?: string;
+  },
+  appointmentsData: Array<{
+    staffId: string;
+    serviceId: string;
+    date: string;
+    time: string;
+  }>
+) {
+  const adminSupabase = await createAdminClient();
+
+  let client_id = clientData.id;
+
+  // Verify that the client_id actually exists in the clients table for this tenant
+  if (client_id) {
+    const { data: exists } = await (adminSupabase as any)
+      .from("clients")
+      .select("id")
+      .eq("id", client_id)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+
+    if (!exists) {
+      const { data: linkedClient } = await (adminSupabase as any)
+        .from("clients")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("user_id", client_id)
+        .maybeSingle();
+
+      if (linkedClient) {
+        client_id = linkedClient.id;
+      } else {
+        client_id = null;
+      }
+    }
+  }
+
+  // 1. If no client ID provided, find or create in the CLIENTS table
+  if (!client_id) {
+    const { data: existing } = await (adminSupabase as any)
+      .from("clients")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("id_number", clientData.cedula)
+      .maybeSingle();
+
+    if (existing) {
+      client_id = existing.id;
+    } else {
+      const { data: profile } = await (adminSupabase as any)
+        .from("profiles")
+        .select("id")
+        .eq("id_number", clientData.cedula)
+        .maybeSingle();
+
+      const { data: newClient, error: clientError } = await (adminSupabase as any)
+        .from("clients")
+        .insert({
+          tenant_id: tenantId,
+          user_id: profile?.id || null,
+          full_name: clientData.name,
+          phone: clientData.phone,
+          id_number: clientData.cedula,
+          birth_date: clientData.birthDate || null,
+          email: clientData.email || null,
+          notes: clientData.notes || null
+        })
+        .select("id")
+        .single();
+
+      if (clientError || !newClient) {
+        console.error("Error creating client:", clientError);
+        throw new Error("No pudimos registrar tus datos de cliente.");
+      }
+      client_id = newClient.id;
+    }
+  }
+
+  if (!appointmentsData || appointmentsData.length === 0) {
+    throw new Error("Debe programar al menos un servicio");
+  }
+
+  // Fetch all required services to compute price and duration
+  const serviceIds = appointmentsData.map(item => item.serviceId);
+  const { data: services } = await (adminSupabase as any)
+    .from("services")
+    .select("id, duration_minutes, price, name")
+    .in("id", serviceIds);
+
+  if (!services || services.length === 0) throw new Error("Servicios no encontrados");
+  const serviceMap = new Map<string, any>(services.map((s: any) => [s.id, s]));
+
+  // 2. Perform availability / overlapping validation for each appointment
+  for (const item of appointmentsData) {
+    const svc = serviceMap.get(item.serviceId);
+    if (!svc) throw new Error("Servicio no encontrado");
+
+    const duration = svc.duration_minutes || 30;
+    const start_time = new Date(`${item.date}T${item.time}:00-05:00`);
+    const end_time = new Date(start_time.getTime() + duration * 60000);
+
+    const { data: overlapping, error: overlapError } = await (adminSupabase as any)
+      .from("appointments")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("staff_id", item.staffId)
+      .in("status", ["pending", "confirmed", "completed"])
+      .lt("start_time", end_time.toISOString())
+      .gt("end_time", start_time.toISOString());
+
+    if (overlapError) {
+      console.error("Error checking overlapping appointments:", overlapError);
+    }
+
+    if (overlapping && overlapping.length > 0) {
+      throw new Error(`El barbero seleccionado ya tiene una cita programada que interfiere con el servicio ${svc.name} a las ${item.time}. Por favor selecciona otro espacio.`);
+    }
+  }
+
+  // 3. Create all appointments
+  for (const item of appointmentsData) {
+    const svc = serviceMap.get(item.serviceId);
+    const duration = svc.duration_minutes || 30;
+    const price = Number(svc.price || 0);
+
+    const start_time = new Date(`${item.date}T${item.time}:00-05:00`);
+    const end_time = new Date(start_time.getTime() + duration * 60000);
+
+    const { data: appt, error } = await (adminSupabase as any).from("appointments").insert({
+      tenant_id: tenantId,
+      client_id,
+      staff_id: item.staffId,
+      service_id: item.serviceId,
+      start_time: start_time.toISOString(),
+      end_time: end_time.toISOString(),
+      total_price: price,
+      status: 'pending'
+    }).select('id').single();
+
+    if (error) {
+      throw new Error("No pudimos agendar tu cita para " + svc.name + ": " + error.message);
+    }
+
+    await (adminSupabase as any).from("appointment_services").insert({
+      appointment_id: appt.id,
+      service_id: item.serviceId
+    });
   }
 
   revalidatePath("/dashboard/appointments");

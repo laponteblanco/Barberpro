@@ -22,7 +22,7 @@ import {
   CreditCard
 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
-import { publicCreateAppointmentAction, publicCancelAppointmentAction } from "@/app/[slug]/actions";
+import { publicCreateAppointmentAction, publicCancelAppointmentAction, publicCreateMultipleAppointmentsAction } from "@/app/[slug]/actions";
 import { TimeSlotPicker } from "@/components/booking/TimeSlotPicker";
 import type { SlotGroup } from "@/lib/scheduling";
 
@@ -71,7 +71,12 @@ export function BookingPortal({ tenant, staff, services, initialBarberId }: Book
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [selectedTime, setSelectedTime] = useState<string>("");
 
+  const [currentServiceIndex, setCurrentServiceIndex] = useState(0);
+  const [scheduledServices, setScheduledServices] = useState<any[]>([]);
+
   const startBooking = () => {
+    setCurrentServiceIndex(0);
+    setScheduledServices([]);
     if (initialBarberId) {
       const barber = staff.find(s => s.id === initialBarberId);
       if (barber) {
@@ -146,12 +151,14 @@ export function BookingPortal({ tenant, staff, services, initialBarberId }: Book
     if (step === "select-time" && selectedStaff && selectedDate) {
       fetchSlots();
     }
-  }, [step, selectedStaff, selectedDate]);
+  }, [step, selectedStaff, selectedDate, currentServiceIndex]);
 
   const fetchSlots = async () => {
     setLoading(true);
     try {
-      const serviceIdsStr = selectedServices.map((s: any) => s.id).join(",");
+      const currentService = selectedServices[currentServiceIndex] || selectedServices[0];
+      if (!currentService) return;
+      const serviceIdsStr = currentService.id;
       const res = await fetch(
         `/api/tenants/${tenant.id}/staff/${selectedStaff.id}/availability?date=${selectedDate}&service_ids=${serviceIdsStr}`
       );
@@ -183,26 +190,49 @@ export function BookingPortal({ tenant, staff, services, initialBarberId }: Book
   const handleFinalBooking = async () => {
     setLoading(true);
     try {
-      await publicCreateAppointmentAction(
-        tenant.id,
-        {
-          id: client?.id || null,
-          name: client?.full_name || newName,
-          phone: client?.phone || newPhone,
-          cedula: idNumber,
-          birthDate: newBirthDate,
-          email: newEmail,
-          notes: newNotes
-        },
-        {
-          staffId: selectedStaff.id,
-          serviceIds: selectedServices.map(s => s.id),
-          date: selectedDate,
-          time: selectedTime,
-          isFragmented: selectedTime.startsWith("frag-"),
-          fragmentedSlots: selectedTime.startsWith("frag-") ? fragmentedOptions[parseInt(selectedTime.split("-")[1])]?.slots : null
-        }
-      );
+      if (selectedServices.length > 1) {
+        const appointmentsData = scheduledServices.map(sch => ({
+          staffId: sch.staffId,
+          serviceId: sch.serviceId,
+          date: sch.date,
+          time: sch.time
+        }));
+        
+        await publicCreateMultipleAppointmentsAction(
+          tenant.id,
+          {
+            id: client?.id || null,
+            name: client?.full_name || newName,
+            phone: client?.phone || newPhone,
+            cedula: idNumber,
+            birthDate: newBirthDate,
+            email: newEmail,
+            notes: newNotes
+          },
+          appointmentsData
+        );
+      } else {
+        await publicCreateAppointmentAction(
+          tenant.id,
+          {
+            id: client?.id || null,
+            name: client?.full_name || newName,
+            phone: client?.phone || newPhone,
+            cedula: idNumber,
+            birthDate: newBirthDate,
+            email: newEmail,
+            notes: newNotes
+          },
+          {
+            staffId: selectedStaff.id,
+            serviceIds: selectedServices.map(s => s.id),
+            date: selectedDate,
+            time: selectedTime,
+            isFragmented: selectedTime.startsWith("frag-"),
+            fragmentedSlots: selectedTime.startsWith("frag-") ? fragmentedOptions[parseInt(selectedTime.split("-")[1])]?.slots : null
+          }
+        );
+      }
       
       // Refresh the history so the newly scheduled appointment shows up immediately
       await refreshClientData();
@@ -641,12 +671,34 @@ export function BookingPortal({ tenant, staff, services, initialBarberId }: Book
     </div>
   );
 
+  const handleServiceTimeSelected = (time: string) => {
+    const currentService = selectedServices[currentServiceIndex];
+    const newScheduledItem = {
+      serviceId: currentService.id,
+      serviceName: currentService.name,
+      staffId: selectedStaff.id,
+      staffName: selectedStaff.name,
+      date: selectedDate,
+      time: time,
+      price: Number(currentService.price || 0),
+      duration: Number(currentService.duration_minutes || 30)
+    };
+
+    const nextScheduled = [...scheduledServices];
+    nextScheduled[currentServiceIndex] = newScheduledItem;
+    setScheduledServices(nextScheduled);
+
+    if (currentServiceIndex < selectedServices.length - 1) {
+      setCurrentServiceIndex(prev => prev + 1);
+      setSelectedTime("");
+    } else {
+      setStep("confirm");
+    }
+  };
+
   const renderTimeSelection = () => {
-    // Duración total de los servicios seleccionados
-    const totalDuration = selectedServices.reduce(
-      (acc: number, s: any) => acc + (Number(s.duration_minutes) || 0),
-      0
-    );
+    const currentService = selectedServices[currentServiceIndex];
+    const currentDuration = currentService ? Number(currentService.duration_minutes || 30) : 30;
     const hasSlots = slotGroups.length > 0 || availableSlots.length > 0;
 
     return (
@@ -654,7 +706,19 @@ export function BookingPortal({ tenant, staff, services, initialBarberId }: Book
         {/* ── Encabezado ── */}
         <div className="flex items-center justify-between mb-12">
           <button
-            onClick={() => setStep("select-service")}
+            onClick={() => {
+              if (currentServiceIndex > 0) {
+                const prevIndex = currentServiceIndex - 1;
+                setCurrentServiceIndex(prevIndex);
+                const prevScheduled = scheduledServices[prevIndex];
+                if (prevScheduled) {
+                  setSelectedDate(prevScheduled.date);
+                  setSelectedTime(prevScheduled.time);
+                }
+              } else {
+                setStep("select-service");
+              }
+            }}
             className="p-3 hover:bg-white/10 rounded-2xl text-zinc-400 transition-colors"
           >
             <ArrowLeft className="w-6 h-6" />
@@ -662,7 +726,7 @@ export function BookingPortal({ tenant, staff, services, initialBarberId }: Book
           <div className="text-right">
             <h2 className="text-2xl font-black uppercase tracking-tight">Elige Horario</h2>
             <p className="text-[10px] text-zinc-500 font-black uppercase tracking-[0.2em]">
-              Paso 3 de 3
+              Servicio {currentServiceIndex + 1} de {selectedServices.length}: {currentService?.name}
             </p>
           </div>
         </div>
@@ -695,9 +759,9 @@ export function BookingPortal({ tenant, staff, services, initialBarberId }: Book
                   Horas Disponibles
                 </h3>
               </div>
-              {totalDuration > 0 && !loading && hasSlots && (
+              {currentDuration > 0 && !loading && hasSlots && (
                 <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/15">
-                  {totalDuration} min por cita
+                  {currentDuration} min por servicio
                 </span>
               )}
             </div>
@@ -708,10 +772,10 @@ export function BookingPortal({ tenant, staff, services, initialBarberId }: Book
               slots={availableSlots}
               selected={selectedTime}
               loading={loading}
-              serviceDuration={totalDuration || undefined}
+              serviceDuration={currentDuration || undefined}
               onSelect={(time) => {
                 setSelectedTime(time);
-                setStep("confirm");
+                handleServiceTimeSelected(time);
               }}
               emptyMessage="No hay horarios disponibles para este día. Intenta con otra fecha."
             />
@@ -769,42 +833,66 @@ export function BookingPortal({ tenant, staff, services, initialBarberId }: Book
 
       <div className="glass-card p-8 rounded-[40px] border-white/5 bg-zinc-900/20 space-y-8 relative overflow-hidden mb-10">
         <div className="space-y-6 relative z-10">
-          <div className="flex items-start gap-5">
-            <div className="w-12 h-12 shrink-0 rounded-2xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20 mt-1">
-              <Scissors className="w-6 h-6" />
-            </div>
-            <div className="flex-1">
-              <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Servicios</p>
-              <div className="space-y-2 mt-1">
-                {selectedServices.map(service => (
-                  <p key={service.id} className="text-sm font-black">{service.name}</p>
+          {selectedServices.length > 1 ? (
+            <div className="space-y-4">
+              <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Programación de Servicios</p>
+              <div className="space-y-3">
+                {scheduledServices.map((sch, i) => (
+                  <div key={i} className="bg-zinc-950/40 p-4 rounded-2xl border border-white/5 space-y-1">
+                    <p className="text-sm font-black text-white">{sch.serviceName}</p>
+                    <p className="text-[10px] font-bold text-zinc-400">
+                      Barbero: <span className="text-white">{sch.staffName}</span>
+                    </p>
+                    <p className="text-[10px] font-bold text-zinc-400">
+                      Fecha: <span className="text-white capitalize">{new Date(sch.date + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+                    </p>
+                    <p className="text-[10px] font-bold text-zinc-400">
+                      Hora: <span className="text-primary font-black">{sch.time}</span>
+                    </p>
+                  </div>
                 ))}
               </div>
             </div>
-          </div>
+          ) : (
+            <>
+              <div className="flex items-start gap-5">
+                <div className="w-12 h-12 shrink-0 rounded-2xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20 mt-1">
+                  <Scissors className="w-6 h-6" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Servicios</p>
+                  <div className="space-y-2 mt-1">
+                    {selectedServices.map(service => (
+                      <p key={service.id} className="text-sm font-black">{service.name}</p>
+                    ))}
+                  </div>
+                </div>
+              </div>
 
-          <div className="flex items-center gap-5">
-            <div className="w-12 h-12 rounded-2xl bg-zinc-800 flex items-center justify-center text-zinc-400 border border-white/5">
-              <User className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Barbero</p>
-              <p className="text-lg font-black">{selectedStaff?.name}</p>
-            </div>
-          </div>
+              <div className="flex items-center gap-5">
+                <div className="w-12 h-12 rounded-2xl bg-zinc-800 flex items-center justify-center text-zinc-400 border border-white/5">
+                  <User className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Barbero</p>
+                  <p className="text-lg font-black">{selectedStaff?.name}</p>
+                </div>
+              </div>
 
-          <div className="flex items-center gap-5">
-            <div className="w-12 h-12 rounded-2xl bg-zinc-800 flex items-center justify-center text-zinc-400 border border-white/5">
-              <Calendar className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Fecha y Hora</p>
-              <p className="text-lg font-black capitalize">
-                {new Date(selectedDate + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
-                <span className="text-primary ml-2">{selectedTime}</span>
-              </p>
-            </div>
-          </div>
+              <div className="flex items-center gap-5">
+                <div className="w-12 h-12 rounded-2xl bg-zinc-800 flex items-center justify-center text-zinc-400 border border-white/5">
+                  <Calendar className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Fecha y Hora</p>
+                  <p className="text-lg font-black capitalize">
+                    {new Date(selectedDate + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
+                    <span className="text-primary ml-2">{selectedTime}</span>
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* If New Client, show read-only registration details summary */}
@@ -848,7 +936,17 @@ export function BookingPortal({ tenant, staff, services, initialBarberId }: Book
 
       <div className="flex gap-4">
         <button 
-          onClick={() => setStep("select-time")}
+          onClick={() => {
+            if (selectedServices.length > 1) {
+              setCurrentServiceIndex(selectedServices.length - 1);
+              const lastScheduled = scheduledServices[selectedServices.length - 1];
+              if (lastScheduled) {
+                setSelectedDate(lastScheduled.date);
+                setSelectedTime(lastScheduled.time);
+              }
+            }
+            setStep("select-time");
+          }}
           className="p-5 rounded-[32px] border border-white/5 hover:bg-white/5 text-zinc-400 transition-all"
         >
           <ArrowLeft className="w-6 h-6" />
@@ -871,30 +969,57 @@ export function BookingPortal({ tenant, staff, services, initialBarberId }: Book
          <CheckCircle2 className="w-12 h-12" />
       </div>
       <h2 className="text-4xl font-black mb-4">¡Cita Agendada!</h2>
-      <p className="text-zinc-500 font-medium leading-relaxed mb-10 px-6 uppercase tracking-widest text-[10px]">
-        Tu reserva en <span className="text-white">{tenant.name}</span> ha sido confirmada. Te esperamos el <span className="text-white">{selectedDate}</span> a las <span className="text-primary font-black">{selectedTime}</span>.
-      </p>
+      {selectedServices.length > 1 ? (
+        <p className="text-zinc-500 font-medium leading-relaxed mb-10 px-6 uppercase tracking-widest text-[10px]">
+          Tus reservas en <span className="text-white">{tenant.name}</span> han sido confirmadas. Te esperamos en los horarios seleccionados.
+        </p>
+      ) : (
+        <p className="text-zinc-500 font-medium leading-relaxed mb-10 px-6 uppercase tracking-widest text-[10px]">
+          Tu reserva en <span className="text-white">{tenant.name}</span> ha sido confirmada. Te esperamos el <span className="text-white">{selectedDate}</span> a las <span className="text-primary font-black">{selectedTime}</span>.
+        </p>
+      )}
       
       <div className="glass-card p-6 rounded-[32px] border-white/5 bg-zinc-900/20 mb-10">
-         <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-4">Resumen de tu Cita</p>
-         <div className="space-y-3">
-            <div className="flex justify-between items-start text-xs font-bold uppercase tracking-tighter">
-                <span className="text-zinc-500">Servicios</span>
-                <div className="text-right space-y-1 max-w-[60%]">
-                  {selectedServices.map(s => (
-                    <p key={s.id} className="text-white truncate">{s.name}</p>
-                  ))}
+         <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-4">Resumen de tus Reservas</p>
+         {selectedServices.length > 1 ? (
+            <div className="space-y-4">
+               {scheduledServices.map((sch, i) => (
+                 <div key={i} className="flex justify-between items-start text-xs font-bold uppercase tracking-tighter text-left border-b border-white/5 pb-2 last:border-b-0 last:pb-0">
+                    <div>
+                      <p className="text-white truncate">{sch.serviceName}</p>
+                      <p className="text-[9px] text-zinc-500 font-black mt-0.5">{sch.staffName}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-primary font-black">{sch.time}</p>
+                      <p className="text-[9px] text-zinc-500 font-black mt-0.5">{sch.date}</p>
+                    </div>
+                 </div>
+               ))}
+               <div className="flex justify-between text-xs font-bold uppercase tracking-tighter border-t border-white/5 pt-3 mt-1">
+                  <span className="text-zinc-500">Valor Total</span>
+                  <span className="text-primary font-black">{formatCurrency(selectedServices.reduce((acc, s) => acc + (s.price || 0), 0))}</span>
+               </div>
+            </div>
+         ) : (
+            <div className="space-y-3">
+               <div className="flex justify-between items-start text-xs font-bold uppercase tracking-tighter">
+                   <span className="text-zinc-500">Servicios</span>
+                   <div className="text-right space-y-1 max-w-[60%]">
+                     {selectedServices.map(s => (
+                       <p key={s.id} className="text-white truncate">{s.name}</p>
+                     ))}
+                   </div>
                 </div>
-             </div>
-             <div className="flex justify-between text-xs font-bold uppercase tracking-tighter pt-2">
-                <span className="text-zinc-500">Barbero</span>
-                <span className="text-white">{selectedStaff?.name}</span>
-             </div>
-             <div className="flex justify-between text-xs font-bold uppercase tracking-tighter border-t border-white/5 pt-3 mt-1">
-                <span className="text-zinc-500">Valor Total</span>
-                <span className="text-primary font-black">{formatCurrency(selectedServices.reduce((acc, s) => acc + (s.price || 0), 0))}</span>
-             </div>
-         </div>
+                <div className="flex justify-between text-xs font-bold uppercase tracking-tighter pt-2">
+                   <span className="text-zinc-500">Barbero</span>
+                   <span className="text-white">{selectedStaff?.name}</span>
+                </div>
+                <div className="flex justify-between text-xs font-bold uppercase tracking-tighter border-t border-white/5 pt-3 mt-1">
+                   <span className="text-zinc-500">Valor Total</span>
+                   <span className="text-primary font-black">{formatCurrency(selectedServices.reduce((acc, s) => acc + (s.price || 0), 0))}</span>
+                </div>
+            </div>
+         )}
       </div>
 
       <button 
@@ -902,6 +1027,8 @@ export function BookingPortal({ tenant, staff, services, initialBarberId }: Book
           setSelectedServices([]);
           setSelectedStaff(null);
           setSelectedTime("");
+          setCurrentServiceIndex(0);
+          setScheduledServices([]);
           if (idNumber) {
             setStep("history");
           } else {

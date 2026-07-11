@@ -239,6 +239,8 @@ export async function getCashSessionDetailsById(sessionId: string): Promise<Acti
   if (error || !session) return null;
 
   const openedAtISO = session.opened_at;
+  // Subtract 3 hours buffer from opened_at to catch appointments starting slightly before the shift
+  const queryStartISO = new Date(new Date(openedAtISO).getTime() - 3 * 3600000).toISOString();
   // If session is closed, fetch only up to closed_at, otherwise fetch everything after opened_at
   const closedAtISO = session.closed_at || new Date().toISOString();
 
@@ -252,7 +254,7 @@ export async function getCashSessionDetailsById(sessionId: string): Promise<Acti
       )
       .eq("tenant_id", tenantId)
       .in("status", ["completed", "confirmed"])
-      .gte("start_time", openedAtISO)
+      .gte("start_time", queryStartISO)
       .lte("start_time", closedAtISO),
 
     // 2. Active barbers (not admin) for commission calculation
