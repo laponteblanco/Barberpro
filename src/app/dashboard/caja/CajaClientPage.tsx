@@ -564,7 +564,7 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
                         <div className="min-w-0">
                           <h4 className="text-sm font-black text-white truncate leading-tight">{barber.name}</h4>
                           <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-0.5">
-                            {barber.appointments_count + barber.appointments_digital_count} servicios realizados
+                            {barber.appointments_total_count} servicios realizados
                           </p>
                         </div>
                       </div>
@@ -1121,14 +1121,14 @@ export function CajaClientPage({ activeSession, history }: CajaClientPageProps) 
                                     const actualC = b.actual_cash ?? 0;
                                     const discrepancyC = actualC - expectedC;
                                     const digitalC = b.total_digital ?? 0;
-                                    const totalServ = (b.appointments_count || 0) + (b.appointments_digital_count || 0);
+                                    const totalServ = b.appointments_total_count ?? ((b.appointments_count || 0) + (b.appointments_digital_count || 0));
 
                                     return (
                                       <div key={b.id} className="rounded-xl border border-white/5 bg-zinc-900/30 p-4 space-y-3">
                                         <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-2">
                                           <span className="font-black text-white text-xs">{b.name}</span>
                                           <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">
-                                            {totalServ === 1 ? "1 cita" : `${totalServ} citas`}
+                                            {totalServ === 1 ? "1 servicio" : `${totalServ} servicios`}
                                           </span>
                                         </div>
                                         

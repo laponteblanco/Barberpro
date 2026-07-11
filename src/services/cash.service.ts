@@ -58,6 +58,7 @@ export interface BarberBreakdown {
   payout_digital: number;
   /** Desglose de servicios realizados { nombre: cantidad } */
   services_breakdown: Record<string, number>;
+  is_active?: boolean;
 }
 
 export interface ActiveSessionDetails {
@@ -247,7 +248,7 @@ export async function getCashSessionDetailsById(sessionId: string): Promise<Acti
     (adminSupabase as any)
       .from("appointments")
       .select(
-        "total_price, payment_method, split_cash_amount, split_digital_amount, split_digital_method, start_time, staff_id, staff:tenant_staff(id, profiles(full_name)), service:services(name), client:clients(full_name)"
+        "id, total_price, payment_method, split_cash_amount, split_digital_amount, split_digital_method, start_time, staff_id, staff:tenant_staff(id, profiles(full_name)), service:services(name), client:clients(full_name), appointment_services(services(id, name))"
       )
       .eq("tenant_id", tenantId)
       .in("status", ["completed", "confirmed"])
@@ -257,7 +258,7 @@ export async function getCashSessionDetailsById(sessionId: string): Promise<Acti
     // 2. Active barbers (not admin) for commission calculation
     (adminSupabase as any)
       .from("tenant_staff")
-      .select("id, role, commission_rate, daily_commission_rates, profiles(full_name)")
+      .select("id, role, is_active, commission_rate, daily_commission_rates, profiles(full_name)")
       .eq("tenant_id", tenantId)
       .neq("role", "admin"), // Don't filter by is_active so we catch inactive barbers who worked that day
 
@@ -368,6 +369,7 @@ export async function getCashSessionDetailsById(sessionId: string): Promise<Acti
       name: s.profiles?.full_name || "Desconocido",
       commission_rate: Number(s.commission_rate || 0),
       daily_commission_rates: s.daily_commission_rates || {},
+      is_active: s.is_active ?? true,
       appointments_total_count: 0,
       appointments_count: 0,
       total_cash: 0,
@@ -403,6 +405,7 @@ export async function getCashSessionDetailsById(sessionId: string): Promise<Acti
         name: "Staff Inactivo",
         commission_rate: 0,
         daily_commission_rates: {},
+        is_active: false,
         appointments_total_count: 0,
         appointments_count: 0,
         total_cash: 0,
@@ -451,6 +454,7 @@ export async function getCashSessionDetailsById(sessionId: string): Promise<Acti
         name: app.staff?.profiles?.full_name || "Staff Inactivo",
         commission_rate: 0,
         daily_commission_rates: {},
+        is_active: false,
         appointments_total_count: 0,
         appointments_count: 0,
         total_cash: 0,
@@ -476,15 +480,17 @@ export async function getCashSessionDetailsById(sessionId: string): Promise<Acti
 
     const b = breakdownMap.get(staffId)!;
     const { cashAmount, digitalAmount } = resolveAppointmentPayment(app);
+    const appServices = app.appointment_services?.map((as: any) => as.services).filter(Boolean) || [];
+    const numServices = appServices.length || 1;
 
-    // Count each appointment exactly once (avoid double-counting splits)
-    b.appointments_total_count++;
+    // Count each service performed
+    b.appointments_total_count += numServices;
     if (cashAmount > 0) {
-      b.appointments_count++;
+      b.appointments_count += numServices;
       b.total_cash += cashAmount;
     }
     if (digitalAmount > 0) {
-      b.appointments_digital_count++;
+      b.appointments_digital_count += numServices;
       b.total_digital += digitalAmount;
     }
 
@@ -497,8 +503,15 @@ export async function getCashSessionDetailsById(sessionId: string): Promise<Acti
       b.total_shop_profit += price - commission;
     }
 
-    const serviceName = app.service?.name || "Servicio Desconocido";
-    b.services_breakdown[serviceName] = (b.services_breakdown[serviceName] || 0) + 1;
+    if (appServices.length > 0) {
+      appServices.forEach((s: any) => {
+        const serviceName = s.name || "Servicio Desconocido";
+        b.services_breakdown[serviceName] = (b.services_breakdown[serviceName] || 0) + 1;
+      });
+    } else {
+      const serviceName = app.service?.name || "Servicio Desconocido";
+      b.services_breakdown[serviceName] = (b.services_breakdown[serviceName] || 0) + 1;
+    }
   });
 
   let payoutsCashTotal = 0;
@@ -527,9 +540,18 @@ export async function getCashSessionDetailsById(sessionId: string): Promise<Acti
     payoutsDigitalTotal += b.payout_digital;
   });
 
-  const barbersBreakdown = Array.from(breakdownMap.values()).sort(
-    (a, b) => b.net_expected_cash - a.net_expected_cash
-  );
+  const barbersBreakdown = Array.from(breakdownMap.values())
+    .filter((b) => {
+      const hasActivity =
+        b.appointments_total_count > 0 ||
+        b.total_advances > 0 ||
+        b.total_payments > 0 ||
+        b.total_consignments > 0 ||
+        b.total_commission > 0;
+      const isActive = b.is_active !== false;
+      return isActive || hasActivity;
+    })
+    .sort((a, b) => b.net_expected_cash - a.net_expected_cash);
 
   // ── 6. Final balance calculation ─────────────────────────────────────────────
   const openingBalance = Number(session.opening_balance || 0);
