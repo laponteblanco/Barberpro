@@ -132,6 +132,14 @@ export function ReportPreviewPanel({
     0
   );
 
+  const totalBarberCommission = compiledBarbersBreakdown.reduce(
+    (sum, b) => sum + (b.total_commission || 0),
+    0
+  );
+
+  const totalExpenses = session.expenses_cash_total + session.expenses_digital_total;
+  const barbershopProfit = (session.appointments_total - totalBarberCommission) + session.sales_total - totalExpenses;
+
   return (
     <div className="glass-card rounded-[32px] p-8 border-white/5 bg-zinc-900/20 backdrop-blur-3xl shadow-xl space-y-6">
       {/* Header */}
@@ -223,11 +231,21 @@ export function ReportPreviewPanel({
           <Row label="Ingresos por citas (bruto)" value={formatCurrency(session.appointments_total)} valueClass="text-emerald-400" />
           <Row label="Ingresos por ventas de productos" value={formatCurrency(session.sales_total)} valueClass="text-emerald-400" />
           <Row
-            label={<span className="font-black text-zinc-200">TOTAL INGRESOS DEL DÍA</span>}
+            label={<span className="font-bold text-zinc-300">TOTAL INGRESOS BRUTOS</span>}
             value={formatCurrency(session.appointments_total + session.sales_total)}
-            valueClass="text-primary"
+            valueClass="text-zinc-200"
             bold
           />
+          <div className="border-t border-white/5 my-2 pt-2 space-y-0">
+            <Row label="Pago total a barberos (Comisiones)" value={`−${formatCurrency(totalBarberCommission)}`} valueClass="text-rose-400" />
+            <Row label="Gastos de caja (Efectivo + Digital)" value={`−${formatCurrency(totalExpenses)}`} valueClass="text-rose-400" />
+            <Row
+              label={<span className="font-black text-white">GANANCIA NETA BARBERÍA</span>}
+              value={formatCurrency(barbershopProfit)}
+              valueClass="text-emerald-400"
+              bold
+            />
+          </div>
         </div>
       </SectionCard>
 

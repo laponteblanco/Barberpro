@@ -194,6 +194,14 @@ export async function generateCashClosingPDF(
     0
   );
 
+  const totalBarberCommission = compiledBarbersBreakdown.reduce(
+    (sum, b) => sum + (b.total_commission || 0),
+    0
+  );
+
+  const totalExpenses = session.expenses_cash_total + session.expenses_digital_total;
+  const barbershopProfit = (session.appointments_total - totalBarberCommission) + session.sales_total - totalExpenses;
+
   autoTable(doc, {
     startY: currentY,
     head: [["Concepto", "Cantidad / Monto"]],
@@ -202,6 +210,9 @@ export async function generateCashClosingPDF(
       ["Ingresos por citas (bruto)", formatCurrency(session.appointments_total)],
       ["Ingresos por venta de productos", formatCurrency(session.sales_total)],
       ["TOTAL INGRESOS DEL DÍA", formatCurrency(session.appointments_total + session.sales_total)],
+      ["Pago total a barberos (Comisiones)", `-${formatCurrency(totalBarberCommission)}`],
+      ["Gastos de caja (Efectivo + Digital)", `-${formatCurrency(totalExpenses)}`],
+      ["GANANCIA NETA DE LA BARBERÍA", formatCurrency(barbershopProfit)],
     ],
     theme: "grid",
     headStyles: {
@@ -216,10 +227,18 @@ export async function generateCashClosingPDF(
       1: { halign: "right", fontStyle: "bold" },
     },
     didParseCell(data) {
-      if (data.section === "body" && data.row.index === 3) {
-        data.cell.styles.fillColor = COLORS.offWhite;
-        data.cell.styles.fontStyle = "bold";
-        data.cell.styles.textColor = COLORS.primaryDark;
+      if (data.section === "body") {
+        if (data.row.index === 3) {
+          data.cell.styles.fillColor = COLORS.offWhite;
+          data.cell.styles.fontStyle = "bold";
+          data.cell.styles.textColor = COLORS.primaryDark;
+        } else if (data.row.index === 4 || data.row.index === 5) {
+          data.cell.styles.textColor = COLORS.rose;
+        } else if (data.row.index === 6) {
+          data.cell.styles.fillColor = COLORS.offWhite;
+          data.cell.styles.fontStyle = "bold";
+          data.cell.styles.textColor = COLORS.emerald;
+        }
       }
     },
     margin: { left: 14, right: 14 },

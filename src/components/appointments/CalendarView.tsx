@@ -54,14 +54,39 @@ const BARBER_COLORS_THEMES = {
 const getBarberColorIndex = (id: string) =>
   id.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0) % 8;
 
-const getBarberColor = (id: string, completed = false, theme = 'dark') => {
+const getBarberColor = (id: string, statusOrCompleted: string | boolean = 'pending', theme = 'dark') => {
   const t = theme === 'light' ? 'light' : 'dark';
   const color = BARBER_COLORS_THEMES[t][getBarberColorIndex(id)];
+  const status = statusOrCompleted === true ? 'completed' : (statusOrCompleted === false ? 'pending' : statusOrCompleted);
   
-  if (completed) {
+  if (status === 'completed') {
     return theme === 'light' 
-      ? "bg-emerald-100 border-emerald-300 text-emerald-900 shadow-sm" 
-      : "bg-emerald-500/20 border-emerald-500/50 text-emerald-400 shadow-md";
+      ? "bg-emerald-100 border-emerald-300 text-emerald-900 shadow-sm hover:bg-emerald-200" 
+      : "bg-emerald-500/20 border-emerald-500/50 text-emerald-400 shadow-md hover:bg-emerald-500/30";
+  }
+
+  if (status === 'confirmed') {
+    return theme === 'light'
+      ? "bg-indigo-100 border-indigo-300 text-indigo-900 shadow-sm hover:bg-indigo-200"
+      : "bg-indigo-500/20 border-indigo-500/50 text-indigo-400 shadow-md hover:bg-indigo-500/30";
+  }
+
+  if (status === 'pending') {
+    return theme === 'light'
+      ? "bg-amber-100 border-amber-300 text-amber-900 shadow-sm hover:bg-amber-200"
+      : "bg-amber-500/20 border-amber-500/50 text-amber-400 shadow-md hover:bg-amber-500/30";
+  }
+
+  if (status === 'cancelled') {
+    return theme === 'light'
+      ? "bg-red-100 border-red-300 text-red-900 shadow-sm hover:bg-red-200"
+      : "bg-red-500/20 border-red-500/50 text-red-400 shadow-md hover:bg-red-500/30";
+  }
+
+  if (status === 'in_progress') {
+    return theme === 'light'
+      ? "bg-cyan-100 border-cyan-300 text-cyan-900 shadow-sm hover:bg-cyan-200"
+      : "bg-cyan-500/20 border-cyan-500/50 text-cyan-400 shadow-md hover:bg-cyan-500/30";
   }
   
   return color.base;
@@ -593,14 +618,14 @@ export function CalendarView({
                     const appt = item.data;
                     const bogotaStart = getBogotaTime(appt.start_time);
                     const barber = staff.find(s => s.id === appt.staff_id);
-                    const isCompleted = appt.status === 'completed' || appt.status === 'confirmed';
+                    const isCompleted = appt.status === 'completed';
                     return (
                       <div
                         key={appt.id}
                         onClick={() => setSelectedAppt(appt)}
                         className={cn(
                           "glass-card p-4 rounded-2xl border transition-all active:scale-[0.98] cursor-pointer flex flex-col gap-3",
-                          getBarberColor(appt.staff_id, isCompleted, theme)
+                          getBarberColor(appt.staff_id, appt.status, theme)
                         )}
                       >
                         <div className="flex justify-between items-start">
@@ -832,7 +857,7 @@ export function CalendarView({
                         const top = ((hour - effectiveStartHour) * 60 + min) / appointmentInterval * SLOT_HEIGHT;
                         const duration = appt.end_time && appt.start_time ? Math.round((new Date(appt.end_time).getTime() - new Date(appt.start_time).getTime()) / 60000) : (appt.service?.duration_minutes || 30);
                         const height = (duration / appointmentInterval) * SLOT_HEIGHT - 2;
-                        const isCompleted = appt.status === 'completed' || appt.status === 'confirmed';
+                        const isCompleted = appt.status === 'completed';
                         const isCompact = height < 38;
                         const isTiny = height < 24;
                       
@@ -844,7 +869,7 @@ export function CalendarView({
                           className={cn(
                             "absolute inset-x-1 z-[2] border transition-all cursor-grab active:cursor-grabbing group/appt overflow-hidden animate-in zoom-in-95 duration-300",
                             isTiny ? "rounded-md px-1.5 py-0 flex items-center gap-1" : isCompact ? "rounded-lg px-2 py-0.5" : "rounded-xl p-2.5 shadow-lg",
-                            getBarberColor(appt.staff_id, isCompleted, theme)
+                            getBarberColor(appt.staff_id, appt.status, theme)
                           )}
                         >
                           {isTiny ? (
