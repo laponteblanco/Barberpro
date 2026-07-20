@@ -241,8 +241,25 @@ export async function getCashSessionDetailsById(sessionId: string): Promise<Acti
   const openedAtISO = session.opened_at;
   // Subtract 3 hours buffer from opened_at to catch appointments starting slightly before the shift
   const queryStartISO = new Date(new Date(openedAtISO).getTime() - 3 * 3600000).toISOString();
-  // If session is closed, fetch only up to closed_at, otherwise fetch everything after opened_at
-  const closedAtISO = session.closed_at || new Date().toISOString();
+  // For open sessions, use end of current Bogotá day as upper bound instead of current time.
+  // This ensures appointments already completed but scheduled later today are included,
+  // while excluding appointments from future days / barbers not working today.
+  let closedAtISO: string;
+  if (session.closed_at) {
+    closedAtISO = session.closed_at;
+  } else {
+    // End of today in Bogotá (UTC-5) = midnight tomorrow Bogotá = 05:00 UTC tomorrow
+    const bogotaNow = new Date(new Date().getTime() - 5 * 3600000);
+    const endOfBogotaDay = new Date(
+      Date.UTC(
+        bogotaNow.getUTCFullYear(),
+        bogotaNow.getUTCMonth(),
+        bogotaNow.getUTCDate() + 1,
+        5, 0, 0, 0
+      )
+    );
+    closedAtISO = endOfBogotaDay.toISOString();
+  }
 
   // ── Parallel data fetching ───────────────────────────────────────────────────
   let appointmentsQuery = (adminSupabase as any)
@@ -251,12 +268,9 @@ export async function getCashSessionDetailsById(sessionId: string): Promise<Acti
       "id, total_price, payment_method, split_cash_amount, split_digital_amount, split_digital_method, start_time, staff_id, staff:tenant_staff(id, profiles(full_name)), service:services(name), client:clients(full_name), appointment_services(services(id, name))"
     )
     .eq("tenant_id", tenantId)
-    .in("status", ["completed", "confirmed", "pending"])
-    .gte("start_time", queryStartISO);
-
-  if (session.closed_at) {
-    appointmentsQuery = appointmentsQuery.lte("start_time", session.closed_at);
-  }
+    .in("status", ["completed", "confirmed"])
+    .gte("start_time", queryStartISO)
+    .lte("start_time", closedAtISO);
 
   const [appointmentsRes, staffRes, salesRes, ledgerRes, expensesRes] = await Promise.all([
     // 1. Appointments for the session window
