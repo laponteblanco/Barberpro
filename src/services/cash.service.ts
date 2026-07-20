@@ -61,6 +61,16 @@ export interface BarberBreakdown {
   is_active?: boolean;
 }
 
+export interface ProductSaleSummary {
+  product_id: string;
+  name: string;
+  stock_remaining: number;
+  quantity_sold: number;
+  quantity_consigned: number;
+  total_revenue: number;
+  total_profit: number;
+}
+
 export interface ActiveSessionDetails {
   id: string;
   opened_at: string;
@@ -71,6 +81,7 @@ export interface ActiveSessionDetails {
   appointments_cash_total: number;
   appointments_digital_total: number;
   sales_total: number;
+  product_sales_details: ProductSaleSummary[];
 
   // ── Desglose digital por plataforma ─────────────────────────────
   digital_breakdown: {
@@ -286,7 +297,7 @@ export async function getCashSessionDetailsById(sessionId: string): Promise<Acti
     // 3. Product sales
     (adminSupabase as any)
       .from("product_sales")
-      .select("total_price")
+      .select("quantity, unit_price, total_price, product_id, products!inner(name, stock, cost_price)")
       .eq("tenant_id", tenantId)
       .gte("created_at", openedAtISO)
       .lte("created_at", closedAtISO),
@@ -294,7 +305,7 @@ export async function getCashSessionDetailsById(sessionId: string): Promise<Acti
     // 4. Staff ledger (advances, payments, consignments)
     (adminSupabase as any)
       .from("staff_ledger")
-      .select("staff_id, type, amount, payment_method")
+      .select("staff_id, type, amount, payment_method, product_id, product_quantity, products(name, stock, cost_price)")
       .eq("tenant_id", tenantId)
       .gte("created_at", openedAtISO)
       .lte("created_at", closedAtISO),
@@ -338,6 +349,57 @@ export async function getCashSessionDetailsById(sessionId: string): Promise<Acti
     (sum: number, sale: any) => sum + Number(sale.total_price || 0),
     0
   );
+
+  const productSummaries: Record<string, ProductSaleSummary> = {};
+
+  sales.forEach((sale: any) => {
+    const pid = sale.product_id;
+    if (!productSummaries[pid]) {
+      productSummaries[pid] = {
+        product_id: pid,
+        name: sale.products?.name || "Desconocido",
+        stock_remaining: Number(sale.products?.stock || 0),
+        quantity_sold: 0,
+        quantity_consigned: 0,
+        total_revenue: 0,
+        total_profit: 0
+      };
+    }
+    const sum = productSummaries[pid];
+    const qty = Number(sale.quantity || 1);
+    const revenue = Number(sale.total_price || 0);
+    const cost = Number(sale.products?.cost_price || 0);
+    sum.quantity_sold += qty;
+    sum.total_revenue += revenue;
+    sum.total_profit += revenue - (qty * cost);
+  });
+
+  // Include consignments in the product summaries
+  ledgerEntries.forEach((entry: any) => {
+    if (entry.type === 'consignment' && entry.product_id) {
+      const pid = entry.product_id;
+      if (!productSummaries[pid]) {
+        productSummaries[pid] = {
+          product_id: pid,
+          name: entry.products?.name || "Desconocido",
+          stock_remaining: Number(entry.products?.stock || 0),
+          quantity_sold: 0,
+          quantity_consigned: 0,
+          total_revenue: 0,
+          total_profit: 0
+        };
+      }
+      const sum = productSummaries[pid];
+      const qty = Number(entry.product_quantity || 1);
+      const revenue = Number(entry.amount || 0);
+      const cost = Number(entry.products?.cost_price || 0);
+      sum.quantity_consigned += qty;
+      sum.total_revenue += revenue;
+      sum.total_profit += revenue - (qty * cost);
+    }
+  });
+
+  const product_sales_details = Object.values(productSummaries);
 
   // ── 3. Process expenses by fund ──────────────────────────────────────────────
   const expensesList: ExpenseRecord[] = expensesRaw.map((e: any) => ({
@@ -602,6 +664,7 @@ export async function getCashSessionDetailsById(sessionId: string): Promise<Acti
     appointments_cash_total: appointmentsCashTotal,
     appointments_digital_total: appointmentsDigitalTotal,
     sales_total: salesTotal,
+    product_sales_details: product_sales_details,
     digital_breakdown: digitalBreakdown,
     expenses: expensesList,
     expenses_total: expensesTotal,

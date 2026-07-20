@@ -211,6 +211,7 @@ export async function generateCashClosingPDF(
       ["Ingresos por venta de productos", formatCurrency(session.sales_total)],
       ["TOTAL INGRESOS DEL DÍA", formatCurrency(session.appointments_total + session.sales_total)],
       ["Pago total a barberos (Comisiones)", `-${formatCurrency(totalBarberCommission)}`],
+      ["SUBTOTAL (Ingresos - Comisiones)", formatCurrency((session.appointments_total + session.sales_total) - totalBarberCommission)],
       ["Gastos de caja (Efectivo + Digital)", `-${formatCurrency(totalExpenses)}`],
       ["GANANCIA NETA DE LA BARBERÍA", formatCurrency(barbershopProfit)],
     ],
@@ -232,9 +233,12 @@ export async function generateCashClosingPDF(
           data.cell.styles.fillColor = COLORS.offWhite;
           data.cell.styles.fontStyle = "bold";
           data.cell.styles.textColor = COLORS.primaryDark;
-        } else if (data.row.index === 4 || data.row.index === 5) {
+        } else if (data.row.index === 4 || data.row.index === 6) {
           data.cell.styles.textColor = COLORS.rose;
-        } else if (data.row.index === 6) {
+        } else if (data.row.index === 5) {
+          data.cell.styles.fillColor = COLORS.offWhite;
+          data.cell.styles.fontStyle = "bold";
+        } else if (data.row.index === 7) {
           data.cell.styles.fillColor = COLORS.offWhite;
           data.cell.styles.fontStyle = "bold";
           data.cell.styles.textColor = COLORS.emerald;
@@ -245,6 +249,46 @@ export async function generateCashClosingPDF(
   });
 
   currentY = (doc as any).lastAutoTable.finalY + 10;
+
+  // ── NUEVA SECCIÓN: RESUMEN DE PRODUCTOS ──────────────────────────────────────
+  if (session.product_sales_details && session.product_sales_details.length > 0) {
+    currentY = addPageBreakIfNeeded(doc, currentY, 40);
+    currentY = drawSectionHeader(
+      doc,
+      "Resumen de Productos (Vendidos y Fiados)",
+      "Detalle de movimientos de inventario, stock restante y ganancias.",
+      currentY,
+      COLORS.primary
+    );
+
+    const productRows = session.product_sales_details.map((p: any) => [
+      p.name,
+      p.quantity_sold.toString(),
+      p.quantity_consigned.toString(),
+      p.stock_remaining.toString(),
+      formatCurrency(p.total_revenue),
+      formatCurrency(p.total_profit)
+    ]);
+
+    autoTable(doc, {
+      startY: currentY,
+      head: [["Producto", "Vendidos", "Fiados", "Stock Restante", "Total Ingresos", "Ganancia"]],
+      body: productRows,
+      theme: "striped",
+      headStyles: { fillColor: COLORS.offWhite, textColor: COLORS.primaryDark, fontSize: 8 },
+      bodyStyles: { fontSize: 8 },
+      columnStyles: {
+        0: { cellWidth: 50 },
+        1: { halign: "center" },
+        2: { halign: "center" },
+        3: { halign: "center" },
+        4: { halign: "right" },
+        5: { halign: "right", fontStyle: "bold", textColor: COLORS.emerald }
+      },
+      margin: { left: 14, right: 14 },
+    });
+    currentY = (doc as any).lastAutoTable.finalY + 10;
+  }
 
   // ── SECCIÓN 2: INGRESOS POR MÉTODO DE PAGO ──────────────────────────────────
   currentY = addPageBreakIfNeeded(doc, currentY, 60);
