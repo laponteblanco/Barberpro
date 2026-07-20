@@ -342,8 +342,24 @@ export function CalendarView({
     setSplitDigitalMethod("transfer");
   };
 
-  const updateStatus = async (id: string, status: string, paymentMethod?: string, discount?: number, finalPriceOverride?: number) => {
+  const updateStatus = async (id: string, status: string, paymentMethod?: string, discount?: number, ignoreThisParam?: number) => {
     try {
+      // Calculate totals
+      const productsTotal = extraProducts.reduce((s, p) => s + p.price * p.qty, 0);
+      const finalServiceTotal = selectedAppt ? Math.max(0, selectedAppt.total_price - (discount || 0)) : 0;
+
+      // Adjust splits to exclude product total (since product_sales assumes cash implicitly)
+      let finalSplitCash = Number(splitCashAmount) || 0;
+      let finalSplitDigital = Number(splitDigitalAmount) || 0;
+      
+      if (paymentMethod === 'split') {
+        finalSplitCash = Math.max(0, finalSplitCash - productsTotal);
+        const remainingProduct = Math.max(0, productsTotal - (Number(splitCashAmount) || 0));
+        if (remainingProduct > 0) {
+          finalSplitDigital = Math.max(0, finalSplitDigital - remainingProduct);
+        }
+      }
+
       // Sell any extra products added to the bill
       for (const p of extraProducts) {
         setProductLoading(true);
@@ -351,7 +367,7 @@ export function CalendarView({
         if (res?.error) throw new Error(`Error al vender ${p.name}: ${res.error}`);
       }
       
-      const res = await updateAppointmentStatusAction(id, status, paymentMethod, discount, finalPriceOverride, Number(splitCashAmount)||0, Number(splitDigitalAmount)||0, splitDigitalMethod);
+      const res = await updateAppointmentStatusAction(id, status, paymentMethod, discount, finalServiceTotal, finalSplitCash, finalSplitDigital, splitDigitalMethod);
       if (res?.error) throw new Error(res.error);
       
       if (status === "completed" && selectedAppt) {
@@ -367,9 +383,9 @@ export function CalendarView({
           barberName: staff.find(s => s.id === selectedAppt.staff_id)?.display_name || "Barbero",
           services: servicesList,
           products: extraProducts.map(p => ({ name: p.name, price: p.price, qty: p.qty })),
-          subtotal: selectedAppt.total_price + extraProducts.reduce((s, p) => s + p.price * p.qty, 0),
+          subtotal: selectedAppt.total_price + productsTotal,
           discount: discount || 0,
-          total: finalPriceOverride || (selectedAppt.total_price + extraProducts.reduce((s, p) => s + p.price * p.qty, 0) - (discount || 0)),
+          total: finalServiceTotal + productsTotal,
           paymentMethod: paymentMethod || "cash"
         });
       }
