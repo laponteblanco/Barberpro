@@ -17,6 +17,7 @@ import {
   CreditCard,
   ArrowUpRight,
   CheckCircle2,
+  ShoppingBag,
 } from "lucide-react";
 import { useState } from "react";
 import { formatCurrency, formatTime } from "@/lib/utils";
@@ -364,6 +365,13 @@ export function ReportPreviewPanel({
                         label={<span className="flex items-center gap-1 text-emerald-400"><ArrowDownLeft className="w-3 h-3" /> Abonos devueltos</span>}
                         value={`+${formatCurrency(barber.total_payments)}`}
                         valueClass="text-emerald-400"
+                      />
+                    )}
+                    {(barber.total_consignments || 0) > 0 && (
+                      <Row
+                        label={<span className="flex items-center gap-1 text-amber-500"><ShoppingBag className="w-3 h-3" /> Saldo Productos (Bebidas)</span>}
+                        value={`−${formatCurrency(barber.total_consignments)}`}
+                        valueClass="text-amber-500"
                       />
                     )}
 

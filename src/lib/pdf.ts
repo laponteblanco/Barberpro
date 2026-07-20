@@ -370,6 +370,9 @@ export async function generateCashClosingPDF(
         // Fallback for legacy records
         barberBody.push(["Abonos / Pagos devueltos (+)", `+${formatCurrency(barber.total_payments)}`]);
       }
+      if ((barber.total_consignments || 0) > 0) {
+        barberBody.push(["Fiados / Consignación (Bebidas) (-)", `-${formatCurrency(barber.total_consignments)}`]);
+      }
 
       // The key discriminated rows — show NET values after advances per fund
       const netPayoutCash = barber.net_payout_cash ?? barber.payout_cash ?? 0;

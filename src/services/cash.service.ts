@@ -245,17 +245,22 @@ export async function getCashSessionDetailsById(sessionId: string): Promise<Acti
   const closedAtISO = session.closed_at || new Date().toISOString();
 
   // ── Parallel data fetching ───────────────────────────────────────────────────
+  let appointmentsQuery = (adminSupabase as any)
+    .from("appointments")
+    .select(
+      "id, total_price, payment_method, split_cash_amount, split_digital_amount, split_digital_method, start_time, staff_id, staff:tenant_staff(id, profiles(full_name)), service:services(name), client:clients(full_name), appointment_services(services(id, name))"
+    )
+    .eq("tenant_id", tenantId)
+    .in("status", ["completed", "confirmed", "pending"])
+    .gte("start_time", queryStartISO);
+
+  if (session.closed_at) {
+    appointmentsQuery = appointmentsQuery.lte("start_time", session.closed_at);
+  }
+
   const [appointmentsRes, staffRes, salesRes, ledgerRes, expensesRes] = await Promise.all([
     // 1. Appointments for the session window
-    (adminSupabase as any)
-      .from("appointments")
-      .select(
-        "id, total_price, payment_method, split_cash_amount, split_digital_amount, split_digital_method, start_time, staff_id, staff:tenant_staff(id, profiles(full_name)), service:services(name), client:clients(full_name), appointment_services(services(id, name))"
-      )
-      .eq("tenant_id", tenantId)
-      .in("status", ["completed", "confirmed"])
-      .gte("start_time", queryStartISO)
-      .lte("start_time", closedAtISO),
+    appointmentsQuery,
 
     // 2. Active barbers (not admin) for commission calculation
     (adminSupabase as any)
@@ -453,7 +458,7 @@ export async function getCashSessionDetailsById(sessionId: string): Promise<Acti
     if (!breakdownMap.has(staffId)) {
       breakdownMap.set(staffId, {
         id: staffId,
-        name: app.staff?.profiles?.full_name || "Staff Inactivo",
+        name: app.staff?.profiles?.full_name || (staffId ? "Staff Inactivo" : "Sin barbero asignado"),
         commission_rate: 0,
         daily_commission_rates: {},
         is_active: false,
@@ -532,7 +537,8 @@ export async function getCashSessionDetailsById(sessionId: string): Promise<Acti
     }
 
     // Net payout per fund after discounting advances and adding back payments for each fund
-    b.net_payout_cash = b.payout_cash - b.total_advances_cash + b.total_payments_cash;
+    // Consignments (products/drinks consumed by the barber) are subtracted from their cash payout as a store deduction.
+    b.net_payout_cash = b.payout_cash - b.total_advances_cash + b.total_payments_cash - b.total_consignments;
     b.net_payout_digital = b.payout_digital - b.total_advances_digital + b.total_payments_digital;
 
     // Legacy field: net expected from cash register (updated to represent total payout: cash + digital)
