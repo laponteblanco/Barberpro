@@ -112,6 +112,10 @@ export async function createAppointmentAction(formData: FormData) {
   const initialStatus = formData.get("initial_status")?.toString() || "pending";
   const initialPaymentMethod = formData.get("payment_method")?.toString() || "cash";
 
+  const { staff } = await getSession();
+  const isAdmin = staff?.role === 'admin' || staff?.role === 'owner';
+  const forceFit = formData.get("force_fit") === "true";
+
   let firstApptId = null;
 
   if (is_fragmented && fragmented_slots_str) {
@@ -168,19 +172,63 @@ export async function createAppointmentAction(formData: FormData) {
   } else {
     // Normal continuous logic
     const start_time = new Date(`${date}T${time}:00-05:00`);
-    const end_time = new Date(start_time.getTime() + total_duration * 60000);
+    let end_time = new Date(start_time.getTime() + total_duration * 60000);
 
-    // Check for conflicts
-    const { data: conflicts } = await (adminSupabase as any)
-      .from("appointments")
-      .select("id")
-      .eq("staff_id", staff_id)
-      .in("status", ["pending", "confirmed", "completed"])
-      .lt("start_time", end_time.toISOString())
-      .gt("end_time", start_time.toISOString());
+    if (forceFit && isAdmin) {
+      // Admin is forcing the appointment to fit into a smaller gap.
+      // We find any overlapping constraints and truncate end_time.
+      const { data: conflicts } = await (adminSupabase as any)
+        .from("appointments")
+        .select("start_time")
+        .eq("staff_id", staff_id)
+        .in("status", ["pending", "confirmed", "completed"])
+        .lt("start_time", end_time.toISOString())
+        .gt("end_time", start_time.toISOString());
+        
+      const { data: blockConflicts } = await (adminSupabase as any)
+        .from("agenda_blocks")
+        .select("start_time")
+        .eq("staff_id", staff_id)
+        .lt("start_time", end_time.toISOString())
+        .gt("end_time", start_time.toISOString());
+        
+      const allConflicts = [
+        ...(conflicts || []).map((c: any) => new Date(c.start_time)),
+        ...(blockConflicts || []).map((c: any) => new Date(c.start_time))
+      ].sort((a, b) => a.getTime() - b.getTime());
 
-    if (conflicts && conflicts.length > 0) {
-      return { error: "El barbero ya tiene una cita programada en este horario." };
+      if (allConflicts.length > 0) {
+         const firstConflict = allConflicts[0];
+         if (firstConflict > start_time) {
+           end_time = firstConflict; // Truncate to fit precisely!
+         } else {
+           return { error: "El horario inicial ya está ocupado." };
+         }
+      }
+    } else {
+      // Normal conflict check
+      const { data: conflicts } = await (adminSupabase as any)
+        .from("appointments")
+        .select("id")
+        .eq("staff_id", staff_id)
+        .in("status", ["pending", "confirmed", "completed"])
+        .lt("start_time", end_time.toISOString())
+        .gt("end_time", start_time.toISOString());
+  
+      if (conflicts && conflicts.length > 0) {
+        return { error: "Tiempo insuficiente. El barbero ya tiene otra cita en este lapso." };
+      }
+      
+      const { data: blocks } = await (adminSupabase as any)
+        .from("agenda_blocks")
+        .select("id")
+        .eq("staff_id", staff_id)
+        .lt("start_time", end_time.toISOString())
+        .gt("end_time", start_time.toISOString());
+        
+      if (blocks && blocks.length > 0) {
+        return { error: "Tiempo insuficiente. Hay un bloqueo de agenda en este lapso." };
+      }
     }
 
     const { data: appt, error } = await (adminSupabase as any).from("appointments").insert({
@@ -266,6 +314,88 @@ export async function updateAppointmentTimeAction(appointmentId: string, newStar
       start_time: start.toISOString(),
       end_time: end.toISOString()
     })
+    .eq("id", appointmentId)
+    .eq("tenant_id", tenantId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/dashboard/appointments");
+  return { success: true };
+}
+
+/**
+ * Drag & Drop action: updates start_time, end_time, and optionally staff_id.
+ * Preserves appointment duration and validates conflicts against the new slot/staff.
+ */
+export async function updateAppointmentTimeAndStaffAction(
+  appointmentId: string,
+  newStartTime: string,
+  newStaffId?: string
+) {
+  const { tenantId, user: currentUser } = await getSession();
+  if (!tenantId || !currentUser) return { error: "No autorizado" };
+
+  const adminSupabase = await createAdminClient();
+
+  // Fetch the appointment with its service duration
+  const { data: appt } = await (adminSupabase as any)
+    .from("appointments")
+    .select("*, service:services(duration_minutes)")
+    .eq("id", appointmentId)
+    .eq("tenant_id", tenantId)
+    .single();
+
+  if (!appt) return { error: "Cita no encontrada" };
+
+  const targetStaffId = newStaffId ?? appt.staff_id;
+  const start = new Date(newStartTime);
+
+  // Preserve the original appointment duration
+  const originalDurationMs =
+    appt.end_time && appt.start_time
+      ? new Date(appt.end_time).getTime() - new Date(appt.start_time).getTime()
+      : ((appt.service as any)?.duration_minutes ?? 30) * 60000;
+
+  const end = new Date(start.getTime() + originalDurationMs);
+
+  // Check for conflicts with the target staff at the new time slot
+  const { data: conflicts } = await (adminSupabase as any)
+    .from("appointments")
+    .select("id")
+    .eq("staff_id", targetStaffId)
+    .neq("id", appointmentId)
+    .in("status", ["pending", "confirmed", "completed"])
+    .lt("start_time", end.toISOString())
+    .gt("end_time", start.toISOString());
+
+  if (conflicts && conflicts.length > 0) {
+    return { error: "El nuevo horario está ocupado por otra cita." };
+  }
+
+  // Also check agenda blocks for the target staff
+  const { data: blockConflicts } = await (adminSupabase as any)
+    .from("agenda_blocks")
+    .select("id")
+    .eq("staff_id", targetStaffId)
+    .lt("start_time", end.toISOString())
+    .gt("end_time", start.toISOString());
+
+  if (blockConflicts && blockConflicts.length > 0) {
+    return { error: "El horario está bloqueado para ese barbero." };
+  }
+
+  const updates: Record<string, string> = {
+    start_time: start.toISOString(),
+    end_time: end.toISOString(),
+  };
+
+  if (newStaffId && newStaffId !== appt.staff_id) {
+    updates.staff_id = newStaffId;
+  }
+
+  const { error } = await (adminSupabase as any)
+    .from("appointments")
+    .update(updates)
     .eq("id", appointmentId)
     .eq("tenant_id", tenantId);
 
@@ -397,6 +527,10 @@ export async function updateAppointmentDetailsAction(appointmentId: string, form
     .from("services")
     .select("id, duration_minutes, price")
     .in("id", serviceIds);
+    
+  const { staff } = await getSession();
+  const isAdmin = staff?.role === 'admin' || staff?.role === 'owner';
+  const forceFit = formData.get("force_fit") === "true";
 
   // Calculate totals accounting for duplicate service IDs (same service multiple times)
   const serviceMap = new Map<string, ServiceRecord>((servicesData || []).map((s: any) => [s.id, s]));
@@ -410,21 +544,65 @@ export async function updateAppointmentDetailsAction(appointmentId: string, form
   }, 0) || 0;
 
   const start = new Date(`${date}T${time}:00-05:00`);
-  const end = new Date(start.getTime() + duration * 60000);
+  let end = new Date(start.getTime() + duration * 60000);
 
-  // Check conflicts
-  const { data: conflict } = await (adminSupabase as any)
-    .from("appointments")
-    .select("id")
-    .eq("staff_id", staffId)
-    .neq("id", appointmentId)
-    .in("status", ["pending", "confirmed", "completed"])
-    .lt("start_time", end.toISOString())
-    .gt("end_time", start.toISOString())
-    .maybeSingle();
+  if (forceFit && isAdmin) {
+    const { data: conflicts } = await (adminSupabase as any)
+      .from("appointments")
+      .select("start_time")
+      .eq("staff_id", staffId)
+      .neq("id", appointmentId)
+      .in("status", ["pending", "confirmed", "completed"])
+      .lt("start_time", end.toISOString())
+      .gt("end_time", start.toISOString());
+      
+    const { data: blockConflicts } = await (adminSupabase as any)
+      .from("agenda_blocks")
+      .select("start_time")
+      .eq("staff_id", staffId)
+      .lt("start_time", end.toISOString())
+      .gt("end_time", start.toISOString());
+      
+    const allConflicts = [
+      ...(conflicts || []).map((c: any) => new Date(c.start_time)),
+      ...(blockConflicts || []).map((c: any) => new Date(c.start_time))
+    ].sort((a, b) => a.getTime() - b.getTime());
 
-  if (conflict) {
-    return { error: "El horario seleccionado está ocupado por otra cita." };
+    if (allConflicts.length > 0) {
+       const firstConflict = allConflicts[0];
+       if (firstConflict > start) {
+         end = firstConflict; // Truncate
+       } else {
+         return { error: "El horario seleccionado ya está ocupado." };
+       }
+    }
+  } else {
+    // Normal conflict check
+    const { data: conflict } = await (adminSupabase as any)
+      .from("appointments")
+      .select("id")
+      .eq("staff_id", staffId)
+      .neq("id", appointmentId)
+      .in("status", ["pending", "confirmed", "completed"])
+      .lt("start_time", end.toISOString())
+      .gt("end_time", start.toISOString())
+      .maybeSingle();
+
+    if (conflict) {
+      return { error: "Tiempo insuficiente. El horario seleccionado está ocupado por otra cita." };
+    }
+    
+    const { data: block } = await (adminSupabase as any)
+      .from("agenda_blocks")
+      .select("id")
+      .eq("staff_id", staffId)
+      .lt("start_time", end.toISOString())
+      .gt("end_time", start.toISOString())
+      .maybeSingle();
+      
+    if (block) {
+      return { error: "Tiempo insuficiente. Hay un bloqueo de agenda en este horario." };
+    }
   }
 
   const updates: any = {

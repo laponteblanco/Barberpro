@@ -151,8 +151,13 @@ export async function GET(
     // Calcular duración total de los servicios solicitados
     // -------------------------------------------------------------------------
     let serviceDuration: number;
+    const ignoreDurationParam = searchParams.get("ignore_duration") === "true";
 
-    if (serviceIdsParam && servicesData && servicesData.length > 0) {
+    if (ignoreDurationParam) {
+      // Si el admin está forzando, usamos un bloque mínimo (ej. 5 mins)
+      // para que la API le devuelva absolutamente todos los huecos disponibles
+      serviceDuration = 5;
+    } else if (serviceIdsParam && servicesData && servicesData.length > 0) {
       const serviceMap = new Map<string, number>(
         (servicesData as Array<{ id: string; duration_minutes: number }>).map(
           (s) => [s.id, s.duration_minutes ?? 30]

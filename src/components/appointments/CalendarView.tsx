@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
-import { updateAppointmentTimeAction, updateAppointmentStatusAction, deleteAgendaBlockAction, createAgendaBlockAction } from "@/app/dashboard/appointments/actions";
+import { updateAppointmentTimeAction, updateAppointmentTimeAndStaffAction, updateAppointmentStatusAction, deleteAgendaBlockAction, createAgendaBlockAction } from "@/app/dashboard/appointments/actions";
 import { sellProductAction } from "@/app/dashboard/inventory/actions";
 import { User, Clock, LayoutList, CheckCircle2, DollarSign, Calendar, Ban, Trash2, Scissors, X, RotateCw, ShoppingBag, Package, Banknote, Search, Plus, Minus, ArrowLeft, CreditCard, Smartphone, ArrowUpRight } from "lucide-react";
 import { NewAppointmentDialog } from "./NewAppointmentDialog";
@@ -136,7 +136,14 @@ export function CalendarView({
   appointmentInterval = 15
 }: CalendarViewProps) {
   const router = useRouter();
+  // Local appointments state for optimistic UI (mirrors prop, updated immediately on drag)
+  const [localAppointments, setLocalAppointments] = useState<any[]>(appointments);
   const [movingId, setMovingId] = useState<string | null>(null);
+
+  // Drag & drop feedback state
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOverSlot, setDragOverSlot] = useState<{ staffId: string; date: string; hour: number; min: number } | null>(null);
+  const [dragToast, setDragToast] = useState<{ msg: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [newApptData, setNewApptData] = useState<{ staff_id: string, date: string, time: string } | null>(null);
   const [selectedAppt, setSelectedAppt] = useState<any | null>(null);
   
@@ -184,6 +191,16 @@ export function CalendarView({
       resizeObserverRef.current = ro;
     }
   }, []);
+
+  // Sync local appointments whenever the server-side prop changes (e.g. after router.refresh)
+  useEffect(() => { setLocalAppointments(appointments); }, [appointments]);
+
+  // Auto-dismiss drag toast after 3 seconds
+  useEffect(() => {
+    if (!dragToast) return;
+    const t = setTimeout(() => setDragToast(null), 3000);
+    return () => clearTimeout(t);
+  }, [dragToast]);
 
   useEffect(() => {
     setMounted(true);
@@ -411,22 +428,73 @@ export function CalendarView({
     }
   };
 
-  const handleDrop = async (e: React.DragEvent, staffId: string, hour: number, min: number, targetDate?: string) => {
+  const handleDrop = async (e: React.DragEvent, newStaffId: string, hour: number, min: number, targetDate?: string) => {
     e.preventDefault();
+    e.stopPropagation();
+
     const id = e.dataTransfer.getData("appointmentId");
+    if (!id) return;
+
     setMovingId(null);
+    setIsDragging(false);
+    setDragOverSlot(null);
+
+    // Find the original appointment in local state
+    const originalAppt = localAppointments.find((a) => a.id === id);
+    if (!originalAppt) return;
+
     const dateToUse = targetDate || selectedDate;
-    const [y, m, d] = (dateToUse as string).split('-').map(Number);
-    const newStart = new Date(Date.UTC(y, m - 1, d, hour + 5, min, 0));
+    const [y, mo, d] = (dateToUse as string).split('-').map(Number);
+    // Bogotá is UTC-5 → to get UTC ISO we add 5 hours
+    const newStart = new Date(Date.UTC(y, mo - 1, d, hour + 5, min, 0));
+
+    // Preserve original duration for the optimistic end_time
+    const originalDurationMs =
+      originalAppt.end_time && originalAppt.start_time
+        ? new Date(originalAppt.end_time).getTime() - new Date(originalAppt.start_time).getTime()
+        : (originalAppt.service?.duration_minutes ?? 30) * 60000;
+    const newEnd = new Date(newStart.getTime() + originalDurationMs);
+
+    // Detect if barbero changed
+    const staffChanged = newStaffId !== originalAppt.staff_id;
+
+    // Skip if nothing actually changed
+    const oldStart = new Date(originalAppt.start_time);
+    if (
+      newStart.getTime() === oldStart.getTime() &&
+      !staffChanged
+    ) return;
+
+    // --- SNAPSHOT for rollback ---
+    const snapshot = [...localAppointments];
+
+    // --- OPTIMISTIC UPDATE (immediate visual feedback) ---
+    setLocalAppointments((prev) =>
+      prev.map((a) =>
+        a.id === id
+          ? { ...a, start_time: newStart.toISOString(), end_time: newEnd.toISOString(), staff_id: newStaffId }
+          : a
+      )
+    );
+    setDragToast({ msg: "Guardando cambios…", type: 'info' });
+
+    // --- SERVER UPDATE ---
     try {
-      const res = await updateAppointmentTimeAction(id, newStart.toISOString());
-      if (res?.error) {
-        alert(res.error);
-        return;
-      }
-      router.refresh();
+      const res = await updateAppointmentTimeAndStaffAction(
+        id,
+        newStart.toISOString(),
+        staffChanged ? newStaffId : undefined
+      );
+
+      if (res?.error) throw new Error(res.error);
+
+      setDragToast({ msg: "✓ Cita reprogramada", type: 'success' });
+      // Silent background refresh so data stays in sync with DB
+      setTimeout(() => router.refresh(), 800);
     } catch (err: any) {
-      alert(err.message || "Error");
+      // --- ROLLBACK on error ---
+      setLocalAppointments(snapshot);
+      setDragToast({ msg: err.message || "Conflicto de horario. Se revirtió.", type: 'error' });
     }
   };
 
@@ -434,13 +502,14 @@ export function CalendarView({
     if (!blockData) return;
     try {
       const startTimeStr = `${blockData.date}T${blockData.time}:00-05:00`;
-      await createAgendaBlockAction(blockData.staffId, startTimeStr, parseInt(blockDuration), blockReason || "Bloqueo");
+      const res = await createAgendaBlockAction(blockData.staffId, startTimeStr, parseInt(blockDuration), blockReason || "Bloqueo");
+      if (res?.error) throw new Error(res.error);
       setShowBlockDialog(false);
       setBlockData(null);
       setBlockReason("");
       router.refresh();
     } catch (err: any) {
-      alert(err.message || "Error");
+      setDragToast({ msg: err.message || "Error al crear bloqueo", type: 'error' });
     }
   };
 
@@ -491,6 +560,25 @@ export function CalendarView({
   return (
     <div className="glass-card rounded-[30px] md:rounded-[40px] overflow-hidden border border-white/10 bg-zinc-950/95 flex flex-col h-full w-full min-h-0 relative shadow-[0_0_100px_-20px_rgba(0,0,0,0.8)] md:backdrop-blur-3xl animate-in fade-in zoom-in-95 duration-700">
       
+      {/* ── Drag & Drop Toast Notification ── */}
+      {dragToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={cn(
+            "absolute top-4 right-4 z-[300] flex items-center gap-2.5 px-4 py-3 rounded-2xl border shadow-2xl text-sm font-bold tracking-tight animate-in slide-in-from-top-2 duration-300 pointer-events-none",
+            dragToast.type === 'success' && "bg-emerald-900/90 border-emerald-500/40 text-emerald-200",
+            dragToast.type === 'error'   && "bg-red-900/90 border-red-500/40 text-red-200",
+            dragToast.type === 'info'    && "bg-indigo-900/90 border-indigo-500/40 text-indigo-200"
+          )}
+        >
+          {dragToast.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />}
+          {dragToast.type === 'error'   && <X className="w-4 h-4 text-red-400 shrink-0" />}
+          {dragToast.type === 'info'    && <RotateCw className="w-4 h-4 text-indigo-400 shrink-0 animate-spin" />}
+          <span>{dragToast.msg}</span>
+        </div>
+      )}
+
       <div className="px-4 py-3 md:px-6 md:py-4 bg-zinc-900/40 border-b border-white/5 flex flex-wrap items-center gap-3 md:gap-4 relative z-40">
         <div className="flex-1 min-w-[120px] md:min-w-[140px] glass-card bg-zinc-950/40 border-white/5 p-2 md:p-3 rounded-2xl flex items-center gap-2 md:gap-3">
           <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
@@ -838,10 +926,11 @@ export function CalendarView({
                       <div 
                         key={`${hour}:${min}`}
                         onClick={(e) => {
+                          // Prevent opening slot menu if we just dropped a card
+                          if (isDragging) return;
                           const rect = e.currentTarget.getBoundingClientRect();
                           const winH = typeof window !== 'undefined' ? window.innerHeight : 1000;
                           const rawY = rect.top + rect.height / 2;
-                          // Prevent menu from going off bottom of screen
                           const safeY = Math.min(rawY, winH - 120);
                           setSlotMenu({ 
                             x: rect.left + rect.width / 2, 
@@ -851,14 +940,32 @@ export function CalendarView({
                             time: `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}` 
                           });
                         }}
-                        onDragOver={(e) => e.preventDefault()}
+                        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+                        onDragEnter={(e) => { e.preventDefault(); setDragOverSlot({ staffId: col.staffId as string, date: col.date as string, hour, min }); }}
+                        onDragLeave={(e) => {
+                          // Only clear if the mouse truly left this element (not a child)
+                          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                            setDragOverSlot(null);
+                          }
+                        }}
                         onDrop={(e) => handleDrop(e, col.staffId as string, hour, min, col.date)}
-                        className={cn("border-b hover:bg-primary/20 hover:z-10 transition-colors relative cursor-pointer", min === 0 ? "border-b-black/40" : "border-b-black/20")}
+                        className={cn(
+                          "border-b hover:bg-primary/20 hover:z-10 transition-colors relative cursor-pointer",
+                          min === 0 ? "border-b-black/40" : "border-b-black/20",
+                          // Highlight this slot when dragging over it
+                          dragOverSlot?.staffId === col.staffId &&
+                          dragOverSlot?.date === col.date &&
+                          dragOverSlot?.hour === hour &&
+                          dragOverSlot?.min === min
+                            ? "bg-primary/30 ring-2 ring-inset ring-primary/60 z-10"
+                            : ""
+                        )}
                         style={{ height: `${SLOT_HEIGHT}px` }}
                       />
                     ))}
 
-                    {appointments
+                    {/* Appointment cards — rendered from localAppointments for optimistic UI */}
+                    {localAppointments
                       .filter((appt) => {
                         if (appt.staff_id !== col.staffId) return false;
                         const bogota = getBogotaTime(appt.start_time);
@@ -876,16 +983,34 @@ export function CalendarView({
                         const isCompleted = appt.status === 'completed';
                         const isCompact = height < 38;
                         const isTiny = height < 24;
+                        const isBeingDragged = movingId === appt.id;
                       
                         return (
                         <div 
                           key={appt.id}
-                          onClick={() => setSelectedAppt(appt)}
+                          draggable={appt.status !== 'completed'}
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('appointmentId', appt.id);
+                            e.dataTransfer.effectAllowed = 'move';
+                            // Delay so the drag ghost renders before hiding the source
+                            setTimeout(() => {
+                              setMovingId(appt.id);
+                              setIsDragging(true);
+                            }, 0);
+                          }}
+                          onDragEnd={() => {
+                            setMovingId(null);
+                            setIsDragging(false);
+                            setDragOverSlot(null);
+                          }}
+                          onClick={() => { if (!isBeingDragged) setSelectedAppt(appt); }}
                           style={{ top: `${top}px`, height: `${height}px` }}
                           className={cn(
                             "absolute inset-x-1 z-[2] border transition-all cursor-grab active:cursor-grabbing group/appt overflow-hidden animate-in zoom-in-95 duration-300",
                             isTiny ? "rounded-md px-1.5 py-0 flex items-center gap-1" : isCompact ? "rounded-lg px-2 py-0.5" : "rounded-xl p-2.5 shadow-lg",
-                            getBarberColor(appt.staff_id, appt.status, theme)
+                            getBarberColor(appt.staff_id, appt.status, theme),
+                            // Visual feedback while this card is being dragged
+                            isBeingDragged ? "opacity-40 scale-95 ring-2 ring-primary/50 pointer-events-none" : ""
                           )}
                         >
                           {isTiny ? (
