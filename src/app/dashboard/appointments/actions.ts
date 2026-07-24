@@ -114,7 +114,6 @@ export async function createAppointmentAction(formData: FormData) {
 
   const { staff } = await getSession();
   const isAdmin = staff?.role === 'admin' || staff?.role === 'owner';
-  const forceFit = formData.get("force_fit") === "true";
 
   let firstApptId = null;
 
@@ -174,7 +173,7 @@ export async function createAppointmentAction(formData: FormData) {
     const start_time = new Date(`${date}T${time}:00-05:00`);
     let end_time = new Date(start_time.getTime() + total_duration * 60000);
 
-    if (forceFit && isAdmin) {
+    if (isAdmin) {
       // Admin is forcing the appointment to fit into a smaller gap.
       // We find any overlapping constraints and truncate end_time.
       const { data: conflicts } = await (adminSupabase as any)
@@ -530,7 +529,6 @@ export async function updateAppointmentDetailsAction(appointmentId: string, form
     
   const { staff } = await getSession();
   const isAdmin = staff?.role === 'admin' || staff?.role === 'owner';
-  const forceFit = formData.get("force_fit") === "true";
 
   // Calculate totals accounting for duplicate service IDs (same service multiple times)
   const serviceMap = new Map<string, ServiceRecord>((servicesData || []).map((s: any) => [s.id, s]));
@@ -546,7 +544,7 @@ export async function updateAppointmentDetailsAction(appointmentId: string, form
   const start = new Date(`${date}T${time}:00-05:00`);
   let end = new Date(start.getTime() + duration * 60000);
 
-  if (forceFit && isAdmin) {
+  if (isAdmin) {
     const { data: conflicts } = await (adminSupabase as any)
       .from("appointments")
       .select("start_time")

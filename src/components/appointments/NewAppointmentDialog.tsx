@@ -34,7 +34,6 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
 
   const activeView = useAuthStore(state => state.activeView);
   const isAdmin = activeView === 'admin';
-  const [forceFit, setForceFit] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -205,10 +204,6 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
     
     // Append all selected service ids as JSON array
     fd.append("service_ids", JSON.stringify(formData.service_ids));
-
-    if (isAdmin && forceFit) {
-      fd.append("force_fit", "true");
-    }
 
     if (isFragmentedValid) {
       const fragIdx = parseInt(formData.time.split("-")[1]);
@@ -534,25 +529,6 @@ export function NewAppointmentDialog({ clients, staff, services, appointments, e
                     </select>
                   </div>
                 </div>
-
-                {/* Force Fit Checkbox (Admin Only) */}
-                {isAdmin && formData.time && (
-                  <label className="flex items-center gap-3 p-3 rounded-2xl border border-white/5 bg-zinc-900/30 cursor-pointer hover:bg-zinc-900/50 transition-colors mt-2">
-                    <div className="relative flex items-center justify-center">
-                      <input 
-                        type="checkbox" 
-                        checked={forceFit}
-                        onChange={(e) => setForceFit(e.target.checked)}
-                        className="peer appearance-none w-5 h-5 border-2 border-zinc-600 rounded-md checked:bg-primary checked:border-primary transition-all cursor-pointer"
-                      />
-                      <CheckCircle2 className="w-3.5 h-3.5 text-black absolute opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-xs font-bold text-white leading-none mb-1">Forzar cita en espacio reducido</p>
-                      <p className="text-[10px] text-zinc-500 font-medium leading-tight">Si el tiempo del servicio es mayor al hueco disponible, ajustará la hora de fin automáticamente.</p>
-                    </div>
-                  </label>
-                )}
 
                 {/* Availability Indicator */}
                 {availability.status !== 'idle' && (
