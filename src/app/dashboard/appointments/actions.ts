@@ -201,7 +201,7 @@ export async function createAppointmentAction(formData: FormData) {
          if (firstConflict > start_time) {
            end_time = firstConflict; // Truncate to fit precisely!
          } else {
-           return { error: "El horario inicial ya está ocupado." };
+           return { error: `El horario inicial ya está ocupado. (Debug: start=${start_time.toISOString()}, conflict=${firstConflict.toISOString()})` };
          }
       }
     } else {
