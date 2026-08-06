@@ -144,7 +144,7 @@ export async function getBIAnalytics(range: string = "month", specificDate?: str
     .sort((a, b) => b.count - a.count);
 
   // 4. Heatmap (Dynamic operating hours 1-hour slots)
-  const tenantData = tenantRes.data || {};
+  const tenantData = (tenantRes.data || {}) as Record<string, any>;
   let startHour = Number(tenantData.business_start ?? 8);
   let endHour = Number(tenantData.business_end ?? 20);
 
