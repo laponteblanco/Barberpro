@@ -49,6 +49,8 @@ export async function getBIAnalytics(range: string = "month", specificDate?: str
       startDate = new Date(Date.UTC(year, month, 1, 5, 0, 0, 0));
       endDate = new Date(Date.UTC(year, month + 1, 1, 4, 59, 59, 999));
     }
+  } // close else (specificDate)
+
   // Cap endDate to current time so future dates or future appointments are never included in reports
   const realNow = new Date();
   if (endDate > realNow) {
@@ -275,7 +277,7 @@ export async function getBIAnalytics(range: string = "month", specificDate?: str
     },
     staffPerformance,
     paretoServices,
-    heatmap: normalizedHeatmap,
+    heatmap: heatmapData,
     topProducts,
     topClients
   };
